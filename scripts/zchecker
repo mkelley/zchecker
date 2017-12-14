@@ -1,0 +1,30 @@
+#!/usr/bin/env python3
+import os
+import re
+import argparse
+import json
+from zchecker import ZChecker
+
+parser = argparse.ArgumentParser(description='Find small bodies in a night of ZTF observations.', epilog='''Configuration file format:
+{
+  "user": "your IRSA user name",
+  "password": "your IRSA password"
+}
+''')
+parser.add_argument('file', help='File name of the object list, one object per line.  Designations must be resolvable by JPL/HORIZONS.')
+parser.add_argument('date', help='UT date to query: YYYY-MM-DD.')
+parser.add_argument('--db', default='zchecker.db', help='Use this database file.')
+parser.add_argument('--config', default=os.path.expanduser('~/.config/zchecker.config'), help='Use this configuration file.')
+args = parser.parse_args()
+
+assert re.match('20[12][0-9]-[01][0-9]-[0-3][0-9]', args.date)
+
+with open(args.file) as f:
+    comets = [s.strip() for s in f.readlines()]
+
+with open(args.config) as f:
+    auth = json.load(f)
+
+with ZChecker(args.db, auth) as z:
+    z.find(comets, args.date)
+
