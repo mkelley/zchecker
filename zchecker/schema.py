@@ -73,4 +73,7 @@ schema = [
 
     '''CREATE VIEW IF NOT EXISTS obsnight AS
     SELECT * FROM obs INNER JOIN nights ON obs.nightid=nights.rowid'''
+
+    '''CREATE VIEW IF NOT EXISTS cutouturl (foundid,url) AS
+    select found.rowid,printf("https://irsa.ipac.caltech.edu/ibe/data/ztf/products/sci/%s/%s/%s/ztf_%s_%06d_%s_c%02d_o_q%1d_sciimg.fits?center=%f,%fdeg&size=5arcmin",substr(filefracday,1,4),substr(filefracday,5,4),substr(filefracday,9),filefracday,field,filtercode,ccdid,qid,found.ra,found.dec) from found inner join obs on found.pid=obs.pid'''
 ]
