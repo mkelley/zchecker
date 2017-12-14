@@ -52,6 +52,8 @@ schema = [
     retrieved TEXT
     )''',
 
+    'CREATE UNIQUE INDEX IF NOT EXISTS desg_jd ON eph(desg,jd)',
+
     '''CREATE TABLE IF NOT EXISTS found(
     desg TEXT,
     ra FLOAT,

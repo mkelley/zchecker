@@ -241,7 +241,8 @@ class ZChecker:
                 found = self._silicon_test(objects[j], eph[j], fov)
                 if found is None:
                     continue
-                
+
+                print('Found', objects[j])
                 self.db.execute('''
                 INSERT OR REPLACE INTO found VALUES
                 (?,?,?,?,?,?,?,?,?,?,?,?)
