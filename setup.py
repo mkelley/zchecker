@@ -10,6 +10,6 @@ if __name__ == "__main__":
           url="https://github.com/mkelley/zchecker",
           packages=find_packages(),
           requires=['numpy', 'astropy', 'requests'],
-          scripts=['scripts/zchecker'],
+          scripts=['scripts/zchecker', 'scripts/zchecker-eph-update'],
           license='BSD',
       )

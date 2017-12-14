@@ -67,10 +67,15 @@ class ZChecker:
           UT date, YYYY-MM-DD, of the night to check.
 
         """
+
+        import astropy.units as u
+        from astropy.time import Time
+        
         if self.nightid(date) is None:
             self.update_obs(date)
-            
-        self.update_objects(objects, date)
+
+        end = (Time(date) + 1 * u.day + 1 * u.s).iso[:10]
+        self.update_ephemeris(objects, date, end)
         self.fov_search(date)
     
     def update_obs(self, date):
@@ -105,22 +110,13 @@ class ZChecker:
         '''.format(','.join('?' * (len(cols) + 2))), rows(nightid, tab))
         self.db.commit()
 
-    def update_objects(self, objects, date, update=False):
-        import astropy.units as u
+    def update_ephemeris(self, objects, start, end, update=False):
         from astropy.time import Time
-        import callhorizons
+        from . import eph
 
-        def query2db(q, obj):
-            now = Time.now().iso[:16]
-            for i in range(len(q)):
-                yield (obj, q['datetime_jd'][i], q['RA'][i], q['DEC'][i],
-                       q['RA_rate'][i], q['DEC_rate'][i], now)
-
-        start = date
-        stop = (Time(date) + 1 * u.day).iso[:16]
         jd_start = Time(start).jd
-        jd_stop = Time(stop).jd
-        print('Query HORIZONS for nightly ephemerides.')
+        jd_end = Time(end).jd
+        print('Query HORIZONS for ephemerides.')
         for obj in objects:
             print('*', obj, end=' ')
 
@@ -130,20 +126,18 @@ class ZChecker:
                 WHERE desg = ?
                   AND jd >= ?
                   AND jd <= ?
-                ''', (obj, jd_start, jd_stop)).fetchone()[0]
+                ''', (obj, jd_start, jd_end)).fetchone()[0]
                 if c > 2:
                     print('- Ephemeris already exists.')
                     continue
-                
-            q = callhorizons.query(obj)
-            q.set_epochrange(start, stop, '6h')
-            if q.get_ephemerides('I41') <= 0:
-                print('- Error retrieving ephemeris')
-                continue
 
-            self.db.executemany('''
-            INSERT OR IGNORE INTO eph VALUES (?,?,?,?,?,?,?)
-            ''', query2db(q, obj))
+            try:
+                self.db.executemany('''
+                INSERT OR IGNORE INTO eph VALUES (?,?,?,?,?,?,?)
+                ''', eph.update(obj, start, end, '6h'))
+            except ZCheckerError as e:
+                print('- Error retrieving ephemeris')
+                
             print()
 
         self.db.commit()
@@ -190,6 +184,7 @@ class ZChecker:
             return None
                 
     def fov_search(self, date):
+        import numpy as np
         import astropy.units as u
         from astropy.coordinates import SkyCoord
         from .eph import interp
@@ -200,14 +195,18 @@ class ZChecker:
         jd = list([row['obsjd'] for row in c.fetchall()])
 
         for i in range(len(jd)):
-            print(jd[i])
+            print('\r', jd[i], sep='', end='')
 
             # Get 2 nearest ephemeris epochs
             rows = self.db.execute('''
-            SELECT DISTINCT jd FROM eph
+            SELECT DISTINCT jd,ABS(jd - ?) FROM eph
             ORDER BY ABS(jd - ?) limit 2
-            ''', [jd[i]]).fetchall()
+            ''', [jd[i], jd[i]]).fetchall()
             ephjd = sorted([row['jd'] for row in rows])
+            dt = sorted([row[1] for row in rows])
+
+            if min(dt) > 0.25:
+                print('\n  No ephemerides found within 6 hr of date.')
 
             # Get all ephemerides for this epoch
             c1 = self.db.execute('''
@@ -242,7 +241,7 @@ class ZChecker:
                 if found is None:
                     continue
 
-                print('Found', objects[j])
+                print('\n  Found', objects[j])
                 self.db.execute('''
                 INSERT OR REPLACE INTO found VALUES
                 (?,?,?,?,?,?,?,?,?,?,?,?)

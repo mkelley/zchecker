@@ -1,0 +1,22 @@
+#!/usr/bin/env python3
+import os
+import re
+import argparse
+import json
+from zchecker import ZChecker
+
+parser = argparse.ArgumentParser(description='Update zchecker ephemerides.', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+parser.add_argument('file', help='File name of the object list, one object per line.  Designations must be resolvable by JPL/HORIZONS.')
+parser.add_argument('--start', default='2017-11-01', help='Start date of ephemeris: YYYY-MM-DD.')
+parser.add_argument('--end', default='2018-03-01', help='End date of ephemeris: YYYY-MM-DD.')
+parser.add_argument('--db', default='zchecker.db', help='Use this database file.')
+args = parser.parse_args()
+
+assert re.match('20[12][0-9]-[01][0-9]-[0-3][0-9]', args.start)
+assert re.match('20[12][0-9]-[01][0-9]-[0-3][0-9]', args.end)
+
+with open(args.file) as f:
+    comets = [s.strip() for s in f.readlines()]
+
+with ZChecker(args.db, {}) as z:
+    z.update_ephemeris(comets, args.start, args.end, update=True)

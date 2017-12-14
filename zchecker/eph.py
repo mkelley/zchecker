@@ -1,4 +1,9 @@
 # Licensed under a 3-clause BSD style license - see LICENSE.rst
+from .exceptions import ZCheckerError
+
+class NoEphemerisReturned(ZCheckerError):
+    pass
+
 def interp(jd, c1, c2):
     """Interpolate between two ephemeris positions.
 
@@ -42,3 +47,17 @@ def interp(jd, c1, c2):
         dec.append(p1 * c1[i]['dec'] + p2 * c2[i]['dec'])
 
     return np.array(objects), SkyCoord(ra, dec, unit='deg')
+
+def update(obj, start, end, step):
+    from astropy.time import Time
+    import callhorizons
+    q = callhorizons.query(obj)
+    q.set_epochrange(start, end, '6h')
+    if q.get_ephemerides('I41') <= 0:
+        raise NoEphemerisReturned
+
+    now = Time.now().iso[:16]
+    for i in range(len(q)):
+        yield (obj, q['datetime_jd'][i], q['RA'][i], q['DEC'][i],
+               q['RA_rate'][i], q['DEC_rate'][i], now)
+
