@@ -248,3 +248,5 @@ class ZChecker:
                 ''', found)
 
             self.db.commit()
+        print()
+
