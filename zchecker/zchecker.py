@@ -76,7 +76,7 @@ class ZChecker:
 
         end = (Time(date) + 1 * u.day + 1 * u.s).iso[:10]
         self.update_ephemeris(objects, date, end)
-        self.fov_search(date)
+        self.fov_search(objects, date)
     
     def update_obs(self, date):
         import astropy.units as u
@@ -183,7 +183,7 @@ class ZChecker:
         else:
             return None
                 
-    def fov_search(self, date):
+    def fov_search(self, objects, date):
         import numpy as np
         import astropy.units as u
         from astropy.coordinates import SkyCoord
@@ -208,16 +208,6 @@ class ZChecker:
             if min(dt) > 0.25:
                 print('\n  No ephemerides found within 6 hr of date.')
 
-            # Get all ephemerides for this epoch
-            c1 = self.db.execute('''
-            SELECT desg,jd,ra,dec FROM eph WHERE jd=? ORDER BY desg
-            ''', [ephjd[0]]).fetchall()
-            c2 = self.db.execute('''
-            SELECT desg,jd,ra,dec FROM eph WHERE jd=? ORDER BY desg
-            ''', [ephjd[1]]).fetchall()
-
-            objects, eph = interp(jd[i], list(c1), list(c2))
-
             # get ZTF fields of view by CCD quadrant
             quads = self.db.execute('''
             SELECT pid,obsjd,ra,dec,crpix1,crpix2,crval1,crval2,
@@ -230,14 +220,24 @@ class ZChecker:
                            [quad['dec'] for quad in quads],
                            unit='deg')
             for j in range(len(objects)):
+                # Estimate ephemeris for this epoch
+                c1 = self.db.execute('''
+                SELECT jd,ra,dec FROM eph WHERE jd=? AND desg=?
+                ''', [ephjd[0], objects[j]]).fetchone()
+                c2 = self.db.execute('''
+                SELECT jd,ra,dec FROM eph WHERE jd=? AND desg=?
+                ''', [ephjd[1], objects[j]]).fetchone()
+
+                eph = interp(jd[i], c1, c2)
+
                 # anything within 2 deg of a FOV center should get
                 # investigated
-                d = eph[j].separation(fovs)
+                d = eph.separation(fovs)
                 if d.min() > 2.0 * u.deg:
                     continue
-                
+
                 fov = quads[d.argmin()]
-                found = self._silicon_test(objects[j], eph[j], fov)
+                found = self._silicon_test(objects[j], eph, fov)
                 if found is None:
                     continue
 
