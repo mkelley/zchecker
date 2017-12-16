@@ -54,6 +54,10 @@ class ZChecker:
         else:
             return nightid[0]
 
+    def available_nights(self):
+        c = self.db.execute('SELECT date FROM nights ORDER BY date')
+        return list([d[0] for d in c.fetchall()])
+
     def find(self, objects, date):
         """Perform all steps to find small bodies in ZTF fields.
 
