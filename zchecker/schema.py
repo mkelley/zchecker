@@ -62,6 +62,7 @@ schema = [
     ddec FLOAT,
     vmag FLOAT,
     rh FLOAT,
+    rdot FLOAT,
     delta FLOAT,
     phase FLOAT,
     pid INTEGER,
@@ -73,6 +74,11 @@ schema = [
 
     '''CREATE VIEW IF NOT EXISTS obsnight AS
     SELECT * FROM obs INNER JOIN nights ON obs.nightid=nights.rowid''',
+
+    '''CREATE VIEW IF NOT EXISTS foundobs AS
+    SELECT * FROM found
+    INNER JOIN obs ON found.pid=obs.pid
+    INNER JOIN cutouturl ON found.rowid=foundid''',
 
     '''CREATE VIEW IF NOT EXISTS cutouturl (foundid,url) AS
     SELECT

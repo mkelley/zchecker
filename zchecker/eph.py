@@ -60,4 +60,3 @@ def update(obj, start, end, step):
     for i in range(len(q)):
         yield (obj, q['datetime_jd'][i], q['RA'][i], q['DEC'][i],
                q['RA_rate'][i], q['DEC_rate'][i], now)
-

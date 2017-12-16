@@ -177,7 +177,7 @@ class ZChecker:
         if (p[0] >=0 and p[0] <= 3072 and
             p[1] >= 0 and p[1] <= 3080):
             return (desg, q['RA'][0], q['DEC'][0], q['RA_rate'][0],
-                    q['DEC_rate'][0], q['V'][0], q['r'][0],
+                    q['DEC_rate'][0], q['V'][0], q['r'][0], q['r_rate'][0],
                     q['delta'][0], q['alpha'][0], fov['pid'],
                     int(p[0][0]), int(p[1][0]))
         else:
@@ -244,7 +244,7 @@ class ZChecker:
                 print('\n  Found', objects[j])
                 self.db.execute('''
                 INSERT OR REPLACE INTO found VALUES
-                (?,?,?,?,?,?,?,?,?,?,?,?)
+                (?,?,?,?,?,?,?,?,?,?,?,?,?)
                 ''', found)
 
             self.db.commit()
