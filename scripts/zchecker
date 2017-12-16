@@ -5,7 +5,9 @@ import argparse
 import json
 from zchecker import ZChecker
 
-parser = argparse.ArgumentParser(description='Find small bodies in a night of ZTF observations.', epilog='''Configuration file format:
+parser = argparse.ArgumentParser(description='Find small bodies in ZTF observations.', epilog='''Default is to search all observations in the local database.  Use --date to check new observations from IRSA.
+
+Configuration file format:
 {
   "user": "your IRSA user name",
   "password": "your IRSA password"
