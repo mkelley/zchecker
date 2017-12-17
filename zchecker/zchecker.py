@@ -254,3 +254,33 @@ class ZChecker:
             self.db.commit()
         print()
 
+    def get_cutouts(self, path):
+        import os
+
+        fntemplate = path + '/{desg}/{desg}-{datetime}-{prepost}{rh:.3f}-ztf.fits.gz'
+
+        os.system('wget --save-cookies={}/cookies.txt -O /dev/null "https://irsa.ipac.caltech.edu/account/signon/login.do?josso_cmd=login&josso_username={}&josso_password={}"'.format(path, self.auth['user'], self.auth['password']))
+
+        c = db.execute('SELECT desg,obsjd,rh,rdot,url FROM foundobs')
+        desg, obsjd, rh, rdot, url = zip(*c.fetchall())
+
+        for i in range(len(desg)):
+            d = desg2file(desg[i])
+            if not os.path.exists(path + '/cutouts/' + d):
+                os.system('mkdir -p {}/cutouts/{}'.format(path, d))
+
+            prepost = 'pre' if rdot[i] < 0 else 'post'
+            t = Time(obsjd[i], format='jd').iso.replace('-', '').replace(':', '').replace(' ', '_')[:13]
+
+            fn = fntemplate.format(desg=d, prepost=prepost, rh=rh[i],
+                                   datetime=t)
+            if os.path.exists(fn):
+                continue
+
+            cmd = 'wget --load-cookies=cookies.txt -O {} "{}"'.format(
+                fn, url[i])
+            os.system(cmd)
+
+        os.system('wget --save-cookies={}/cookies.txt -O /dev/null "https://irsa.ipac.caltech.edu/account/signon/logout.do"'.format(path))
+
+desg2file = lambda s: s.replace('/', '').replace(' ', '').lower()

@@ -13,11 +13,16 @@ def get_list(filename):
 def get_config(filename):
     with open(filename) as f:
         config = json.load(f)
-    return config
+        
+    auth = {
+        'user': config.pop('user'),
+        'password': config.pop('user')
+    }
+    return config, auth
 
 def search(args):
     objects = get_list(args.file)
-    config = get_config(args.config)
+    config, auth = get_config(args.config)
     with ZChecker(args.db, config) as z:
         if args.date is None:
             dates = z.available_nights()
@@ -28,6 +33,12 @@ def search(args):
         for date in dates:
             z.find(comets, date)
 
+def get_cutouts(args):
+    config, auth = get_config(args.config)
+    path = config['cutout path'] if args.path is None else args.path
+    with ZChecker(args.db, config) as z:
+        z.get_cutouts(path)
+
 def eph_update(args):
     objects = get_list(args.file)
     assert re.match('20[12][0-9]-[01][0-9]-[0-3][0-9]', args.start)
@@ -37,7 +48,7 @@ def eph_update(args):
         z.update_ephemeris(objects, args.start, args.end, update=True)
 
 def ztf_update(args):
-    config = get_config(args.config)
+    config, auth = get_config(args.config)
     assert re.match('20[12][0-9]-[01][0-9]-[0-3][0-9]', args.date)
 
     with ZChecker(args.db, config) as z:
@@ -45,7 +56,17 @@ def ztf_update(args):
 
 
 # create the top-level parser
-parser = argparse.ArgumentParser(prog='zchecker', description='ZTF small-body search tool.')
+parser = argparse.ArgumentParser(prog='zchecker', description='ZTF small-body search tool.', epilog='''
+Configuration file format:
+
+{
+  "user": "IRSA account user name",
+  "password": "IRSA account password",
+  "cutout_target": "/path/to/cutout/target/directory"
+}
+
+''')
+
 parser.add_argument('--db', default='zchecker.db', help='Use this database file.')
 parser.add_argument('--config', default=os.path.expanduser('~/.config/zchecker.config'), help='Use this configuration file.')
 subparsers = parser.add_subparsers(help='sub-command')
@@ -67,6 +88,11 @@ parser_eph.set_defaults(func=eph_update)
 parser_ztf = subparsers.add_parser('ztf-update', help='Update local ZTF database.', aliases=['ztf'])
 parser_ztf.add_argument('date', help='Retrieve observations for this UT date.')
 parser_ztf.set_defaults(func=ztf_update)
+
+# GET-CUTOUTS
+parser_ztf = subparsers.add_parser('get-cutouts', help='Download cutouts.')
+parser_ztf.add_argument('--path', help='Local cutout path.  Files will be sorted into object subdirectories.  The default is taken from the config file.')
+parser_ztf.set_defaults(func=get_cutouts)
 
 args = parser.parse_args()
 parser.print_help()
