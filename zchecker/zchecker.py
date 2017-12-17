@@ -90,7 +90,7 @@ class ZChecker:
         end = '{} 12:00'.format(date)
         start = (Time(end) - 24 * u.hr).iso[:16]
         q = "obsdate>'{}' AND obsdate<'{}'".format(start, end)
-        
+
         cols = ['field', 'ccdid', 'qid', 'rcid', 'fid',
                 'filtercode', 'pid', 'expid', 'obsdate',
                 'obsjd', 'filefracday', 'seeing', 'airmass',
@@ -101,7 +101,7 @@ class ZChecker:
         tab = ztf.query({'WHERE': q, 'COLUMNS': ','.join(cols)}, self.auth)
 
         self.db.execute('''
-        INSERT OR IGNORE INTO nights VALUES (?,?)
+        INSERT OR REPLACE INTO nights VALUES (?,?)
         ''', [date, len(tab)])
 
         nightid = self.nightid(date)

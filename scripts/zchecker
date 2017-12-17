@@ -5,32 +5,68 @@ import argparse
 import json
 from zchecker import ZChecker
 
-parser = argparse.ArgumentParser(description='Find small bodies in ZTF observations.', epilog='''Default is to search all observations in the local database.  Use --date to check new observations from IRSA.
+def get_list(filename):
+    with open(filename) as f:
+        objects = [s.strip() for s in f.readlines()]
+    return objects
 
-Configuration file format:
-{
-  "user": "your IRSA user name",
-  "password": "your IRSA password"
-}
-''')
-parser.add_argument('file', help='File name of the object list, one object per line.  Designations must be resolvable by JPL/HORIZONS.')
-parser.add_argument('--date', help='UT date to query: YYYY-MM-DD.')
+def get_config(filename):
+    with open(filename) as f:
+        config = json.load(f)
+    return config
+
+def search(args):
+    objects = get_list(args.file)
+    config = get_config(args.config)
+    with ZChecker(args.db, config) as z:
+        if args.date is None:
+            dates = z.available_nights()
+        else:
+            assert re.match('20[12][0-9]-[01][0-9]-[0-3][0-9]', args.date)
+            dates = [args.date]
+
+        for date in dates:
+            z.find(comets, date)
+
+def eph_update(args):
+    objects = get_list(args.file)
+    assert re.match('20[12][0-9]-[01][0-9]-[0-3][0-9]', args.start)
+    assert re.match('20[12][0-9]-[01][0-9]-[0-3][0-9]', args.end)
+
+    with ZChecker(args.db, {}) as z:
+        z.update_ephemeris(objects, args.start, args.end, update=True)
+
+def ztf_update(args):
+    config = get_config(args.config)
+    assert re.match('20[12][0-9]-[01][0-9]-[0-3][0-9]', args.date)
+
+    with ZChecker(args.db, config) as z:
+        z.update_obs(args.date)
+
+
+# create the top-level parser
+parser = argparse.ArgumentParser(prog='zchecker', description='ZTF small-body search tool.')
 parser.add_argument('--db', default='zchecker.db', help='Use this database file.')
 parser.add_argument('--config', default=os.path.expanduser('~/.config/zchecker.config'), help='Use this configuration file.')
+subparsers = parser.add_subparsers(help='sub-command')
+
+# SEARCH
+parser_search = subparsers.add_parser('search', help='Search ZTF fields in local database.')
+parser_search.add_argument('file', help='Object list file name, one designation per line.  Designations must be resolvable by JPL/HORIZONS.')
+parser_search.add_argument('--date', help='Search this date.  Default is to search all observations in the local database.')
+parser_search.set_defaults(func=search)
+
+# EPH-UPDATE
+parser_eph = subparsers.add_parser('eph-update', help='Update local ephemeris database.', aliases=['eph'])
+parser_eph.add_argument('file', help='Object list file name, one designation per line.  Designations must be resolvable by JPL/HORIZONS.')
+parser_eph.add_argument('--start', default='2017-11-01', help='Start date of ephemeris: YYYY-MM-DD.')
+parser_eph.add_argument('--end', default='2018-03-01', help='End date of ephemeris: YYYY-MM-DD.')
+parser_eph.set_defaults(func=eph_update)
+
+# ZTF-UPDATE
+parser_ztf = subparsers.add_parser('ztf-update', help='Update local ZTF database.', aliases=['ztf'])
+parser_ztf.add_argument('date', help='Retrieve observations for this UT date.')
+parser_ztf.set_defaults(func=ztf_update)
+
 args = parser.parse_args()
-
-with open(args.file) as f:
-    comets = [s.strip() for s in f.readlines()]
-
-with open(args.config) as f:
-    auth = json.load(f)
-
-with ZChecker(args.db, auth) as z:
-    if args.date is None:
-        dates = z.available_nights()
-    else:
-        assert re.match('20[12][0-9]-[01][0-9]-[0-3][0-9]', args.date)
-        dates = [args.date]
-
-    for date in dates:
-        z.find(comets, date)
+parser.print_help()
