@@ -54,6 +54,9 @@ def ztf_update(args):
     with ZChecker(args.db, auth) as z:
         z.update_obs(args.date)
 
+def list_nights(args):
+    with ZChecker(args.db, {}) as z:
+        print('\n'.join(z.available_nights()))
 
 # create the top-level parser
 parser = argparse.ArgumentParser(prog='zchecker', description='ZTF small-body search tool.', epilog='''
@@ -93,6 +96,10 @@ parser_ztf.set_defaults(func=ztf_update)
 parser_cutout = subparsers.add_parser('download-cutouts', help='Download cutouts.', aliases=['cutouts'])
 parser_cutout.add_argument('--path', help='Local cutout path.  Files will be sorted into object subdirectories.  The default is taken from the config file.')
 parser_cutout.set_defaults(func=download_cutouts)
+
+# LIST-NIGHTS
+parser_nights = subparsers.add_parser('list-nights', help='List all ZTF nights saved to local database.', aliases=['nights'])
+parser_nights.set_defaults(func=list_nights)
 
 args = parser.parse_args()
 try:
