@@ -278,8 +278,8 @@ class ZChecker:
             if os.path.exists(fn):
                 continue
 
-            cmd = 'wget --load-cookies=cookies.txt -O {} "{}"'.format(
-                fn, url[i])
+            cmd = 'wget --load-cookies={}/cookies.txt -O {} "{}"'.format(
+                path, fn, url[i])
             os.system(cmd)
 
         os.system('wget --save-cookies={}/cookies.txt -O /dev/null "https://irsa.ipac.caltech.edu/account/signon/logout.do"'.format(path))
