@@ -95,5 +95,7 @@ parser_cutout.add_argument('--path', help='Local cutout path.  Files will be sor
 parser_cutout.set_defaults(func=get_cutouts)
 
 args = parser.parse_args()
-args.func(args)
-#parser.print_help()
+try:
+    args.func(args)
+except AttributeError:
+    parser.print_help()
