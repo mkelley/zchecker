@@ -33,11 +33,11 @@ def search(args):
         for date in dates:
             z.find(objects, date)
 
-def get_cutouts(args):
+def download_cutouts(args):
     config, auth = get_config(args.config)
     path = config['cutout path'] if args.path is None else args.path
     with ZChecker(args.db, auth) as z:
-        z.get_cutouts(path)
+        z.download_cutouts(path)
 
 def eph_update(args):
     objects = get_list(args.file)
@@ -90,9 +90,9 @@ parser_ztf.add_argument('date', help='Retrieve observations for this UT date.')
 parser_ztf.set_defaults(func=ztf_update)
 
 # GET-CUTOUTS
-parser_cutout = subparsers.add_parser('get-cutouts', help='Download cutouts.')
+parser_cutout = subparsers.add_parser('download-cutouts', help='Download cutouts.', aliases=['cutouts'])
 parser_cutout.add_argument('--path', help='Local cutout path.  Files will be sorted into object subdirectories.  The default is taken from the config file.')
-parser_cutout.set_defaults(func=get_cutouts)
+parser_cutout.set_defaults(func=download_cutouts)
 
 args = parser.parse_args()
 try:

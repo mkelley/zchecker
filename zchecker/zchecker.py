@@ -254,14 +254,15 @@ class ZChecker:
             self.db.commit()
         print()
 
-    def get_cutouts(self, path):
+    def download_cutouts(self, path):
         import os
+        from astropy.time import Time
 
         fntemplate = path + '/{desg}/{desg}-{datetime}-{prepost}{rh:.3f}-ztf.fits.gz'
 
         os.system('wget --save-cookies={}/cookies.txt -O /dev/null "https://irsa.ipac.caltech.edu/account/signon/login.do?josso_cmd=login&josso_username={}&josso_password={}"'.format(path, self.auth['user'], self.auth['password']))
 
-        c = db.execute('SELECT desg,obsjd,rh,rdot,url FROM foundobs')
+        c = self.db.execute('SELECT desg,obsjd,rh,rdot,url FROM foundobs')
         desg, obsjd, rh, rdot, url = zip(*c.fetchall())
 
         for i in range(len(desg)):
