@@ -31,7 +31,7 @@ def search(args):
             dates = [args.date]
 
         for date in dates:
-            z.find(comets, date)
+            z.find(objects, date)
 
 def get_cutouts(args):
     config, auth = get_config(args.config)
