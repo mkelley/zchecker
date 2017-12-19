@@ -136,12 +136,18 @@ class ZChecker:
                     continue
 
             try:
+                self.db.execute('''
+                DELETE FROM eph
+                WHERE desg=?
+                  AND jd >= ?
+                  AND jd <= ?
+                ''', (obj, jd_start, jd_end))
                 self.db.executemany('''
                 INSERT OR IGNORE INTO eph VALUES (?,?,?,?,?,?,?)
                 ''', eph.update(obj, start, end, '6h'))
             except ZCheckerError as e:
                 print('- Error retrieving ephemeris')
-                
+
             print()
 
         self.db.commit()
@@ -256,14 +262,23 @@ class ZChecker:
 
     def download_cutouts(self, path):
         import os
+        from astropy.io import fits
         from astropy.time import Time
 
         fntemplate = path + '/{desg}/{desg}-{datetime}-{prepost}{rh:.3f}-ztf.fits.gz'
 
         os.system('wget --save-cookies={}/cookies.txt -O /dev/null "https://irsa.ipac.caltech.edu/account/signon/login.do?josso_cmd=login&josso_username={}&josso_password={}"'.format(path, self.auth['user'], self.auth['password']))
 
-        c = self.db.execute('SELECT desg,obsjd,rh,rdot,url FROM foundobs')
-        desg, obsjd, rh, rdot, url = zip(*c.fetchall())
+        c = self.db.execute('''
+        SELECT foundobs.desg as desg,obsjd,rh,delta,phase,rdot,retrieved,
+               foundobs.ra as ra,foundobs.dec as dec,
+               foundobs.dra as dra,foundobs.ddec as ddec,url
+          FROM foundobs
+          INNER JOIN (SELECT DISTINCT desg,retrieved FROM eph) AS ephupdate
+          ON foundobs.desg=ephupdate.desg
+        ''')
+        (desg, obsjd, rh, delta, phase, rdot, retrieved, ra, dec, dra, ddec,
+         url) = zip(*c.fetchall())
 
         for i in range(len(desg)):
             d = desg2file(desg[i])
@@ -281,6 +296,18 @@ class ZChecker:
             cmd = 'wget --load-cookies={}/cookies.txt -O {} "{}"'.format(
                 path, fn, url[i])
             os.system(cmd)
+
+            with fits.open(fn, 'update') as hdu:
+                hdu[0].header['desg'] = desg[i], 'Target designation'
+                hdu[0].header['rh'] = rh[i], 'Heliocentric distance, au'
+                hdu[0].header['delta'] = delta[i], 'Observer-target distance, au'
+                hdu[0].header['phase'] = phase[i], 'Sun-target-observer angle, deg'
+                hdu[0].header['rdot'] = rdot[i], 'Heliocentric radial velocity, km/s'
+                hdu[0].header['ephdate'] = rh[i], 'Date ephemeris retrieved from JPL/HORIZONS'
+                hdu[0].header['tgtra'] = ra[i], 'Target RA, deg'
+                hdu[0].header['tgtdec'] = ra[i], 'Target Dec, deg'
+                hdu[0].header['tgtdra'] = ra[i], 'Target RA*cos(dec) rate of change, arcsec/hr'
+                hdu[0].header['tgtddec'] = ra[i], 'Target Dec rate of change, arcsec.hr'
 
         os.system('wget --save-cookies={}/cookies.txt -O /dev/null "https://irsa.ipac.caltech.edu/account/signon/logout.do"'.format(path))
 
