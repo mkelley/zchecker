@@ -262,22 +262,20 @@ class ZChecker:
 
     def download_cutouts(self, path):
         import os
+        import astropy.units as u
         from astropy.io import fits
         from astropy.time import Time
+        from astropy.wcs import WCS
 
         fntemplate = path + '/{desg}/{desg}-{datetime}-{prepost}{rh:.3f}-ztf.fits.gz'
 
         os.system('wget --save-cookies={}/cookies.txt -O /dev/null "https://irsa.ipac.caltech.edu/account/signon/login.do?josso_cmd=login&josso_username={}&josso_password={}"'.format(path, self.auth['user'], self.auth['password']))
 
         c = self.db.execute('''
-        SELECT foundobs.desg as desg,obsjd,rh,delta,phase,rdot,retrieved,
-               foundobs.ra as ra,foundobs.dec as dec,
-               foundobs.dra as dra,foundobs.ddec as ddec,url
+        SELECT desg,obsjd,rh,delta,phase,rdot,ra,dec,dra,ddec,url
           FROM foundobs
-          INNER JOIN (SELECT DISTINCT desg,retrieved FROM eph) AS ephupdate
-          ON foundobs.desg=ephupdate.desg
         ''')
-        (desg, obsjd, rh, delta, phase, rdot, retrieved, ra, dec, dra, ddec,
+        (desg, obsjd, rh, delta, phase, rdot, ra, dec, dra, ddec,
          url) = zip(*c.fetchall())
 
         for i in range(len(desg)):
@@ -303,11 +301,15 @@ class ZChecker:
                 hdu[0].header['delta'] = delta[i], 'Observer-target distance, au'
                 hdu[0].header['phase'] = phase[i], 'Sun-target-observer angle, deg'
                 hdu[0].header['rdot'] = rdot[i], 'Heliocentric radial velocity, km/s'
-                hdu[0].header['ephdate'] = rh[i], 'Date ephemeris retrieved from JPL/HORIZONS'
                 hdu[0].header['tgtra'] = ra[i], 'Target RA, deg'
-                hdu[0].header['tgtdec'] = ra[i], 'Target Dec, deg'
-                hdu[0].header['tgtdra'] = ra[i], 'Target RA*cos(dec) rate of change, arcsec/hr'
-                hdu[0].header['tgtddec'] = ra[i], 'Target Dec rate of change, arcsec.hr'
+                hdu[0].header['tgtdec'] = dec[i], 'Target Dec, deg'
+                hdu[0].header['tgtdra'] = dra[i], 'Target RA*cos(dec) rate of change, arcsec/hr'
+                hdu[0].header['tgtddec'] = ddec[i], 'Target Dec rate of change, arcsec.hr'
+
+                wcs = WCS(hdu[0].header)
+                x, y = wcs.all_world2pix(ra[i] * u.deg, dec[i] * u.deg, 0)
+                hdu[0].header['tgtx'] = int(x), 'Target x coordinate, 0-based'
+                hdu[0].header['tgty'] = int(y), 'Target y coordinate, 0-based'
 
         os.system('wget --save-cookies={}/cookies.txt -O /dev/null "https://irsa.ipac.caltech.edu/account/signon/logout.do"'.format(path))
 
