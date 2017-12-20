@@ -281,7 +281,7 @@ class ZChecker:
         for i in range(len(desg)):
             d = desg2file(desg[i])
             if not os.path.exists(path + '/cutouts/' + d):
-                os.system('mkdir -p {}/cutouts/{}'.format(path, d))
+                os.system('mkdir -p {}'.format(os.path.join(path, d)))
 
             prepost = 'pre' if rdot[i] < 0 else 'post'
             t = Time(obsjd[i], format='jd').iso.replace('-', '').replace(':', '').replace(' ', '_')[:13]
