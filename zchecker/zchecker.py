@@ -58,30 +58,13 @@ class ZChecker:
         c = self.db.execute('SELECT date FROM nights ORDER BY date')
         return list([d[0] for d in c.fetchall()])
 
-    def find(self, objects, date):
-        """Perform all steps to find small bodies in ZTF fields.
+    def available_objects(self):
+        rows = self.db.execute('''
+        SELECT DISTINCT desg,min(jd),max(jd),count(jd) FROM eph
+        GROUP BY desg ORDER BY desg + 0
+        ''').fetchall()
+        return rows
 
-        Parameters
-        ----------
-        objects : list of strings
-          Names of objects to search for.  Must be resolvable by
-          JPL/HORIZONS.
-
-        date : string
-          UT date, YYYY-MM-DD, of the night to check.
-
-        """
-
-        import astropy.units as u
-        from astropy.time import Time
-        
-        if self.nightid(date) is None:
-            self.update_obs(date)
-
-        end = (Time(date) + 1 * u.day + 1 * u.s).iso[:10]
-        self.update_ephemeris(objects, date, end)
-        self.fov_search(objects, date)
-    
     def update_obs(self, date):
         import astropy.units as u
         from astropy.time import Time
@@ -193,16 +176,40 @@ class ZChecker:
         else:
             return None
                 
-    def fov_search(self, objects, date):
+    def fov_search(self, start, end, objects=None):
+        """Search for objects in ZTF fields.
+
+        Parameters
+        ----------
+        start, end : string
+          Date range to check, UT, YYYY-MM-DD.
+
+        objects : list of strings, optional
+          Names of objects to search for.  Must be resolvable by
+          JPL/HORIZONS.
+
+        """
+
         import numpy as np
         import astropy.units as u
+        from astropy.time import Time
         from astropy.coordinates import SkyCoord
         from .eph import interp
 
+        end = (Time(end) + 1 * u.day + 1 * u.s).iso[:10]
+    
         c = self.db.execute('''
-        SELECT DISTINCT obsjd FROM obsnight WHERE date=?
-        ''', [date])
+        SELECT DISTINCT obsjd FROM obsnight WHERE date>=? AND date <=?
+        ''', (start, end))
         jd = list([row['obsjd'] for row in c.fetchall()])
+
+        if objects is None:
+            jd_start = Time(start).jd - 0.01
+            jd_end = Time(end).jd + 1.01
+            c = self.db.execute('''
+            SELECT DISTINCT desg FROM eph WHERE jd>=? AND jd<=?
+            ''', (jd_start, jd_end))
+            objects = [row[0] for row in c.fetchall()]
 
         for i in range(len(jd)):
             print('\r', jd[i], sep='', end='')
@@ -215,7 +222,7 @@ class ZChecker:
             ephjd = sorted([row['jd'] for row in rows])
             dt = sorted([row[1] for row in rows])
 
-            if min(dt) > 0.25:
+            if min(dt) > 0.26:
                 print('\n  No ephemerides found within 6 hr of date.')
 
             # get ZTF fields of view by CCD quadrant
