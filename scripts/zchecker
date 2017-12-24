@@ -29,9 +29,16 @@ def search(args):
             dates = sorted(z.available_nights())
             start = dates[0]
             end = dates[-1]
-        else:
+        elif args.start is not None:
+            assert args.end is not None
             start = args.start
             end = args.end
+        elif args.end is not None:
+            # should not get here unless there is an error
+            assert args.start is not None
+        else:
+            start = args.date
+            end = args.date
 
         assert re.match('20[12][0-9]-[01][0-9]-[0-3][0-9]', start)
         assert re.match('20[12][0-9]-[01][0-9]-[0-3][0-9]', end)
@@ -59,11 +66,11 @@ def ztf_update(args):
         z.update_obs(args.date)
 
 def list_nights(args):
-    with ZChecker(args.db, {}) as z:
+    with ZChecker(args.db, {}, log=False) as z:
         print('\n'.join(z.available_nights()))
 
 def list_objects(args):
-    with ZChecker(args.db, {}) as z:
+    with ZChecker(args.db, {}, log=False) as z:
         rows = z.available_objects()
 
     n = max((max([len(row[0]) for row in rows]), 4))
@@ -91,6 +98,7 @@ Configuration file format:
 
 parser.add_argument('--db', default='zchecker.db', help='Use this database file.')
 parser.add_argument('--config', default=os.path.expanduser('~/.config/zchecker.config'), help='Use this configuration file.')
+parser.add_argument('-v', action='store_true', help='Increase verbosity.')
 subparsers = parser.add_subparsers(help='Sub-commands')
 
 today = Time.now().iso[:10]
@@ -99,8 +107,9 @@ today = Time.now().iso[:10]
 parser_search = subparsers.add_parser('search', help='Search ZTF fields in local database.', epilog='Date format: YYYY-MM-DD.')
 parser_search.add_argument('--objects', type=list_file, help='Object list file name, one designation per line.  Designations must be resolvable by JPL/HORIZONS.  Default is to search all targets in the ephemeris database defined over the requested date range.')
 parser_search.add_argument('--full', action='store_true', help='Search all available nights.')
-parser_search.add_argument('--start', default=today, help='Search a range of dates, beginning with this date.  Default is today\'s UT date.')
-parser_search.add_argument('--end', default=today, help='Search a range of dates, ending with this date.  Default is today\'s UT date.')
+parser_search.add_argument('--date', default=today, help='Search a single date.')
+parser_search.add_argument('--start', help='Search a range of dates, beginning with this date.')
+parser_search.add_argument('--end', help='Search a range of dates, ending with this date.')
 parser_search.set_defaults(func=search)
 
 # EPH-UPDATE
@@ -132,5 +141,7 @@ parser_objects.set_defaults(func=list_objects)
 args = parser.parse_args()
 try:
     args.func(args)
-except AttributeError:
+except AttributeError as e:
     parser.print_help()
+    if args.v:
+        raise(e)

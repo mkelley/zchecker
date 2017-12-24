@@ -14,18 +14,28 @@ class ZChecker:
     auth : dictionary of strings
       'user' and 'password' to use for checking the ZTF database.
 
+    log : bool, optional
+      Set to `False` to disable logging.
+
     """
 
-    def __init__(self, dbfile, auth):
+    def __init__(self, dbfile, auth, log=True):
+        from . import logging
+        self.logger = logging.setup(log)
         self.auth = auth
         self.connect_db(dbfile)
 
     def __enter__(self):
+        from astropy.time import Time
+        self.logger.info(Time.now().iso)
         return self
 
     def __exit__(self, *args):
+        from astropy.time import Time
+        self.logger.info('Closing database.')
         self.db.commit()
         self.db.close()
+        self.logger.info(Time.now().iso)
 
     def connect_db(self, dbfile):
         """Connect to database and setup tables, as needed."""
@@ -43,6 +53,8 @@ class ZChecker:
 
         for cmd in schema:
             self.db.execute(cmd)
+
+        self.logger.info('Connected to database: {}'.format(dbfile))
 
     def nightid(self, date):
         c = self.db.execute('''
@@ -97,15 +109,23 @@ class ZChecker:
         '''.format(','.join('?' * (len(cols) + 2))), rows(nightid, tab))
         self.db.commit()
 
+        self.logger.info('Updated observation log for {} UT with {} images.'.format(date, len(tab)))
+
     def update_ephemeris(self, objects, start, end, update=False):
         from astropy.time import Time
         from . import eph
 
         jd_start = Time(start).jd
         jd_end = Time(end).jd
-        print('Query HORIZONS for ephemerides.')
+
+        if update:
+            self.logger.info('Updating ephemerides for the time period {} to {} UT.'.format(start, end))
+        else:
+            self.logger.info('Verifying ephemerides for the time period {} to {} UT.'.format(start, end))
+
+        updated = 0
         for obj in objects:
-            print('*', obj, end=' ')
+            self.logger.debug('* ' + obj)
 
             if not update:
                 c = self.db.execute('''
@@ -115,7 +135,7 @@ class ZChecker:
                   AND jd <= ?
                 ''', (obj, jd_start, jd_end)).fetchone()[0]
                 if c > 2:
-                    print('- Ephemeris already exists.')
+                    self.logger.debug('  Ephemeris already exists.')
                     continue
 
             try:
@@ -129,11 +149,12 @@ class ZChecker:
                 INSERT OR IGNORE INTO eph VALUES (?,?,?,?,?,?,?)
                 ''', eph.update(obj, start, end, '6h'))
             except ZCheckerError as e:
-                print('- Error retrieving ephemeris')
+                self.logger.error('Error retrieving ephemeris for {}'.format(obj))
 
-            print()
+            updated += 1
 
         self.db.commit()
+        self.logger.info('  - Updated {} objects.'.format(updated))
 
     def _silicon_test(self, desg, eph, fov):
         import astropy.units as u
@@ -194,7 +215,10 @@ class ZChecker:
         import astropy.units as u
         from astropy.time import Time
         from astropy.coordinates import SkyCoord
+        from mskpy import leading_num_key
         from .eph import interp
+
+        self.logger.info('FOV search: {} to {}'.format(start, end))
 
         end = (Time(end) + 1 * u.day + 1 * u.s).iso[:10]
     
@@ -211,6 +235,10 @@ class ZChecker:
             ''', (jd_start, jd_end))
             objects = [row[0] for row in c.fetchall()]
 
+        self.logger.info('Searching {} epochs for {} objects.'.format(
+            len(jd), len(objects)))
+
+        found_objects = {}
         for i in range(len(jd)):
             print('\r', jd[i], sep='', end='')
 
@@ -259,13 +287,23 @@ class ZChecker:
                     continue
 
                 print('\n  Found', objects[j])
+                found_objects[objects[j]] = found_objects.get(objects[j], 0) + 1
+                
                 self.db.execute('''
                 INSERT OR REPLACE INTO found VALUES
                 (?,?,?,?,?,?,?,?,?,?,?,?,?)
                 ''', found)
 
             self.db.commit()
+            
         print()
+
+        msg = 'Found {} objects.\n'.format(len(found_objects))
+        if len(found_objects) > 0:
+            for k, v in sorted(found_objects.items(), leading_num_key):
+                msg += '{} x{}'.format(k, v)
+
+        self.logger.info(msg)
 
     def download_cutouts(self, path):
         import os
@@ -280,10 +318,13 @@ class ZChecker:
 
         c = self.db.execute('''
         SELECT desg,obsjd,rh,delta,phase,rdot,ra,dec,dra,ddec,url
-          FROM foundobs
+          FROM foundobs ORDER BY desg,obsjd
         ''')
+        rows = c.fetchall()
         (desg, obsjd, rh, delta, phase, rdot, ra, dec, dra, ddec,
-         url) = zip(*c.fetchall())
+         url) = zip(*rows)
+
+        self.logger.info('Checking {} cutouts.'.format(len(rows)))
 
         for i in range(len(desg)):
             d = desg2file(desg[i])
@@ -317,6 +358,8 @@ class ZChecker:
                 x, y = wcs.all_world2pix(ra[i] * u.deg, dec[i] * u.deg, 0)
                 hdu[0].header['tgtx'] = int(x), 'Target x coordinate, 0-based'
                 hdu[0].header['tgty'] = int(y), 'Target y coordinate, 0-based'
+
+            self.logger.info('  ' + os.path.basename(fn))
 
         os.system('wget --save-cookies={}/cookies.txt -O /dev/null "https://irsa.ipac.caltech.edu/account/signon/logout.do"'.format(path))
 

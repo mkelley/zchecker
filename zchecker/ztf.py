@@ -10,7 +10,6 @@ def query(params, auth):
         'https://irsa.ipac.caltech.edu/ibe/search/ztf/products/sci',
         auth=(auth['user'], auth['password']),
         params=params)
-    print(r.url)
 
     print('Done.  {} lines returned.'.format(r.text.count('\n')))
 
