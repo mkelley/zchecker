@@ -300,7 +300,7 @@ class ZChecker:
 
         msg = 'Found {} objects.\n'.format(len(found_objects))
         if len(found_objects) > 0:
-            for k, v in sorted(found_objects.items(), leading_num_key):
+            for k, v in sorted(found_objects.items(), key=leading_num_key):
                 msg += '{} x{}'.format(k, v)
 
         self.logger.info(msg)
