@@ -286,7 +286,7 @@ class ZChecker:
                 if found is None:
                     continue
 
-                print('\n  Found', objects[j])
+                print('\n  Found', objects[j], end='')
                 found_objects[objects[j]] = found_objects.get(objects[j], 0) + 1
                 
                 self.db.execute('''
