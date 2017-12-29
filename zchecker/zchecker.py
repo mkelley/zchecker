@@ -264,6 +264,7 @@ class ZChecker:
             fovs = SkyCoord([quad['ra'] for quad in quads],
                            [quad['dec'] for quad in quads],
                            unit='deg')
+            n_found = 0
             for j in range(len(objects)):
                 # Estimate ephemeris for this epoch
                 c1 = self.db.execute('''
@@ -286,7 +287,12 @@ class ZChecker:
                 if found is None:
                     continue
 
-                print('\n  Found', objects[j], end='')
+                n_found += 1
+                if n_found == 1:
+                    # print blank line to preserve JD on console output
+                    print()
+
+                print('  Found', objects[j])
                 found_objects[objects[j]] = found_objects.get(objects[j], 0) + 1
                 
                 self.db.execute('''
