@@ -48,7 +48,7 @@ class IRSA:
 
         return self
 
-    def __exit__(self):
+    def __exit__(self, *args):
         self._wget("https://irsa.ipac.caltech.edu/account/signon/logout.do",
                    '/dev/null', save_cookies=True)
 
