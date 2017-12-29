@@ -67,8 +67,11 @@ class IRSA:
         
         try:
             self._wget(url, fn)
-        except CalledProcessError:
-            raise DownloadError
+        except CalledProcessError as e:
+            raise DownloadError from e
+        except KeyboardInterrupt as e:
+            os.unlink(fn)
+            raise e
 
     def _wget(self, url, fn, save_cookies=False):
         from subprocess import check_call

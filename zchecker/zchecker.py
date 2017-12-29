@@ -347,7 +347,8 @@ class ZChecker:
                 try:
                     irsa.download(url[i], fn)
                 except ZCheckerError as e:
-                    self.logger.error(str(e))
+                    self.logger.error('Error downloading {} from {}: {}'.format(
+                        fn, url[i], str(e)))
                     continue
 
                 updates = {
