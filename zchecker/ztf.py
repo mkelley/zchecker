@@ -62,7 +62,13 @@ class IRSA:
           The local file name of the downloaded data.
 
         """
-        self._wget(url, fn)
+        from subprocess import CalledProcessError
+        from .exceptions import DownloadError
+        
+        try:
+            self._wget(url, fn)
+        except CalledProcessError:
+            raise DownloadError
 
     def _wget(self, url, fn, save_cookies=False):
         from subprocess import check_call

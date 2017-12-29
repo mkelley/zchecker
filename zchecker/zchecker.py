@@ -312,6 +312,7 @@ class ZChecker:
         from astropy.time import Time
         from astropy.wcs import WCS
         from .ztf import IRSA
+        from .exceptions import ZCheckerError
 
         fntemplate = path + '/{desg}/{desg}-{datetime}-{prepost}{rh:.3f}-ztf.fits.gz'
 
@@ -343,7 +344,11 @@ class ZChecker:
                 if os.path.exists(fn):
                     continue
 
-                irsa.download(url[i], fn)
+                try:
+                    irsa.download(url[i], fn)
+                except ZCheckerError as e:
+                    self.logger.error(str(e))
+                    continue
 
                 updates = {
                     'desg': (desg[i], 'Target designation'),
