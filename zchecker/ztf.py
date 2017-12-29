@@ -1,4 +1,6 @@
 # Licensed under a 3-clause BSD style license - see LICENSE.rst
+from contextlib import contextmanager
+
 def query(params, auth):
     import requests
     from astropy.io import ascii
@@ -18,3 +20,59 @@ def query(params, auth):
     except ascii.InconsistentTableError as e:
         print(r.text)
         raise e
+
+class IRSA:
+    """Context manager for IRSA connections.
+
+    Parameters
+    ----------
+    path : string
+      Directory in which to save cookies.txt file.
+
+    auth : dictionary
+      IRSA 'user' and 'password'.
+
+    """
+    
+    def __init__(self, path, auth):
+        self.path = path
+        self.auth = auth
+
+    def __enter__(self):
+        url = (
+            "https://irsa.ipac.caltech.edu/account/signon/login.do?"
+            "josso_cmd=login&josso_username={}&josso_password={}"
+        ).format(self.auth['user'], self.auth['password'])
+
+        self._wget(url, '/dev/null', save_cookies=True)
+
+        return self
+
+    def __exit__(self):
+        self._wget("https://irsa.ipac.caltech.edu/account/signon/logout.do",
+                   '/dev/null', save_cookies=True)
+
+    def download(self, url, fn):
+        """Download from IRSA.
+
+        url : string
+          The full URL of the file.
+
+        fn : string
+          The local file name of the downloaded data.
+
+        """
+        self._wget(url, fn)
+
+    def _wget(self, url, fn, save_cookies=False):
+        from subprocess import check_call
+
+        args = ['wget']
+        if save_cookies:
+            args.append('--save-cookies={}/cookies.txt'.format(self.path))
+        else:
+            args.append('--load-cookies={}/cookies.txt'.format(self.path))
+        args.extend(['-O', fn, url])
+        
+        check_call(args)
+

@@ -301,7 +301,7 @@ class ZChecker:
         msg = 'Found {} objects.\n'.format(len(found_objects))
         if len(found_objects) > 0:
             for k, v in sorted(found_objects.items(), key=leading_num_key):
-                msg += '{} x{}'.format(k, v)
+                msg += '  {:15} x{}\n'.format(k, v)
 
         self.logger.info(msg)
 
@@ -311,10 +311,9 @@ class ZChecker:
         from astropy.io import fits
         from astropy.time import Time
         from astropy.wcs import WCS
+        from .ztf import IRSA
 
         fntemplate = path + '/{desg}/{desg}-{datetime}-{prepost}{rh:.3f}-ztf.fits.gz'
-
-        os.system('wget --save-cookies={}/cookies.txt -O /dev/null "https://irsa.ipac.caltech.edu/account/signon/login.do?josso_cmd=login&josso_username={}&josso_password={}"'.format(path, self.auth['user'], self.auth['password']))
 
         c = self.db.execute('''
         SELECT desg,obsjd,rh,delta,phase,rdot,ra,dec,dra,ddec,url
@@ -326,41 +325,48 @@ class ZChecker:
 
         self.logger.info('Checking {} cutouts.'.format(len(rows)))
 
-        for i in range(len(desg)):
-            d = desg2file(desg[i])
-            if not os.path.exists(path + '/cutouts/' + d):
-                os.system('mkdir -p {}'.format(os.path.join(path, d)))
+        if not os.path.exists(path):
+            os.system('mkdir ' + path)
+        
+        with IRSA(path, self.auth) as irsa:
+            for i in range(len(desg)):
+                d = desg2file(desg[i])
+                if not os.path.exists(os.path.join(path, d)):
+                    os.system('mkdir ' + os.path.join(path, d))
 
-            prepost = 'pre' if rdot[i] < 0 else 'post'
-            t = Time(obsjd[i], format='jd').iso.replace('-', '').replace(':', '').replace(' ', '_')[:13]
+                prepost = 'pre' if rdot[i] < 0 else 'post'
+                t = Time(obsjd[i], format='jd').iso
+                t = t.replace('-', '').replace(':', '').replace(' ', '_')[:15]
+                fn = fntemplate.format(desg=d, prepost=prepost, rh=rh[i],
+                                       datetime=t)
 
-            fn = fntemplate.format(desg=d, prepost=prepost, rh=rh[i],
-                                   datetime=t)
-            if os.path.exists(fn):
-                continue
+                if os.path.exists(fn):
+                    continue
 
-            cmd = 'wget --load-cookies={}/cookies.txt -O {} "{}"'.format(
-                path, fn, url[i])
-            os.system(cmd)
+                irsa.download(url[i], fn)
 
-            with fits.open(fn, 'update') as hdu:
-                hdu[0].header['desg'] = desg[i], 'Target designation'
-                hdu[0].header['rh'] = rh[i], 'Heliocentric distance, au'
-                hdu[0].header['delta'] = delta[i], 'Observer-target distance, au'
-                hdu[0].header['phase'] = phase[i], 'Sun-target-observer angle, deg'
-                hdu[0].header['rdot'] = rdot[i], 'Heliocentric radial velocity, km/s'
-                hdu[0].header['tgtra'] = ra[i], 'Target RA, deg'
-                hdu[0].header['tgtdec'] = dec[i], 'Target Dec, deg'
-                hdu[0].header['tgtdra'] = dra[i], 'Target RA*cos(dec) rate of change, arcsec/hr'
-                hdu[0].header['tgtddec'] = ddec[i], 'Target Dec rate of change, arcsec.hr'
+                updates = {
+                    'desg': (desg[i], 'Target designation'),
+                    'rh': (rh[i], 'Heliocentric distance, au'),
+                    'delta': (delta[i], 'Observer-target distance, au'),
+                    'phase': (phase[i], 'Sun-target-observer angle, deg'),
+                    'rdot': (rdot[i], 'Heliocentric radial velocity, km/s'),
+                    'tgtra': (ra[i], 'Target RA, deg'),
+                    'tgtdec': (dec[i], 'Target Dec, deg'),
+                    'tgtdra': (dra[i], 'Target RA*cos(dec) rate of change,'
+                               ' arcsec/hr'),
+                    'tgtddec': (ddec[i], 'Target Dec rate of change,'
+                                ' arcsec/hr'),
+                }
 
-                wcs = WCS(hdu[0].header)
-                x, y = wcs.all_world2pix(ra[i] * u.deg, dec[i] * u.deg, 0)
-                hdu[0].header['tgtx'] = int(x), 'Target x coordinate, 0-based'
-                hdu[0].header['tgty'] = int(y), 'Target y coordinate, 0-based'
+                with fits.open(fn, 'update') as hdu:
+                    wcs = WCS(hdu[0].header)
+                    x, y = wcs.all_world2pix(ra[i] * u.deg, dec[i] * u.deg, 0)
+                    updates['tgtx'] = int(x), 'Target x coordinate, 0-based'
+                    updates['tgty'] = int(y), 'Target y coordinate, 0-based'
 
-            self.logger.info('  ' + os.path.basename(fn))
-
-        os.system('wget --save-cookies={}/cookies.txt -O /dev/null "https://irsa.ipac.caltech.edu/account/signon/logout.do"'.format(path))
+                    hdu[0].header.update(updates)
+                    
+                self.logger.info('  ' + os.path.basename(fn))
 
 desg2file = lambda s: s.replace('/', '').replace(' ', '').lower()
