@@ -239,8 +239,12 @@ class ZChecker:
             len(jd), len(objects)))
 
         found_objects = {}
+        progress = ''
         for i in range(len(jd)):
             print('\r', jd[i], sep='', end='')
+            if int((i - 1) / len(jd) * 10) != int(i / len(jd) * 10):
+                progress += '#'
+                self.logger.debug(progress)
 
             # Get 2 nearest ephemeris epochs
             rows = self.db.execute('''
