@@ -224,7 +224,7 @@ class ZChecker:
     
         c = self.db.execute('''
         SELECT DISTINCT obsjd FROM obsnight WHERE date>=? AND date <=?
-        ''', (start, end))
+        ORDER BY obsjd''', (start, end))
         jd = list([row['obsjd'] for row in c.fetchall()])
 
         if objects is None:
@@ -239,12 +239,8 @@ class ZChecker:
             len(jd), len(objects)))
 
         found_objects = {}
-        progress = ''
-        for i in range(len(jd)):
+        for i in progress_bar(jd, self.logger):
             print('\r', jd[i], sep='', end='')
-            if int((i - 1) / len(jd) * 10) != int(i / len(jd) * 10):
-                progress += '#'
-                self.logger.debug(progress)
 
             # Get 2 nearest ephemeris epochs
             rows = self.db.execute('''
@@ -280,10 +276,10 @@ class ZChecker:
 
                 eph = interp(jd[i], c1, c2)
 
-                # anything within 2 deg of a FOV center should get
+                # anything within 1.5 deg of a FOV center should get
                 # investigated
                 d = eph.separation(fovs)
-                if d.min() > 2.0 * u.deg:
+                if d.min() > 1.5 * u.deg:
                     continue
 
                 fov = quads[d.argmin()]
@@ -297,7 +293,8 @@ class ZChecker:
                     print()
 
                 print('  Found', objects[j])
-                found_objects[objects[j]] = found_objects.get(objects[j], 0) + 1
+                k = str(objects[j])
+                found_objects[k] = found_objects.get(k, 0) + 1
                 
                 self.db.execute('''
                 INSERT OR REPLACE INTO found VALUES
@@ -386,3 +383,22 @@ class ZChecker:
                 self.logger.info('  ' + os.path.basename(fn))
 
 desg2file = lambda s: s.replace('/', '').replace(' ', '').lower()
+
+def progress_bar(a, logger):
+    """Index generator with progress bar logging."""
+    last_tenths = 0
+    progress = '----------'
+    logger.info(progress)
+    for i in range(len(a)):    
+        tenths = int(i / len(a) * 10)
+        if tenths != last_tenths:
+            progress = '#' * tenths + '-' * (10 - tenths)
+            last_tenths = tenths
+            print()
+            logger.info(progress)
+
+        yield i
+
+    print()
+    logger.info('#' * 10)
+
