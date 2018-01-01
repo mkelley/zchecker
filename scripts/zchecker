@@ -40,8 +40,8 @@ def search(args):
             start = args.date
             end = args.date
 
-        assert re.match('20[12][0-9]-[01][0-9]-[0-3][0-9]', start)
-        assert re.match('20[12][0-9]-[01][0-9]-[0-3][0-9]', end)
+        assert re.match('20[12][0-9]-[01][0-9]-[0-3][0-9]', start), 'Bad start date: {}'.format(start)
+        assert re.match('20[12][0-9]-[01][0-9]-[0-3][0-9]', end), 'Bad end date: {}'.format(end)
 
         z.fov_search(start, end, objects=args.objects)
 
@@ -140,8 +140,17 @@ parser_objects.set_defaults(func=list_objects)
 
 args = parser.parse_args()
 try:
-    args.func(args)
+    getattr(args, 'func')
 except AttributeError as e:
     parser.print_help()
     if args.v:
         raise(e)
+
+try:
+    args.func(args)
+except Exception as e:
+    if args.v:
+        raise e
+    else:
+        print(e)
+
