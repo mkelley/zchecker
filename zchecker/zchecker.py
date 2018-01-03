@@ -356,6 +356,7 @@ class ZChecker:
                 except ZCheckerError as e:
                     self.logger.error('Error downloading {} from {}: {}'.format(
                         fn, url[i], str(e)))
+                    os.unlink(fn)
                     continue
 
                 updates = {
