@@ -156,47 +156,6 @@ class ZChecker:
         self.db.commit()
         self.logger.info('  - Updated {} objects.'.format(updated))
 
-    def _silicon_test(self, desg, fov):
-        import astropy.units as u
-        from astropy.wcs import WCS
-        from astropy.wcs.utils import skycoord_to_pixel
-        import callhorizons
-
-        q = callhorizons.query(desg)
-        q.set_discreteepochs([fov['obsjd']])
-        if q.get_ephemerides('I41') <= 0:
-            print('Error retrieving ephemeris for {} on {}'.format(
-                desg, jd))
-            return None
-
-        wcs = WCS({
-            'crpix1': fov['crpix1'],
-            'crpix2': fov['crpix2'],
-            'crval1': fov['crval1'],
-            'crval2': fov['crval2'],
-            'cd1_1': fov['cd11'],
-            'cd1_2': fov['cd12'],
-            'cd2_1': fov['cd21'],
-            'cd2_2': fov['cd22'],
-            'RADESYS': 'ICRS',
-            'CTYPE1': 'RA---TAN', # not right, but OK for now
-            'CTYPE2': 'DEC--TAN', # not right, but OK for now
-            'CUNIT1': 'deg',
-            'CUNIT2': 'deg',
-            'NAXIS1': 3072,
-            'NAXIS2': 3080,
-        })
-        p = wcs.all_world2pix(q['RA'] * u.deg, q['DEC'] * u.deg, 0)
-
-        if (p[0] >=0 and p[0] <= 3072 and
-            p[1] >= 0 and p[1] <= 3080):
-            return (desg, q['RA'][0], q['DEC'][0], q['RA_rate'][0],
-                    q['DEC_rate'][0], q['V'][0], q['r'][0], q['r_rate'][0],
-                    q['delta'][0], q['alpha'][0], fov['pid'],
-                    int(p[0][0]), int(p[1][0]))
-        else:
-            return None
-
     def _get_ephemerides(self, objects, jd):
         """Retrieve approximate ephemerides by interpolation.
 
@@ -212,7 +171,8 @@ class ZChecker:
         Returns
         -------
         eph : dict
-          Ephemerides as a `SkyCoord` in a dictionary keyed by object.
+          Ephemerides as (ra, dec) in radians in a dictionary keyed by
+          object.
           
         mask : dict
           Missing dates are masked `True`.
@@ -253,11 +213,84 @@ class ZChecker:
             p1 = np.sin((1 - dt) * w) / np.sin(w)
             p2 = np.sin(dt * w) / np.sin(w)
 
-            eph[obj] = SkyCoord(p1 * ra[i - 1] + p2 * ra[i],
-                                p1 * dec[i - 1] + p2 * dec[i],
-                                unit='rad')
+            # ra, dec
+            eph[obj] = np.c_[p1 * ra[i - 1] + p2 * ra[i],
+                             p1 * dec[i - 1] + p2 * dec[i]]
 
         return eph, mask
+
+    def _get_quads(self, start, end, columns):
+        """Search for ZTF CCD quadrants within date range.
+        
+        Parameters
+        ----------
+        start, end : float
+          Julian date time span to search.
+        columns : list of strings
+          Database columns to return.  obsjd is required.
+
+        Returns
+        -------
+        quads : dict
+          Database rows keyed by Julian date.
+
+        """
+
+        assert 'obsjd' in columns
+
+        rows = self.db.execute(
+            'SELECT ' + columns + ' FROM obs WHERE obsjd>=? AND obsjd<=?',
+            [start, end]).fetchall()
+
+        quads = {}
+        for row in rows:
+            jd = row['obsjd']
+            if jd not in quads:
+                quads[jd] = []
+
+            quads[jd].append(row)
+
+        return quads
+
+    def _silicon_test(self, desg, fov):
+        import astropy.units as u
+        from astropy.wcs import WCS
+        import callhorizons
+
+        q = callhorizons.query(desg)
+        q.set_discreteepochs([fov['obsjd']])
+        if q.get_ephemerides('I41') <= 0:
+            print('Error retrieving ephemeris for {} on {}'.format(
+                desg, jd))
+            return None
+
+        wcs = WCS({
+            'crpix1': fov['crpix1'],
+            'crpix2': fov['crpix2'],
+            'crval1': fov['crval1'],
+            'crval2': fov['crval2'],
+            'cd1_1': fov['cd11'],
+            'cd1_2': fov['cd12'],
+            'cd2_1': fov['cd21'],
+            'cd2_2': fov['cd22'],
+            'RADESYS': 'ICRS',
+            'CTYPE1': 'RA---TAN', # not right, but OK for now
+            'CTYPE2': 'DEC--TAN', # not right, but OK for now
+            'CUNIT1': 'deg',
+            'CUNIT2': 'deg',
+            'NAXIS1': 3072,
+            'NAXIS2': 3080,
+        })
+        p = wcs.all_world2pix(q['RA'] * u.deg, q['DEC'] * u.deg, 0)
+
+        if (p[0] >=0 and p[0] <= 3072 and
+            p[1] >= 0 and p[1] <= 3080):
+            return (desg, q['RA'][0], q['DEC'][0], q['RA_rate'][0],
+                    q['DEC_rate'][0], q['V'][0], q['r'][0], q['r_rate'][0],
+                    q['delta'][0], q['alpha'][0], fov['pid'],
+                    int(p[0][0]), int(p[1][0]))
+        else:
+            return None
         
     def fov_search(self, start, end, objects=None):
         """Search for objects in ZTF fields.
@@ -276,8 +309,8 @@ class ZChecker:
         import numpy as np
         import astropy.units as u
         from astropy.time import Time
-        from astropy.coordinates import SkyCoord, cartesian_to_spherical
-        from mskpy import leading_num_key
+        from astropy.coordinates import cartesian_to_spherical, spherical_to_cartesian
+        from astropy.coordinates.angle_utilities import angular_separation
         from .logging import ProgressBar
 
         self.logger.info('FOV search: {} to {}'.format(start, end))
@@ -297,31 +330,26 @@ class ZChecker:
             ''', (jd_start, jd_end))
             objects = [str(row[0]) for row in c.fetchall()]
 
-        eph, mask = self._get_ephemerides(objects, jd)
-
         self.logger.info('Searching {} epochs for {} objects.'.format(
             len(jd), len(objects)))
 
+        eph, mask = self._get_ephemerides(objects, jd)
+        cols = ('pid', 'obsjd', 'ra', 'dec', 'crpix1', 'crpix2',
+                'crval1', 'crval2', 'cd11', 'cd12', 'cd21', 'cd22')
+        quads = self._get_quads(min(jd), max(jd), ','.join(cols))
+
+        import cProfile, pstats, io
+        pr = cProfile.Profile()
+        pr.enable()
         found_objects = {}
         with ProgressBar(len(jd), self.logger) as bar:
             for i in range(len(jd)):
                 bar.update()
                 print('\r', jd[i], sep='', end='')
 
-                # get ZTF fields of view by CCD quadrant
-                quads = self.db.execute('''
-                SELECT pid,obsjd,ra,dec,
-                       crpix1,crpix2,crval1,crval2,
-                       cd11,cd12,cd21,cd22
-                FROM obs
-                WHERE obsjd=?
-                ''', [jd[i]]).fetchall()
-
-                fovs = SkyCoord([quad['ra'] for quad in quads],
-                                [quad['dec'] for quad in quads],
-                                unit='deg')
-                r, th, phi = cartesian_to_spherical(*fovs.cartesian.mean().xyz)
-                field_cen = SkyCoord(phi, th)
+                quad_ra = np.radians([quad['ra'] for quad in quads[jd[i]]])
+                quad_dec = np.radians([quad['dec'] for quad in quads[jd[i]]])
+                field_ra, field_dec = spherical_mean(quad_ra, quad_dec)
 
                 n_found = 0
                 for obj in objects:
@@ -330,22 +358,25 @@ class ZChecker:
                         continue
 
                     # distance to field center
-                    d = eph[obj][i].separation(field_cen)
+                    #d = eph[obj][i].separation(field_cen)
+                    ra, dec = eph[obj][i]
+                    d = angular_separation(ra, dec, field_ra, field_dec)
 
                     # Farther than 6 deg?  skip.
-                    if d.deg > 6:
+                    if d > 0.1:
                         continue
 
                     # distance to all FOV centers
-                    d = eph[obj][i].separation(fovs)
+                    #d = eph[obj][i].separation(fovs)
+                    d = angular_separation(ra, dec, quad_ra, quad_dec)
 
                     # Find closest FOV.  Investigate if it is <1.5 deg away.
                     j = d.argmin()
-                    if d[j].deg > 1.5:
+                    if d[j] > 0.026:
                         continue
 
                     # Check quadrant and position in detail.
-                    fov = quads[j]
+                    fov = quads[jd[i]][j]
                     found = self._silicon_test(obj, fov)
                     if found is None:
                         continue
@@ -364,8 +395,15 @@ class ZChecker:
                     ''', found)
 
                 self.db.commit()
-            
+
         print()
+
+        pr.disable()
+        s = io.StringIO()
+        sortby = 'cumulative'
+        ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
+        ps.print_stats()
+        print(s.getvalue())
 
         msg = 'Found {} objects.\n'.format(len(found_objects))
         if len(found_objects) > 0:
@@ -446,3 +484,61 @@ class ZChecker:
                 self.logger.info('  ' + os.path.basename(fn))
 
 desg2file = lambda s: s.replace('/', '').replace(' ', '').lower()
+
+def leading_num_key(s):
+    """Keys for sorting strings, based on leading multidigit numbers.
+
+    A normal string comparision will compare the strings character by
+    character, e.g., "101P" is less than "1P" because "0" < "P".
+    `leading_num_key` will generate keys so that `str.sort` can
+    consider the leading multidigit integer, e.g., "101P" > "1P"
+    because 101 > 1.
+
+    Parameters
+    ----------
+    s : string
+
+    Returns
+    -------
+    keys : tuple
+      They keys to sort by for this string: `keys[0]` is the leading
+      number, `keys[1]` is the rest of the string.
+
+    """
+
+    pfx = ''
+    sfx = s
+    for i in range(len(s)):
+        if not s[i].isdigit():
+            break
+        pfx += s[i]
+        sfx = s[i:]
+
+    if len(pfx) > 0:
+        pfx = int(pfx)
+    else:
+        pfx = 0
+    return pfx, sfx
+
+def spherical_mean(ra, dec):
+    """Average spherical coordinate.
+
+    Parameters
+    ----------
+    ra, dec : array
+      Longitude and latitude coordinates in radians.
+
+    Returns
+    -------
+    mra, mdec : float
+      Radians.
+
+    """
+    
+    import numpy as np
+    
+    x = np.mean(np.cos(dec) * np.cos(ra))
+    y = np.mean(np.cos(dec) * np.sin(ra))
+    z = np.mean(np.sin(dec))
+    
+    return np.arctan2(y, x), np.arctan2(z, np.hypot(x, y))
