@@ -338,9 +338,6 @@ class ZChecker:
                 'crval1', 'crval2', 'cd11', 'cd12', 'cd21', 'cd22')
         quads = self._get_quads(min(jd), max(jd), ','.join(cols))
 
-        import cProfile, pstats, io
-        pr = cProfile.Profile()
-        pr.enable()
         found_objects = {}
         with ProgressBar(len(jd), self.logger) as bar:
             for i in range(len(jd)):
@@ -397,13 +394,6 @@ class ZChecker:
                 self.db.commit()
 
         print()
-
-        pr.disable()
-        s = io.StringIO()
-        sortby = 'cumulative'
-        ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
-        ps.print_stats()
-        print(s.getvalue())
 
         msg = 'Found {} objects.\n'.format(len(found_objects))
         if len(found_objects) > 0:
