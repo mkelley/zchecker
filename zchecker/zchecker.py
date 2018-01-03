@@ -278,14 +278,15 @@ class ZChecker:
         from astropy.time import Time
         from astropy.coordinates import SkyCoord, cartesian_to_spherical
         from mskpy import leading_num_key
+        from .logging import ProgressBar
 
         self.logger.info('FOV search: {} to {}'.format(start, end))
 
         end = (Time(end) + 1 * u.day + 1 * u.s).iso[:10]
-    
+
         c = self.db.execute('''
-        SELECT DISTINCT obsjd FROM obsnight WHERE date>=? AND date <=?
-        ORDER BY obsjd''', (start, end))
+        SELECT DISTINCT obsjd FROM obsnight WHERE date>=? AND date <=?''',
+                            (start, end))
         jd = list([row['obsjd'] for row in c.fetchall()])
 
         if objects is None:
@@ -297,70 +298,72 @@ class ZChecker:
             objects = [str(row[0]) for row in c.fetchall()]
 
         eph, mask = self._get_ephemerides(objects, jd)
-            
+
         self.logger.info('Searching {} epochs for {} objects.'.format(
             len(jd), len(objects)))
 
         found_objects = {}
-        for i in progress_bar(jd, self.logger):
-            print('\r', jd[i], sep='', end='')
+        with ProgressBar(len(jd), self.logger) as bar:
+            for i in range(len(jd)):
+                bar.update()
+                print('\r', jd[i], sep='', end='')
 
-            # get ZTF fields of view by CCD quadrant
-            quads = self.db.execute('''
-            SELECT pid,obsjd,ra,dec,
-                   crpix1,crpix2,crval1,crval2,
-                   cd11,cd12,cd21,cd22
-            FROM obs
-            WHERE obsjd=?
-            ''', [jd[i]]).fetchall()
+                # get ZTF fields of view by CCD quadrant
+                quads = self.db.execute('''
+                SELECT pid,obsjd,ra,dec,
+                       crpix1,crpix2,crval1,crval2,
+                       cd11,cd12,cd21,cd22
+                FROM obs
+                WHERE obsjd=?
+                ''', [jd[i]]).fetchall()
 
-            fovs = SkyCoord([quad['ra'] for quad in quads],
-                            [quad['dec'] for quad in quads],
-                            unit='deg')
-            r, th, phi = cartesian_to_spherical(*fovs.cartesian.mean().xyz)
-            field_cen = SkyCoord(phi, th)
-            
-            n_found = 0
-            for obj in objects:
-                if mask[obj][i]:
-                    # this epoch masked for this object
-                    continue
+                fovs = SkyCoord([quad['ra'] for quad in quads],
+                                [quad['dec'] for quad in quads],
+                                unit='deg')
+                r, th, phi = cartesian_to_spherical(*fovs.cartesian.mean().xyz)
+                field_cen = SkyCoord(phi, th)
 
-                # distance to field center
-                d = eph[obj][i].separation(field_cen)
+                n_found = 0
+                for obj in objects:
+                    if mask[obj][i]:
+                        # this epoch masked for this object
+                        continue
 
-                # Farther than 6 deg?  skip.
-                if d.deg > 6:
-                    continue
+                    # distance to field center
+                    d = eph[obj][i].separation(field_cen)
 
-                # distance to all FOV centers
-                d = eph[obj][i].separation(fovs)
-                
-                # Find closest FOV.  Investigate if it is <1.5 deg away.
-                j = d.argmin()
-                if d[j].deg > 1.5:
-                    continue
+                    # Farther than 6 deg?  skip.
+                    if d.deg > 6:
+                        continue
 
-                # Check quadrant and position in detail.
-                fov = quads[j]
-                found = self._silicon_test(obj, fov)
-                if found is None:
-                    continue
+                    # distance to all FOV centers
+                    d = eph[obj][i].separation(fovs)
 
-                n_found += 1
-                if n_found == 1:
-                    # print blank line to preserve JD on console output
-                    print()
+                    # Find closest FOV.  Investigate if it is <1.5 deg away.
+                    j = d.argmin()
+                    if d[j].deg > 1.5:
+                        continue
 
-                print('  Found', obj)
-                found_objects[obj] = found_objects.get(obj, 0) + 1
-                
-                self.db.execute('''
-                INSERT OR REPLACE INTO found VALUES
-                (?,?,?,?,?,?,?,?,?,?,?,?,?)
-                ''', found)
+                    # Check quadrant and position in detail.
+                    fov = quads[j]
+                    found = self._silicon_test(obj, fov)
+                    if found is None:
+                        continue
 
-            self.db.commit()
+                    n_found += 1
+                    if n_found == 1:
+                        # print blank line to preserve JD on console output
+                        print()
+
+                    print('  Found', obj)
+                    found_objects[obj] = found_objects.get(obj, 0) + 1
+
+                    self.db.execute('''
+                    INSERT OR REPLACE INTO found VALUES
+                    (?,?,?,?,?,?,?,?,?,?,?,?,?)
+                    ''', found)
+
+                self.db.commit()
             
         print()
 
@@ -443,22 +446,3 @@ class ZChecker:
                 self.logger.info('  ' + os.path.basename(fn))
 
 desg2file = lambda s: s.replace('/', '').replace(' ', '').lower()
-
-def progress_bar(a, logger):
-    """Index generator with progress bar logging."""
-    last_tenths = 0
-    progress = '----------'
-    logger.info(progress)
-    for i in range(len(a)):    
-        tenths = int(i / len(a) * 10)
-        if tenths != last_tenths:
-            progress = '#' * tenths + '-' * (10 - tenths)
-            last_tenths = tenths
-            print()
-            logger.info(progress)
-
-        yield i
-
-    print()
-    logger.info('#' * 10)
-

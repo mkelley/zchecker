@@ -28,3 +28,43 @@ def setup(enabled):
     logger.info('Command line: ' + ' '.join(sys.argv[1:]))
 
     return logger
+
+class ProgressBar:
+    """Progress bar widget for logging.
+
+    Parameters
+    ----------
+    n : int
+      Total number of steps.
+    logger : logging.Logger
+      The `Logger` object to which to report progress.
+
+    Examples
+    --------
+    with ProgressBar(1000, logger) as bar:
+      for i in range(1000):
+        bar.update()
+
+    """
+
+    def __init__(self, n, logger):
+        self.n = n
+        self.logger = logger
+
+    def __enter__(self):
+        self.i = 0
+        self.last_tenths = 0
+        self.logger.info('-' * 10)
+        return self
+
+    def __exit__(self, *args):
+        print()
+        self.logger.info('#' * 10)
+
+    def update(self):
+        self.i += 1
+        tenths = int(self.i / self.n * 10)
+        if tenths != self.last_tenths:
+            self.last_tenths = tenths
+            print()
+            self.logger.info('#' * tenths + '-' * (10 - tenths))
