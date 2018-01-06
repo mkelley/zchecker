@@ -65,11 +65,11 @@ $ zchecker --help
 	
      `zchecker search --start=YYYY-MM-DD --end=YYYY-MM-DD`
 
-  For all dates in the local database::
+   For all dates in the local database::
 
      `zchecker search --full`
 	
-  For a subset of targets saved to the file `subset.list`::
+   For a subset of targets saved to the file `subset.list`::
 
      `zchecker search --full --objects=subset.list`
 	
