@@ -405,6 +405,7 @@ class ZChecker:
         from .ztf import IRSA
         from .exceptions import ZCheckerError
 
+        path = self.config['cutout path']
         fntemplate = path + '/{desg}/{desg}-{datetime}-{prepost}{rh:.3f}-ztf.fits.gz'
 
         c = self.db.execute('''
@@ -417,7 +418,6 @@ class ZChecker:
 
         self.logger.info('Checking {} cutouts.'.format(len(rows)))
 
-        path = self.config['cutout path']
         if not os.path.exists(path):
             os.system('mkdir ' + path)
         
