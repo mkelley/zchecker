@@ -4,26 +4,19 @@ class ZChecker:
 
     Parameters
     ----------
-
-    dbfile : string
-      Name of the database file to connect to.
-
-    dbschema : list of strings
-      SQL statements defining the tables.
-
-    auth : dictionary of strings
-      'user' and 'password' to use for checking the ZTF database.
+    config : Config
+      ZChecker configuration class.
 
     log : bool, optional
       Set to `False` to disable logging.
 
     """
 
-    def __init__(self, dbfile, auth, log=True):
+    def __init__(self, config, log=True):
         from . import logging
-        self.logger = logging.setup(log)
-        self.auth = auth
-        self.connect_db(dbfile)
+        self.logger = logging.setup(log, filename=config['log'])
+        self.config = config
+        self.connect_db()
 
     def __enter__(self):
         from astropy.time import Time
@@ -37,7 +30,7 @@ class ZChecker:
         self.db.close()
         self.logger.info(Time.now().iso)
 
-    def connect_db(self, dbfile):
+    def connect_db(self):
         """Connect to database and setup tables, as needed."""
         import numpy as np
         import sqlite3
@@ -48,13 +41,14 @@ class ZChecker:
         sqlite3.register_adapter(np.float64, float)
         sqlite3.register_adapter(np.float32, float)
 
-        self.db = sqlite3.connect(dbfile)
+        filename = self.config['database']
+        self.db = sqlite3.connect(filename)
         self.db.row_factory = sqlite3.Row
 
         for cmd in schema:
             self.db.execute(cmd)
 
-        self.logger.info('Connected to database: {}'.format(dbfile))
+        self.logger.info('Connected to database: {}'.format(filename))
 
     def nightid(self, date):
         c = self.db.execute('''
@@ -93,7 +87,8 @@ class ZChecker:
                 'crval2', 'cd11', 'cd12', 'cd21', 'cd22',
                 'ra', 'dec', 'ra1', 'dec1', 'ra2', 'dec2',
                 'ra3', 'dec3', 'ra4', 'dec4']
-        tab = ztf.query({'WHERE': q, 'COLUMNS': ','.join(cols)}, self.auth)
+        tab = ztf.query({'WHERE': q, 'COLUMNS': ','.join(cols)},
+                        self.config.auth)
 
         self.db.execute('''
         INSERT OR REPLACE INTO nights VALUES (?,?)
@@ -161,7 +156,6 @@ class ZChecker:
 
         Parameters
         ----------
-
         objects : list
           List of objects in database.
 
@@ -402,7 +396,7 @@ class ZChecker:
 
         self.logger.info(msg)
 
-    def download_cutouts(self, path):
+    def download_cutouts(self):
         import os
         import astropy.units as u
         from astropy.io import fits
@@ -423,10 +417,11 @@ class ZChecker:
 
         self.logger.info('Checking {} cutouts.'.format(len(rows)))
 
+        path = self.config['cutout path']
         if not os.path.exists(path):
             os.system('mkdir ' + path)
         
-        with IRSA(path, self.auth) as irsa:
+        with IRSA(path, self.config.auth) as irsa:
             for i in range(len(desg)):
                 d = desg2file(desg[i])
                 if not os.path.exists(os.path.join(path, d)):

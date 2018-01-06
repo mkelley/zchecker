@@ -1,5 +1,5 @@
 # Licensed under a 3-clause BSD style license - see LICENSE.rst
-def setup(enabled):
+def setup(enabled, filename='zchecker.log'):
     import sys
     import logging
     from datetime import datetime
@@ -18,7 +18,7 @@ def setup(enabled):
             console.setFormatter(formatter)
             logger.addHandler(console)
 
-            logfile = logging.FileHandler('zchecker.log')
+            logfile = logging.FileHandler(filename)
             logfile.setLevel(logging.INFO)
             logfile.setFormatter(formatter)
             logger.addHandler(logfile)
@@ -26,6 +26,10 @@ def setup(enabled):
     logger.info('#' * 70)
     logger.info(datetime.now().isoformat())
     logger.info('Command line: ' + ' '.join(sys.argv[1:]))
+    if enabled:
+        for handler in logger.handlers:
+            if hasattr(handler, 'baseFilename'):
+                logger.info('Logging to ' + handler.baseFilename)
 
     return logger
 
