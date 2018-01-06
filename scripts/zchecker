@@ -128,7 +128,7 @@ parser_search.set_defaults(func=search)
 # EPH-UPDATE
 parser_eph = subparsers.add_parser('eph-update', help='update local ephemeris database', aliases=['eph'], epilog='Date format: YYYY-MM-DD.')
 parser_eph.add_argument('objects', type=list_file, help='object list file name, one designation per line, must be resolvable by JPL/HORIZONS')
-parser_eph.add_argument('--start', default='2017-11-01', help='start date of ephemeris')
+parser_eph.add_argument('--start', default='2017-10-13', help='start date of ephemeris')
 parser_eph.add_argument('--end', default='2018-03-01', help='end date of ephemeris')
 parser_eph.set_defaults(func=eph_update)
 
