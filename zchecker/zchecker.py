@@ -398,6 +398,9 @@ class ZChecker:
 
     def _download_file(self, irsa, url, filename):
         """ZTF file download helper."""
+        import os
+        from .exceptions import ZCheckerError
+        
         try:
             irsa.download(url, filename)
             return True
@@ -416,7 +419,6 @@ class ZChecker:
         from astropy.time import Time
         from astropy.wcs import WCS
         from .ztf import IRSA
-        from .exceptions import ZCheckerError
 
         path = self.config['cutout path']
         fntemplate = path + '/{desg}/{desg}-{datetime}-{prepost}{rh:.3f}-ztf.fits.gz'
