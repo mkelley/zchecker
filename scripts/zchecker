@@ -5,9 +5,13 @@ import argparse
 from astropy.time import Time
 from zchecker import ZChecker
 
-def list_file(filename):
-    with open(filename) as f:
-        objects = [s.strip() for s in f.readlines()]
+def object_list(olist):
+    import os
+    if os.path.exists(olist):
+        with open(olist) as f:
+            objects = [s.strip() for s in f.readlines()]
+    else:
+        objects = [s.strip() for s in olist.split(',')]
     return objects
 
 def get_updated_config(args):
@@ -118,7 +122,7 @@ today = Time.now().iso[:10]
 
 # SEARCH
 parser_search = subparsers.add_parser('search', help='search ZTF fields in local database', epilog='Date format: YYYY-MM-DD.')
-parser_search.add_argument('--objects', type=list_file, help='object list file name, one designation per line; designations must be resolvable by JPL/HORIZONS.  Default is to search all targets in the ephemeris database defined over the requested date range')
+parser_search.add_argument('objects', type=object_list, nargs='?', help='object list file name (one per line) or a comma-separated list of objects; designations must be resolvable by JPL/HORIZONS; default is to search all targets in the ephemeris database defined over the requested date range')
 parser_search.add_argument('--full', action='store_true', help='search all available nights')
 parser_search.add_argument('--date', default=today, help='search a single date')
 parser_search.add_argument('--start', help='search a range of dates, beginning with this date')
@@ -127,7 +131,7 @@ parser_search.set_defaults(func=search)
 
 # EPH-UPDATE
 parser_eph = subparsers.add_parser('eph-update', help='update local ephemeris database', aliases=['eph'], epilog='Date format: YYYY-MM-DD.')
-parser_eph.add_argument('objects', type=list_file, help='object list file name, one designation per line, must be resolvable by JPL/HORIZONS')
+parser_eph.add_argument('objects', type=object_list, help='object list file name (one object per line) or a comma-separated list of objects, must be resolvable by JPL/HORIZONS')
 parser_eph.add_argument('--start', default='2017-10-13', help='start date of ephemeris')
 parser_eph.add_argument('--end', default='2018-03-01', help='end date of ephemeris')
 parser_eph.set_defaults(func=eph_update)

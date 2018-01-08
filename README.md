@@ -30,11 +30,13 @@ $ zchecker --help
 
 ## Ephemeris setup
 
-1. Make a list of objects: `objects.list`.
+1. (Optional) Make a list of objects: `objects.list`.
 
-1. Update local database with ephemerides::
+1. Update local database with ephemerides, specifying objects through
+   the list or on the command line::
 
      `zchecker eph-update objects.list --start=YYYY-MM-DD --end=YYYY-MM-DD` 
+     `zchecker eph-update "C/2017 Y1, C/2017 Y2" --start=YYYY-MM-DD --end=YYYY-MM-DD`
 
    Broad date ranges are best.  Ephemerides can be updated as the
    orbital elements are refined.
@@ -53,7 +55,7 @@ $ zchecker --help
 
      `zchecker list-nights`
 
-1. Find observations of your targets the last night::
+1. Find observations of your targets from the last night::
 
      `zchecker search`
 
@@ -71,8 +73,13 @@ $ zchecker --help
 	
    For a subset of targets saved to the file `subset.list`::
 
-     `zchecker search --full --objects=subset.list`
+     `zchecker search subset.list --full`
 	
+   For a subset of targets specified on the command line::
+
+     `zchecker search "C/2017 AB5" --full`
+     `zchecker search "C/2017 Y1,C/2017 Y2" --full`
+
 1. Download cutouts around each found target::
 
      `zchecker download-cutouts`
