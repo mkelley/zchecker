@@ -303,9 +303,9 @@ class ZChecker:
         import numpy as np
         import astropy.units as u
         from astropy.time import Time
-        from astropy.coordinates import cartesian_to_spherical, spherical_to_cartesian
         from astropy.coordinates.angle_utilities import angular_separation
         from .logging import ProgressBar
+        from .exceptions import DateRangeError
 
         self.logger.info('FOV search: {} to {}'.format(start, end))
 
@@ -315,6 +315,8 @@ class ZChecker:
         SELECT DISTINCT obsjd FROM obsnight WHERE date>=? AND date <=?''',
                             (start, end))
         jd = list([row['obsjd'] for row in c.fetchall()])
+        if len(jd) == 0:
+            raise DateRangeError('No observations found for UT date range {} to {}.'.format(start, end))
 
         if objects is None:
             jd_start = Time(start).jd - 0.01
@@ -451,7 +453,10 @@ class ZChecker:
                 skipped = []
                 skipped.append(os.path.exists(fn))
                 if not skipped[-1]:
-                    self._download_file(irsa, url[i], fn)
+                    success = self._download_file(irsa, url[i], fn)
+                    if not success:
+                        continue
+                    
                     updates = {
                         'desg': (desg[i], 'Target designation'),
                         'rh': (rh[i], 'Heliocentric distance, au'),

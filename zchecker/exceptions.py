@@ -4,3 +4,6 @@ class ZCheckerError(Exception):
 
 class DownloadError(ZCheckerError):
     pass
+
+class DateRangeError(ZCheckerError):
+    pass
