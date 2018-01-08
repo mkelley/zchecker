@@ -489,9 +489,9 @@ class ZChecker:
                 psffn = fn.replace('ztf.fits.gz', 'ztf-psf.fits')
                 skipped.append(os.path.exists(psffn))
                 if not skipped[-1]:
-                    self._download_file(
-                        irsa, url[i].replace('sciimg', 'sciimgdaopsfcent'),
-                        psffn)
+                    _url = url[i].replace('sciimg', 'sciimgdaopsfcent')
+                    _url = _url[:_url.rfind('?')]
+                    self._download_file(irsa, _url, psffn)
 
                 if not all(skipped):
                     self.logger.info('  ' + os.path.basename(fn))
