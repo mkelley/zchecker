@@ -62,6 +62,7 @@ class IRSA:
           The local file name of the downloaded data.
 
         """
+        import os
         from subprocess import CalledProcessError
         from .exceptions import DownloadError
         
