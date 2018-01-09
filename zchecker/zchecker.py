@@ -402,7 +402,10 @@ class ZChecker:
         """ZTF file download helper."""
         import os
         from .exceptions import ZCheckerError
-        
+
+        if os.path.exists(filename):
+            os.unlink(filename)
+
         try:
             irsa.download(url, filename)
             return True
@@ -416,6 +419,7 @@ class ZChecker:
 
     def download_cutouts(self):
         import os
+        from tempfile import mktemp
         import astropy.units as u
         from astropy.io import fits
         from astropy.time import Time
@@ -450,51 +454,65 @@ class ZChecker:
                 fn = fntemplate.format(desg=d, prepost=prepost, rh=rh[i],
                                        datetime=t)
 
-                skipped = []
-                skipped.append(os.path.exists(fn))
-                if not skipped[-1]:
-                    success = self._download_file(irsa, url[i], fn)
-                    if not success:
-                        continue
+                if os.path.exists(fn):
+                    continue
+                
+                success = self._download_file(irsa, url[i], fn)
+                if not success:
+                    continue
+
+                updates = {
+                    'desg': (desg[i], 'Target designation'),
+                    'rh': (rh[i], 'Heliocentric distance, au'),
+                    'delta': (delta[i], 'Observer-target distance, au'),
+                    'phase': (phase[i], 'Sun-target-observer angle, deg'),
+                    'rdot': (rdot[i], 'Heliocentric radial velocity, km/s'),
+                    'tgtra': (ra[i], 'Target RA, deg'),
+                    'tgtdec': (dec[i], 'Target Dec, deg'),
+                    'tgtdra': (dra[i], 'Target RA*cos(dec) rate of change,'
+                               ' arcsec/hr'),
+                    'tgtddec': (ddec[i], 'Target Dec rate of change,'
+                                ' arcsec/hr'),
+                }
+
+                maskfn = mktemp(dir='/tmp')
+                _url = url[i].replace('sciimg', 'mskimg')
+                mask_downloaded = self._download_file(irsa, _url, maskfn)
+                
+                psffn = mktemp(dir='/tmp')
+                _url = url[i].replace('sciimg', 'sciimgdaopsfcent')
+                _url = _url[:_url.rfind('?')]
+                psf_downloaded = self._download_file(irsa, _url, psffn)
+
+                # update header and add mask and PSF
+                with fits.open(fn, 'update') as hdu:
+                    hdu[0].name = 'sci'
+                        
+                    wcs = WCS(hdu[0].header)
+                    x, y = wcs.all_world2pix(
+                        ra[i] * u.deg, dec[i] * u.deg, 0)
+                    updates['tgtx'] = int(x), 'Target x coordinate, 0-based'
+                    updates['tgty'] = int(y), 'Target y coordinate, 0-based'
                     
-                    updates = {
-                        'desg': (desg[i], 'Target designation'),
-                        'rh': (rh[i], 'Heliocentric distance, au'),
-                        'delta': (delta[i], 'Observer-target distance, au'),
-                        'phase': (phase[i], 'Sun-target-observer angle, deg'),
-                        'rdot': (rdot[i], 'Heliocentric radial velocity, km/s'),
-                        'tgtra': (ra[i], 'Target RA, deg'),
-                        'tgtdec': (dec[i], 'Target Dec, deg'),
-                        'tgtdra': (dra[i], 'Target RA*cos(dec) rate of change,'
-                                   ' arcsec/hr'),
-                        'tgtddec': (ddec[i], 'Target Dec rate of change,'
-                                    ' arcsec/hr'),
-                    }
+                    hdu[0].header.update(updates)
 
-                    with fits.open(fn, 'update') as hdu:
-                        wcs = WCS(hdu[0].header)
-                        x, y = wcs.all_world2pix(
-                            ra[i] * u.deg, dec[i] * u.deg, 0)
-                        updates['tgtx'] = int(x), 'Target x coordinate, 0-based'
-                        updates['tgty'] = int(y), 'Target y coordinate, 0-based'
+                    if mask_downloaded:
+                        with fits.open(maskfn) as mask:
+                            mask[0].name = 'mask'
+                            hdu.insert(1, mask[0])  # always second
 
-                        hdu[0].header.update(updates)
+                    if psf_downloaded:
+                        with fits.open(psffn) as psf:
+                            psf[0].name = 'psf'
+                            hdu.insert(2, psf[0])  # always third
 
-                maskfn = fn.replace('ztf.fits.gz', 'ztf-msk.fits.gz')
-                skipped.append(os.path.exists(maskfn))
-                if not skipped[-1]:
-                    self._download_file(
-                        irsa, url[i].replace('sciimg', 'mskimg'), maskfn)
+                if os.path.exists(maskfn):
+                    os.unlink(maskfn)
+                    
+                if os.path.exists(psffn):
+                    os.unlink(psffn)
 
-                psffn = fn.replace('ztf.fits.gz', 'ztf-psf.fits')
-                skipped.append(os.path.exists(psffn))
-                if not skipped[-1]:
-                    _url = url[i].replace('sciimg', 'sciimgdaopsfcent')
-                    _url = _url[:_url.rfind('?')]
-                    self._download_file(irsa, _url, psffn)
-
-                if not all(skipped):
-                    self.logger.info('  ' + os.path.basename(fn))
+                self.logger.info('  ' + os.path.basename(fn))
 
 desg2file = lambda s: s.replace('/', '').replace(' ', '').lower()
 
