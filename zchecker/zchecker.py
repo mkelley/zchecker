@@ -109,6 +109,7 @@ class ZChecker:
     def update_ephemeris(self, objects, start, end, update=False):
         from astropy.time import Time
         from . import eph
+        from .exceptions import ZCheckerError
 
         jd_start = Time(start).jd
         jd_end = Time(end).jd
