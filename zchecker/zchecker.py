@@ -295,7 +295,7 @@ class ZChecker:
 
             # find bin index of each requested jd
             i = np.digitize(jd, eph_jd)
-            mask[obj] = (i <= 0) * (i >= len(jd))
+            mask[obj] = (i <= 0) + (i >= len(eph_jd))
             if np.any(mask[obj]):
                 i[mask[obj]] = 1
 
