@@ -152,7 +152,107 @@ class ZChecker:
         self.db.commit()
         self.logger.info('  - Updated {} objects.'.format(updated))
 
+    def clean_ephemeris(self, objects, start=None, end=None):
+        """Remove ephemerides from the database.
+
+        Parameters
+        ----------
+        objects : list
+          List of object designations.
+        start, end : string, optional
+          The date range to remove.  The interval range is inclusive.
+          Default is to remove all dates.
+
+        """
+        
+        from astropy.time import Time
+
+        jd_start = Time(start).jd if start is not None else None
+        jd_end = Time(end).jd if end is not None else None
+        
+        if start is not None and end is not None:
+            msg = ('Cleaning the ephemeris database of {} objects,'
+                   ' between {} and {}.').format(len(objects), start, end)
+            cmd = 'FROM eph WHERE desg=? AND jd >= ? AND jd <= ?'
+            args = (jd_start, jd_end)
+        elif start is None and end is not None:
+            msg = ('Cleaning the ephemeris database of {} objects,'
+                   ' all dates up to {}.').format(len(objects), end)
+            cmd = 'FROM eph WHERE desg=? AND jd <= ?'
+            args = (jd_end,)
+        elif end is None and start is not None:
+            msg = ('Cleaning the ephemeris database of {} objects,'
+                   ' all dates starting {}.').format(len(objects), start)
+            cmd = 'FROM eph WHERE desg=? AND jd >= ?'
+            args = (jd_start,)
+        else:
+            msg = ('Cleaning the ephemeris database of {} objects,'
+                   ' all dates.').format(len(objects))
+            cmd = 'FROM eph WHERE desg=?'
+            args = ()
+
+        self.logger.info(msg)
+        for obj in objects:
+            n = self.db.execute('SELECT count() ' + cmd,
+                                (obj,) + args).fetchone()[0]
+            self.logger.debug('* {}, {} epochs'.format(obj, n))
+            self.db.execute('DELETE ' + cmd, (obj,) + args)
+
+        self.db.commit()
+
+    def clean_found(self, objects, start=None, end=None):
+        """Remove found objects from the database.
+
+        Parameters
+        ----------
+        objects : list
+          List of object designations.
+        start, end : string, optional
+          The date range to remove.  The interval range is inclusive.
+          Default is to remove all dates.
+
+        """
+        
+        from astropy.time import Time
+
+        jd_start = Time(start).jd if start is not None else None
+        jd_end = Time(end).jd if end is not None else None
+
+        if start is not None and end is not None:
+            msg = ('Cleaning the found object database of {} objects,'
+                   ' between {} and {}.').format(len(objects), start, end)
+            cmd = '''FROM found WHERE desg=? AND pid IN
+                     (SELECT pid FROM obs WHERE obsjd >= ? AND obsjd <= ?)'''
+            args = (jd_start, jd_end)
+        elif start is None and end is not None:
+            msg = ('Cleaning the found object database of {} objects,'
+                   ' all dates up to {}.').format(len(objects), end)
+            cmd = '''FROM found WHERE desg=? AND pid IN
+                     (SELECT pid FROM obs WHERE obsjd <= ?)'''
+            args = (jd_end,)
+        elif end is None and start is not None:
+            msg = ('Cleaning the found object database of {} objects,'
+                   ' all dates starting {}.').format(len(objects), start)
+            cmd = '''FROM found WHERE desg=? AND pid IN
+                     (SELECT pid FROM obs WHERE obsjd >= ?)'''
+            args = (jd_start,)
+        else:
+            msg = ('Cleaning the found object database of {} objects,'
+                   ' all dates.').format(len(objects))
+            cmd = 'FROM found WHERE desg=?'
+            args = ()
+
+        self.logger.info(msg)
+        for obj in objects:
+            n = self.db.execute('SELECT count() ' + cmd,
+                                (obj,) + args).fetchone()[0]
+            self.logger.debug('* {}, {} detections'.format(obj, n))
+            self.db.execute('DELETE ' + cmd, (obj,) + args)
+
+        self.db.commit()
+        
     def _get_ephemerides(self, objects, jd):
+
         """Retrieve approximate ephemerides by interpolation.
 
         Parameters
