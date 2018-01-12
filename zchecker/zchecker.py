@@ -252,7 +252,6 @@ class ZChecker:
         self.db.commit()
         
     def _get_ephemerides(self, objects, jd):
-
         """Retrieve approximate ephemerides by interpolation.
 
         Parameters
@@ -278,6 +277,7 @@ class ZChecker:
         from astropy.coordinates import SkyCoord
         from astropy.coordinates.angle_utilities import angular_separation
         from .eph import interp
+        from .exceptions import EphemerisError
 
         eph = {}
         mask = {}
@@ -288,6 +288,9 @@ class ZChecker:
               AND jd>?
               AND jd<?
             ''', (obj, min(jd) - 1, max(jd) + 1)).fetchall()
+            if len(rows) == 0:
+                raise EphemerisError('No dates found for ' + obj)
+
             ra, dec, eph_jd = zip(*rows)
             ra = np.radians(ra)
             dec = np.radians(dec)
@@ -352,7 +355,16 @@ class ZChecker:
         from astropy.wcs import WCS
         import callhorizons
 
-        q = callhorizons.query(desg)
+        opts = dict()
+        if (desg.startswith(('P/', 'C/', 'I/', 'D/'))
+            or desg.split('-')[0].endswith(('P', 'D', 'I'))):
+            opts['comet'] = True
+            opts['asteroid'] = False
+        else:
+            opts['comet'] = False
+            opts['asteroid'] = True
+
+        q = callhorizons.query(desg, cap=True, nofrag=True, **opts)
         q.set_discreteepochs([fov['obsjd']])
         if q.get_ephemerides('I41') <= 0:
             print('Error retrieving ephemeris for {} on {}'.format(

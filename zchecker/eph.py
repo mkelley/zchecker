@@ -42,7 +42,16 @@ def interp(jd, c1, c2):
 def update(obj, start, end, step):
     from astropy.time import Time
     import callhorizons
-    q = callhorizons.query(obj)
+    opts = dict()
+    if (obj.startswith(('P/', 'C/', 'I/', 'D/'))
+        or obj.split('-')[0].endswith(('P', 'D', 'I'))):
+        opts['comet'] = True
+        opts['asteroid'] = False
+    else:
+        opts['comet'] = False
+        opts['asteroid'] = True
+
+    q = callhorizons.query(obj, cap=True, nofrag=True, **opts)
     q.set_epochrange(start, end, '6h')
     if q.get_ephemerides('I41') <= 0:
         raise NoEphemerisReturned

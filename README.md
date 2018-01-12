@@ -28,7 +28,7 @@ $ zchecker --help
 
 ```
 
-## Ephemeris setup
+## Ephemerides
 
 1. (Optional) Make a list of objects: `objects.list`.
 
@@ -40,6 +40,13 @@ $ zchecker --help
 
    Broad date ranges are best.  Ephemerides can be updated as the
    orbital elements are refined.
+
+1. Delete ephemerides from the database::
+
+     `zchecker clean-eph objects.list`
+     `zchecker clean-eph objects.list --start=YYYY-MM-DD --end=YYYY-MM-DD` 
+     `zchecker clean-eph "C/2017 Y1, C/2017 Y2" --start=YYYY-MM-DD --end=YYYY-MM-DD`
+
 
 ## Usage
 
@@ -79,6 +86,11 @@ $ zchecker --help
 
      `zchecker search "C/2017 AB5" --full`
      `zchecker search "C/2017 Y1,C/2017 Y2" --full`
+
+1. Clean the found object database::
+
+     `zchecker clean-found "C/2017 AB5"`
+     `zchecker clean-found "C/2017 AB5" --start=YYYY-MM-DD --end=YYYY-MM-DD`
 
 1. Download cutouts around each found target::
 

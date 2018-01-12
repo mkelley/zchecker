@@ -99,12 +99,14 @@ def eph_update(args):
 
     config = get_updated_config(args)
     with ZChecker(config) as z:
-        z.update_ephemeris(args.objects, args.start, args.end, update=True)
+        z.update_ephemeris(args.objects, args.start, args.end,
+                           update=args.update)
 
 parser_eph = subparsers.add_parser('eph-update', help='update local ephemeris database', aliases=['eph'], epilog='Date format: YYYY-MM-DD.')
 parser_eph.add_argument('objects', type=object_list, help='file name listing one object per line, or a comma-separated list of objects, must be resolvable by JPL/HORIZONS')
 parser_eph.add_argument('--start', default='2017-10-13', help='start date of ephemeris, UT')
 parser_eph.add_argument('--end', default='2018-03-01', help='end date of ephemeris, UT')
+parser_eph.add_argument('--add', dest='update', action='store_false', help='Only add missing ephemerides.')
 parser_eph.set_defaults(func=eph_update)
 
 # CLEAN-EPH ############################################################

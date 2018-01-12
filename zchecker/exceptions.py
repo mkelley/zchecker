@@ -7,3 +7,6 @@ class DownloadError(ZCheckerError):
 
 class DateRangeError(ZCheckerError):
     pass
+
+class EphemerisError(ZCheckerError):
+    pass
