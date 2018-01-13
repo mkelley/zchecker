@@ -5,7 +5,7 @@ ZTF moving target checker for short object lists.
 
 * Python 3.5+
 * astropy v2.0+
-* callhorizons v1.0.7 (unknown if it works with other versions)
+* callhorizons v1.0.7.  It is unknown if it works with other versions, but will work with the latest once a few modifications are approved.
 * sqlite3
 
 ## Configuration
@@ -40,6 +40,11 @@ $ zchecker --help
 
    Broad date ranges are best.  Ephemerides can be updated as the
    orbital elements are refined.
+	 
+1. Alternatively, add ephemerides, but only if none are found in the
+   time period, using the `--add` option::
+
+     `zchecker eph-update "C/2017 Y1" --add --start=YYYY-MM-DD --end=YYYY-MM-DD`
 
 1. Delete ephemerides from the database::
 
