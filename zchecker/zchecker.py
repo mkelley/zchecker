@@ -511,7 +511,7 @@ class ZChecker:
 
         self.logger.info(msg)
 
-    def _download_file(self, irsa, url, filename):
+    def _download_file(self, irsa, url, filename, clean_failed):
         """ZTF file download helper."""
         import os
         from .exceptions import ZCheckerError
@@ -526,11 +526,11 @@ class ZChecker:
             self.logger.error(
                 'Error downloading {} from {}: {}'.format(
                     filename, url, str(e)))
-            if os.path.exists(filename):
+            if os.path.exists(filename) and clean_failed:
                 os.unlink(filename)
             return False
 
-    def download_cutouts(self):
+    def download_cutouts(self, clean_failed=True):
         import os
         from tempfile import mktemp
         import astropy.units as u
@@ -570,7 +570,8 @@ class ZChecker:
                 if os.path.exists(fn):
                     continue
                 
-                success = self._download_file(irsa, url[i], fn)
+                success = self._download_file(
+                    irsa, url[i], fn, clean_failed=clean_failed)
                 if not success:
                     continue
 
@@ -590,12 +591,14 @@ class ZChecker:
 
                 maskfn = mktemp(dir='/tmp')
                 _url = url[i].replace('sciimg', 'mskimg')
-                mask_downloaded = self._download_file(irsa, _url, maskfn)
+                mask_downloaded = self._download_file(
+                    irsa, _url, maskfn, clean_failed=clean_failed)
                 
                 psffn = mktemp(dir='/tmp')
                 _url = url[i].replace('sciimg', 'sciimgdaopsfcent')
                 _url = _url[:_url.rfind('?')]
-                psf_downloaded = self._download_file(irsa, _url, psffn)
+                psf_downloaded = self._download_file(
+                    irsa, _url, psffn, clean_failed=clean_failed)
 
                 # update header and add mask and PSF
                 with fits.open(fn, 'update') as hdu:

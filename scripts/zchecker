@@ -155,10 +155,11 @@ parser_ztf.set_defaults(func=ztf_update)
 def download_cutouts(args):
     config = get_updated_config(args)
     with ZChecker(config) as z:
-        z.download_cutouts()
+        z.download_cutouts(clean_failed=args.clean_failed)
 
 parser_cutout = subparsers.add_parser('download-cutouts', help='Download cutouts.', aliases=['cutouts'])
 parser_cutout.add_argument('--path', help='local cutout path')
+parser_cutout.add_argument('--clean-failed', action='store_true', help='Delete file after a failed download.')
 parser_cutout.set_defaults(func=download_cutouts)
 
 # LIST-NIGHTS ############################################################
