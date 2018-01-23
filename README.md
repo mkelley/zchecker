@@ -36,6 +36,7 @@ $ zchecker --help
    the list or on the command line::
 
      `zchecker eph-update objects.list --start=YYYY-MM-DD --end=YYYY-MM-DD` 
+
      `zchecker eph-update "C/2017 Y1, C/2017 Y2" --start=YYYY-MM-DD --end=YYYY-MM-DD`
 
    Broad date ranges are best.  Ephemerides can be updated as the
@@ -49,7 +50,9 @@ $ zchecker --help
 1. Delete ephemerides from the database::
 
      `zchecker clean-eph objects.list`
+     
      `zchecker clean-eph objects.list --start=YYYY-MM-DD --end=YYYY-MM-DD` 
+     
      `zchecker clean-eph "C/2017 Y1, C/2017 Y2" --start=YYYY-MM-DD --end=YYYY-MM-DD`
 
 
@@ -57,7 +60,7 @@ $ zchecker --help
 
 1. Update local database with ZTF observations from a date::
 
-	`zchecker ztf-update --date=YYYY-MM-DD`
+     `zchecker ztf-update --date=YYYY-MM-DD`
 
    Or to simply check the last night::
 	
@@ -90,11 +93,13 @@ $ zchecker --help
    For a subset of targets specified on the command line::
 
      `zchecker search "C/2017 AB5" --full`
+     
      `zchecker search "C/2017 Y1,C/2017 Y2" --full`
 
 1. Clean the found object database::
 
      `zchecker clean-found "C/2017 AB5"`
+     
      `zchecker clean-found "C/2017 AB5" --start=YYYY-MM-DD --end=YYYY-MM-DD`
 
 1. Download cutouts around each found target::
