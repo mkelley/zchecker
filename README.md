@@ -5,7 +5,7 @@ ZTF moving target checker for short object lists.
 
 * Python 3.5+
 * astropy v2.0+
-* callhorizons v1.0.7.  It is unknown if it works with other versions, but will work with the latest once a few modifications are approved.
+* callhorizons, latest version as of 17 Jan works (https://github.com/mommermi/callhorizons)
 * sqlite3
 
 ## Configuration
