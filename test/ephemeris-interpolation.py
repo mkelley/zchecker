@@ -18,10 +18,15 @@ with ZChecker(config, log=False) as zc:
     d = []
     for i in range(len(objects)):
         obj = objects[i]
-        eph, mask = zc._get_ephemerides([obj], [obsjd[i]])
+        try:
+            eph, mask = zc._get_ephemerides([obj], [obsjd[i]])
+        except:
+            continue
         d.append(206265 * angular_separation(ra[i], dec[i], *eph[obj][0]))
         #print('{:15} {:.1f}'.format(objects[i], d))
 
+d = np.array(d)
+d = d[d > 0]
 plt.clf()
 plt.hist(np.log10(d), bins=100)
 plt.setp(plt.gca(), xlabel='log10(err) [arcsec]', ylabel='Number')
