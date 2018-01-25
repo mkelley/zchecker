@@ -584,9 +584,9 @@ class ZChecker:
                     'tgtra': (ra[i], 'Target RA, deg'),
                     'tgtdec': (dec[i], 'Target Dec, deg'),
                     'tgtdra': (dra[i], 'Target RA*cos(dec) rate of change,'
-                               ' arcsec/hr'),
+                               ' arcsec/s'),
                     'tgtddec': (ddec[i], 'Target Dec rate of change,'
-                                ' arcsec/hr'),
+                                ' arcsec/s'),
                 }
 
                 maskfn = mktemp(dir='/tmp')
