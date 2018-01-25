@@ -600,16 +600,29 @@ class ZChecker:
                 psf_downloaded = self._download_file(
                     irsa, _url, psffn, clean_failed=clean_failed)
 
+                difffn = mktemp(dir='/tmp')
+                _url = url[i].replace('sciimg.fits', 'scimrefdiffimg.fits.fz')
+                diff_downloaded = self._download_file(
+                    irsa, _url, difffn, clean_failed=clean_failed)
+
+                diffpsffn = mktemp(dir='/tmp')
+                _url = url[i].replace('sciimg', 'diffimgpsf')
+                if diff_downloaded:  # no need to DL PSF if diff not DL'ed
+                    diffpsf_downloaded = self._download_file(
+                        irsa, _url, diffpsffn, clean_failed=clean_failed)
+                else:
+                    diffpsf_downloaded = False
+
                 # update header and add mask and PSF
                 with fits.open(fn, 'update') as hdu:
                     hdu[0].name = 'sci'
-                        
+
                     wcs = WCS(hdu[0].header)
                     x, y = wcs.all_world2pix(
                         ra[i] * u.deg, dec[i] * u.deg, 0)
                     updates['tgtx'] = int(x), 'Target x coordinate, 0-based'
                     updates['tgty'] = int(y), 'Target y coordinate, 0-based'
-                    
+
                     hdu[0].header.update(updates)
 
                     if mask_downloaded:
@@ -622,11 +635,19 @@ class ZChecker:
                             psf[0].name = 'psf'
                             hdu.insert(2, psf[0])  # always third
 
-                if os.path.exists(maskfn):
-                    os.unlink(maskfn)
-                    
-                if os.path.exists(psffn):
-                    os.unlink(psffn)
+                    if diff_downloaded:
+                        with fits.open(difffn) as diff:
+                            diff[0].name = 'diff'
+                            hdu.insert(3, psf[0])  # always fourth
+
+                    if diffpsf_downloaded:
+                        with fits.open(diffpsffn) as diffpsf:
+                            diffpsf[0].name = 'diff_psf'
+                            hdu.insert(4, psf[0])  # always fifth
+
+                for f in (maskfn, psffn, difffn, diffpsffn):
+                    if os.path.exists(f):
+                        os.unlink(f)
 
                 self.logger.info('  ' + os.path.basename(fn))
 
