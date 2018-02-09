@@ -80,10 +80,10 @@ class ZChecker:
         start = (Time(end) - 24 * u.hr).iso[:16]
         q = "obsdate>'{}' AND obsdate<'{}'".format(start, end)
 
-        cols = ['field', 'ccdid', 'qid', 'rcid', 'fid',
+        cols = ['infobits', 'field', 'ccdid', 'qid', 'rcid', 'fid',
                 'filtercode', 'pid', 'expid', 'obsdate',
                 'obsjd', 'filefracday', 'seeing', 'airmass',
-                'moonillf', 'crpix1', 'crpix2', 'crval1',
+                'moonillf', 'maglimit', 'crpix1', 'crpix2', 'crval1',
                 'crval2', 'cd11', 'cd12', 'cd21', 'cd22',
                 'ra', 'dec', 'ra1', 'dec1', 'ra2', 'dec2',
                 'ra3', 'dec3', 'ra4', 'dec4']
@@ -97,11 +97,11 @@ class ZChecker:
         nightid = self.nightid(date)
         def rows(nightid, tab):
             for row in tab:
-                yield (nightid,) + tuple(row) + (None,)
+                yield (nightid,) + tuple(row)
 
         self.db.executemany('''
         INSERT OR IGNORE INTO obs VALUES ({})
-        '''.format(','.join('?' * (len(cols) + 2))), rows(nightid, tab))
+        '''.format(','.join('?' * (len(cols) + 1))), rows(nightid, tab))
         self.db.commit()
 
         self.logger.info('Updated observation log for {} UT with {} images.'.format(date, len(tab)))
@@ -350,10 +350,14 @@ class ZChecker:
 
         return quads
 
-    def _silicon_test(self, desg, fov):
+    def _silicon_test(self, desg, fovs):
+        import numpy as np
         import astropy.units as u
+        from astropy.time import Time
         from astropy.wcs import WCS
         import callhorizons
+
+        now = Time.now().iso[:-4]
 
         opts = dict()
         if (desg.startswith(('P/', 'C/', 'I/', 'D/'))
@@ -364,41 +368,66 @@ class ZChecker:
             opts['comet'] = False
             opts['asteroid'] = True
 
-        q = callhorizons.query(desg, cap=True, nofrag=True, **opts)
-        q.set_discreteepochs([fov['obsjd']])
-        if q.get_ephemerides('I41') <= 0:
-            print('Error retrieving ephemeris for {} on {}'.format(
+        # query HORIZONS for all requested epochs
+        obsjd = list([fov['obsjd'] for fov in fovs])
+        assert np.all(np.diff(obsjd) > 0), 'FOVs must be in order!'
+
+        eph = callhorizons.query(desg, cap=True, nofrag=True, **opts)
+        eph.set_discreteepochs(obsjd)
+        if eph.get_ephemerides('I41') <= 0:
+            self.logger.error('Error retrieving ephemeris: {}, JD=\n{}'.format(
+                desg, obsjd))
+            return None
+
+        orb = callhorizons.query(desg, cap=True, nofrag=True, **opts)
+        orb.set_discreteepochs(obsjd)
+        if orb.get_elements() <= 0:
+            self.logger.error('Error retrieving orbit: {}, JD=\n{}'.format(
                 desg, jd))
             return None
 
-        wcs = WCS({
-            'crpix1': fov['crpix1'],
-            'crpix2': fov['crpix2'],
-            'crval1': fov['crval1'],
-            'crval2': fov['crval2'],
-            'cd1_1': fov['cd11'],
-            'cd1_2': fov['cd12'],
-            'cd2_1': fov['cd21'],
-            'cd2_2': fov['cd22'],
-            'RADESYS': 'ICRS',
-            'CTYPE1': 'RA---TAN', # not right, but OK for now
-            'CTYPE2': 'DEC--TAN', # not right, but OK for now
-            'CUNIT1': 'deg',
-            'CUNIT2': 'deg',
-            'NAXIS1': 3072,
-            'NAXIS2': 3080,
-        })
-        p = wcs.all_world2pix(q['RA'] * u.deg, q['DEC'] * u.deg, 0)
+        Tp = Time(orb['Tp'], format='jd', scale='tdb')
+        T = Time(obsjd, format='jd', scale='utc')
+        tmtp = (T - Tp).jd
 
-        if (p[0] >=0 and p[0] <= 3072 and
-            p[1] >= 0 and p[1] <= 3080):
-            return (desg, q['RA'][0], q['DEC'][0], q['RA_rate'][0],
-                    q['DEC_rate'][0], q['V'][0], q['r'][0], q['r_rate'][0],
-                    q['delta'][0], q['alpha'][0], fov['pid'],
-                    int(p[0][0]), int(p[1][0]))
+        found = []
+        for i, fov in enumerate(fovs):
+            wcs = WCS({
+                'crpix1': fov['crpix1'],
+                'crpix2': fov['crpix2'],
+                'crval1': fov['crval1'],
+                'crval2': fov['crval2'],
+                'cd1_1': fov['cd11'],
+                'cd1_2': fov['cd12'],
+                'cd2_1': fov['cd21'],
+                'cd2_2': fov['cd22'],
+                'RADESYS': 'ICRS',
+                'CTYPE1': 'RA---TAN', # not right, but OK for now
+                'CTYPE2': 'DEC--TAN', # not right, but OK for now
+                'CUNIT1': 'deg',
+                'CUNIT2': 'deg',
+                'NAXIS1': 3072,
+                'NAXIS2': 3080,
+            })
+            p = wcs.all_world2pix(eph['RA'][i] * u.deg,
+                                  eph['DEC'][i] * u.deg, 0)
+
+            if (p[0] >=0 and p[0] <= 3072 and p[1] >= 0 and p[1] <= 3080):
+                row = [desg, obsjd[i]]
+                row.extend([eph[k][i] for k in
+                            ('RA', 'DEC', 'RA_rate', 'DEC_rate',
+                             'RA_3sigma', 'DEC_3sigma', 'V', 'r',
+                             'r_rate', 'delta', 'alpha', 'elong',
+                             'sunTargetPA', 'velocityPA')])
+                row.extend((orb['trueanomaly'][i], tmtp[i], fov['pid'],
+                            int(p[0]), int(p[1]), now))
+                found.append(row)
+
+        if len(found) > 0:
+            return found
         else:
             return None
-        
+
     def fov_search(self, start, end, objects=None):
         """Search for objects in ZTF fields.
 
@@ -425,11 +454,14 @@ class ZChecker:
         end = (Time(end) + 1 * u.day + 1 * u.s).iso[:10]
 
         c = self.db.execute('''
-        SELECT DISTINCT obsjd FROM obsnight WHERE date>=? AND date <=?''',
-                            (start, end))
+        SELECT DISTINCT obsjd FROM obsnight
+          WHERE date>=? AND date <=?
+          ORDER BY obsjd''', (start, end))
         jd = list([row['obsjd'] for row in c.fetchall()])
         if len(jd) == 0:
-            raise DateRangeError('No observations found for UT date range {} to {}.'.format(start, end))
+            raise DateRangeError(
+                'No observations found for UT date range {} to {}.'.format(
+                    start, end))
 
         if objects is None:
             jd_start = Time(start).jd - 0.01
@@ -448,6 +480,9 @@ class ZChecker:
         quads = self._get_quads(min(jd), max(jd), ','.join(cols))
 
         found_objects = {}
+        horizons_chunk = 300  # collect N obs before querying HORIZONS
+        follow_up = {}
+        count = 0
         with ProgressBar(len(jd), self.logger) as bar:
             for i in range(len(jd)):
                 bar.update()
@@ -457,14 +492,12 @@ class ZChecker:
                 quad_dec = np.radians([quad['dec'] for quad in quads[jd[i]]])
                 field_ra, field_dec = spherical_mean(quad_ra, quad_dec)
 
-                n_found = 0
                 for obj in objects:
                     if mask[obj][i]:
                         # this epoch masked for this object
                         continue
 
                     # distance to field center
-                    #d = eph[obj][i].separation(field_cen)
                     ra, dec = eph[obj][i]
                     d = angular_separation(ra, dec, field_ra, field_dec)
 
@@ -473,7 +506,6 @@ class ZChecker:
                         continue
 
                     # distance to all FOV centers
-                    #d = eph[obj][i].separation(fovs)
                     d = angular_separation(ra, dec, quad_ra, quad_dec)
 
                     # Find closest FOV.  Investigate if it is <1.5 deg away.
@@ -481,27 +513,26 @@ class ZChecker:
                     if d[j] > 0.026:
                         continue
 
+                    # Save for later
+                    follow_up[obj] = follow_up.get(obj, []) + [quads[jd[i]][j]]
+                    count += 1
+                    
+                if count >= horizons_chunk:
                     # Check quadrant and position in detail.
-                    fov = quads[jd[i]][j]
-                    found = self._silicon_test(obj, fov)
-                    if found is None:
-                        continue
+                    print()
+                    self.logger.debug('Collected {} FOVs to check.'
+                                      '  Calling HORIZONS.'.format(count))
+                    found_objects = self._fov_follow_up(
+                        follow_up, found_objects)
 
-                    n_found += 1
-                    if n_found == 1:
-                        # print blank line to preserve JD on console output
-                        print()
-
-                    print('  Found', obj)
-                    found_objects[obj] = found_objects.get(obj, 0) + 1
-
-                    self.db.execute('''
-                    INSERT OR REPLACE INTO found VALUES
-                    (?,?,?,?,?,?,?,?,?,?,?,?,?)
-                    ''', found)
-
-                self.db.commit()
-
+                    follow_up = {}
+                    count = 0
+            else:
+                # Check quadrant and position in detail.
+                self.logger.debug('\nCollected {} FOVs to check.'
+                                  '  Calling HORIZONS.'.format(count))
+                found_objects = self._fov_follow_up(
+                    follow_up, found_objects)
         print()
 
         msg = 'Found {} objects.\n'.format(len(found_objects))
@@ -511,6 +542,27 @@ class ZChecker:
 
         self.logger.info(msg)
 
+    def _fov_follow_up(self, follow_up, found_objects):
+        """Check objects and FOVs in follow_up and update found_objects."""
+        for obj, fovs in follow_up.items():
+            found = self._silicon_test(obj, fovs)
+            if found is None:
+                continue
+
+            print('  Found', len(found), 'epochs for', obj)
+            found_objects[obj] = (
+                found_objects.get(obj, 0) + len(found))
+
+            self.db.executemany('''
+            INSERT OR REPLACE INTO found VALUES
+            (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            ''', found)
+
+            self.db.commit()
+
+        return found_objects
+
+        
     def _download_file(self, irsa, url, filename, clean_failed):
         """ZTF file download helper."""
         import os
@@ -533,6 +585,7 @@ class ZChecker:
     def download_cutouts(self, clean_failed=True):
         import os
         from tempfile import mktemp
+        import numpy as np
         import astropy.units as u
         from astropy.io import fits
         from astropy.time import Time
@@ -543,12 +596,18 @@ class ZChecker:
         fntemplate = path + '/{desg}/{desg}-{datetime}-{prepost}{rh:.3f}-ztf.fits.gz'
 
         c = self.db.execute('''
-        SELECT desg,obsjd,rh,delta,phase,rdot,ra,dec,dra,ddec,url
+        SELECT desg,obsjd,rh,rdot,delta,phase,selong,sangle,vangle,
+          trueanomaly,tmtp,ra,dec,dra,ddec,ra3sig,dec3sig,url
           FROM foundobs ORDER BY desg,obsjd
         ''')
         rows = c.fetchall()
-        (desg, obsjd, rh, delta, phase, rdot, ra, dec, dra, ddec,
+        (desg, obsjd, rh, rdot, delta, phase, selong, sangle, vangle,
+         trueanomaly, tmtp, ra, dec, dra, ddec, ra3sig, dec3sig,
          url) = zip(*rows)
+
+        # rotate 180 deg
+        sangle = (np.array(sangle) + 180) % 360
+        vangle = (np.array(vangle) + 180) % 360
 
         self.logger.info('Checking {} cutouts.'.format(len(rows)))
 
@@ -569,44 +628,58 @@ class ZChecker:
 
                 if os.path.exists(fn):
                     continue
-                
-                success = self._download_file(
-                    irsa, url[i], fn, clean_failed=clean_failed)
+
+                sciurl = url[i] + '&size=5arcmin'
+                success = self._download_file(irsa, sciurl, fn,
+                                              clean_failed=clean_failed)
                 if not success:
                     continue
 
                 updates = {
                     'desg': (desg[i], 'Target designation'),
+                    'obsjd': (obsjd[i], 'Shutter start time'),
                     'rh': (rh[i], 'Heliocentric distance, au'),
                     'delta': (delta[i], 'Observer-target distance, au'),
                     'phase': (phase[i], 'Sun-target-observer angle, deg'),
                     'rdot': (rdot[i], 'Heliocentric radial velocity, km/s'),
+                    'selong': (selong[i], 'Solar elongation, deg'),
+                    'sangle': (sangle[i], 'Projected target->Sun position'
+                               ' angle, deg'),
+                    'vangle': (vangle[i], 'Projected velocity position angle,'
+                               ' deg'),
+                    'trueanom': (trueanomaly[i], 'True anomaly (osculating),'
+                                 ' deg'),
+                    'tmtp': (tmtp[i], 'T-Tp (osculating), days'),
                     'tgtra': (ra[i], 'Target RA, deg'),
                     'tgtdec': (dec[i], 'Target Dec, deg'),
                     'tgtdra': (dra[i], 'Target RA*cos(dec) rate of change,'
                                ' arcsec/s'),
                     'tgtddec': (ddec[i], 'Target Dec rate of change,'
                                 ' arcsec/s'),
+                    'tgtrasig': (ra3sig[i], 'Target RA 3-sigma uncertainty,'
+                                 ' arcsec'),
+                    'tgtdesig': (dec3sig[i], 'Target Dec 3-sigma uncertainty,'
+                                 ' arcsec'),
                 }
 
                 maskfn = mktemp(dir='/tmp')
-                _url = url[i].replace('sciimg', 'mskimg')
+                _url = sciurl.replace('sciimg', 'mskimg')
                 mask_downloaded = self._download_file(
                     irsa, _url, maskfn, clean_failed=clean_failed)
                 
                 psffn = mktemp(dir='/tmp')
-                _url = url[i].replace('sciimg', 'sciimgdaopsfcent')
+                _url = sciurl.replace('sciimg', 'sciimgdaopsfcent')
                 _url = _url[:_url.rfind('?')]
                 psf_downloaded = self._download_file(
                     irsa, _url, psffn, clean_failed=clean_failed)
 
                 difffn = mktemp(dir='/tmp')
-                _url = url[i].replace('sciimg.fits', 'scimrefdiffimg.fits.fz')
+                _url = sciurl.replace('sciimg.fits', 'scimrefdiffimg.fits.fz')
                 diff_downloaded = self._download_file(
                     irsa, _url, difffn, clean_failed=clean_failed)
 
                 diffpsffn = mktemp(dir='/tmp')
-                _url = url[i].replace('sciimg', 'diffimgpsf')
+                _url = sciurl.replace('sciimg', 'diffimgpsf')
                 if diff_downloaded:  # no need to DL PSF if diff not DL'ed
                     diffpsf_downloaded = self._download_file(
                         irsa, _url, diffpsffn, clean_failed=clean_failed)

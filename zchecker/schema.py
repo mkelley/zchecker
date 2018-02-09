@@ -7,6 +7,7 @@ schema = [
 
     '''CREATE TABLE IF NOT EXISTS obs(
     nightid INTEGER,
+    infobits INTEGER,
     field INTEGER,
     ccdid INTEGER,
     qid INTEGER,
@@ -21,6 +22,7 @@ schema = [
     seeing FLOAT,
     airmass FLOAT,
     moonillf FLOAT,
+    maglimit FLOAT,
     crpix1 FLOAT,
     crpix2 FLOAT,
     crval1 FLOAT,
@@ -38,8 +40,7 @@ schema = [
     ra3 FLOAT,
     dec3 FLOAT,
     ra4 FLOAT,
-    dec4 FLOAT,
-    checker_date TEXT
+    dec4 FLOAT
     )''',
 
     '''CREATE TABLE IF NOT EXISTS eph(
@@ -56,18 +57,27 @@ schema = [
 
     '''CREATE TABLE IF NOT EXISTS found(
     desg TEXT,
+    obsjd TEXT,
     ra FLOAT,
     dec FLOAT,
     dra FLOAT,
     ddec FLOAT,
+    ra3sig FLOAT,
+    dec3sig FLOAT,
     vmag FLOAT,
     rh FLOAT,
     rdot FLOAT,
     delta FLOAT,
     phase FLOAT,
+    selong FLOAT,
+    sangle FLOAT,
+    vangle FLOAT,
+    trueanomaly FLOAT,
+    tmtp FLOAT,
     pid INTEGER,
     x INTEGER,
-    y INTEGER
+    y INTEGER,
+    retrieved TEXT
     )''',
 
     'CREATE UNIQUE INDEX IF NOT EXISTS desg_pid ON found(desg,pid)',
@@ -83,7 +93,7 @@ schema = [
     '''CREATE VIEW IF NOT EXISTS cutouturl (foundid,url) AS
     SELECT
       found.rowid,
-      printf("https://irsa.ipac.caltech.edu/ibe/data/ztf/products/sci/%s/%s/%s/ztf_%s_%06d_%s_c%02d_o_q%1d_sciimg.fits?center=%f,%fdeg&size=5arcmin",
+      printf("https://irsa.ipac.caltech.edu/ibe/data/ztf/products/sci/%s/%s/%s/ztf_%s_%06d_%s_c%02d_o_q%1d_sciimg.fits?center=%f,%fdeg",
         substr(filefracday,1,4),
         substr(filefracday,5,4),
         substr(filefracday,9),
