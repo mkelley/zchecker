@@ -605,6 +605,7 @@ class ZChecker:
         (desg, obsjd, rh, rdot, delta, phase, selong, sangle, vangle,
          trueanomaly, tmtp, ra, dec, dra, ddec, ra3sig, dec3sig,
          url) = zip(*rows)
+        obsjd = np.array(obsjd, float)
 
         # rotate 180 deg
         sangle = (np.array(sangle) + 180) % 360
