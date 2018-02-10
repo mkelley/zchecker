@@ -480,7 +480,7 @@ class ZChecker:
         quads = self._get_quads(min(jd), max(jd), ','.join(cols))
 
         found_objects = {}
-        horizons_chunk = 300  # collect N obs before querying HORIZONS
+        horizons_chunk = 2000  # collect N obs before querying HORIZONS
         follow_up = {}
         count = 0
         with ProgressBar(len(jd), self.logger) as bar:
