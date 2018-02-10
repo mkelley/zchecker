@@ -423,10 +423,7 @@ class ZChecker:
                             int(p[0]), int(p[1]), now))
                 found.append(row)
 
-        if len(found) > 0:
-            return found
-        else:
-            return None
+        return found
 
     def fov_search(self, start, end, objects=None):
         """Search for objects in ZTF fields.
@@ -545,8 +542,12 @@ class ZChecker:
     def _fov_follow_up(self, follow_up, found_objects):
         """Check objects and FOVs in follow_up and update found_objects."""
         for obj, fovs in follow_up.items():
-            found = self._silicon_test(obj, fovs)
-            if found is None:
+            # only check 100 at a time
+            found = []
+            for i in range(0, len(fovs), 100):
+                found.extend(self._silicon_test(obj, fovs[i:i + 100]))
+
+            if len(found) is 0:
                 continue
 
             print('  Found', len(found), 'epochs for', obj)
