@@ -157,7 +157,7 @@ def download_cutouts(args):
     with ZChecker(config) as z:
         z.download_cutouts(clean_failed=args.clean_failed)
 
-parser_cutout = subparsers.add_parser('download-cutouts', help='Download cutouts.', aliases=['cutouts'])
+parser_cutout = subparsers.add_parser('download-cutouts', help='download cutouts.', aliases=['cutouts'])
 parser_cutout.add_argument('--path', help='local cutout path')
 parser_cutout.add_argument('--clean-failed', action='store_true', help='Delete file after a failed download.')
 parser_cutout.set_defaults(func=download_cutouts)
@@ -166,9 +166,10 @@ parser_cutout.set_defaults(func=download_cutouts)
 def list_nights(args):
     config = get_updated_config(args)
     with ZChecker(config, log=False) as z:
-        print('\n'.join(z.available_nights()))
+        print('\n'.join(z.available_nights(exposures=args.exposures)))
 
 parser_nights = subparsers.add_parser('list-nights', help='list all ZTF nights saved to local database', aliases=['nights'])
+parser_nights.add_argument('--no-exposures', dest='exposures', action='store_false', help='do not list number of exposures')
 parser_nights.set_defaults(func=list_nights)
 
 # LIST-OBJECTS ############################################################

@@ -60,9 +60,12 @@ class ZChecker:
         else:
             return nightid[0]
 
-    def available_nights(self):
-        c = self.db.execute('SELECT date FROM nights ORDER BY date')
-        return list([d[0] for d in c.fetchall()])
+    def available_nights(self, exposures=True):
+        if exposures:
+            c = self.db.execute('SELECT date,nframes FROM nights ORDER BY date')
+        else:
+            c = self.db.execute('SELECT date FROM nights ORDER BY date')
+        return list([' '.join([str(x) for x in row]) for row in c.fetchall()])
 
     def available_objects(self):
         rows = self.db.execute('''
@@ -673,18 +676,18 @@ class ZChecker:
                 _url = sciurl.replace('sciimg', 'sciimgdaopsfcent')
                 _url = _url[:_url.rfind('?')]
                 psf_downloaded = self._download_file(
-                    irsa, _url, psffn, clean_failed=clean_failed)
+                    irsa, _url, psffn, clean_failed=True)
 
                 difffn = mktemp(dir='/tmp')
                 _url = sciurl.replace('sciimg.fits', 'scimrefdiffimg.fits.fz')
                 diff_downloaded = self._download_file(
-                    irsa, _url, difffn, clean_failed=clean_failed)
+                    irsa, _url, difffn, clean_failed=True)
 
                 diffpsffn = mktemp(dir='/tmp')
                 _url = sciurl.replace('sciimg', 'diffimgpsf')
                 if diff_downloaded:  # no need to DL PSF if diff not DL'ed
                     diffpsf_downloaded = self._download_file(
-                        irsa, _url, diffpsffn, clean_failed=clean_failed)
+                        irsa, _url, diffpsffn, clean_failed=True)
                 else:
                     diffpsf_downloaded = False
 
