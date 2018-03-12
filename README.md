@@ -8,6 +8,7 @@ ZTF moving target checker for short object lists.
 * requests
 * callhorizons, latest version as of 17 Jan works (https://github.com/mommermi/callhorizons)
 * sqlite3
+* wget
 
 ## Configuration
 
