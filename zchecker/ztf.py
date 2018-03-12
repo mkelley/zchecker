@@ -83,6 +83,6 @@ class IRSA:
             args.append('--save-cookies={}/cookies.txt'.format(self.path))
         else:
             args.append('--load-cookies={}/cookies.txt'.format(self.path))
-        args.extend(['-O', fn, url])
+        args.extend(['-O', fn, '-o', '/dev/null', url])
         
         check_call(args, stdout=sys.stderr)
