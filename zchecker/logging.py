@@ -70,5 +70,4 @@ class ProgressBar:
         tenths = int(self.i / self.n * 10)
         if tenths != self.last_tenths:
             self.last_tenths = tenths
-            print()
             self.logger.info('#' * tenths + '-' * (10 - tenths))
