@@ -678,17 +678,19 @@ class ZChecker:
                     irsa, _url, psffn, clean_failed=True)
 
                 difffn = mktemp(dir='/tmp')
-                _url = sciurl.replace('sciimg.fits', 'scimrefdiffimg.fits.fz')
-                diff_downloaded = self._download_file(
-                    irsa, _url, difffn, clean_failed=True)
-
-                diffpsffn = mktemp(dir='/tmp')
-                _url = sciurl.replace('sciimg', 'diffimgpsf')
-                if diff_downloaded:  # no need to DL PSF if diff not DL'ed
-                    diffpsf_downloaded = self._download_file(
-                        irsa, _url, diffpsffn, clean_failed=True)
-                else:
-                    diffpsf_downloaded = False
+                #_url = sciurl.replace('sciimg.fits', 'scimrefdiffimg.fits.fz')
+                #diff_downloaded = self._download_file(
+                #    irsa, _url, difffn, clean_failed=True)
+                diff_downloaded = False
+                
+                #diffpsffn = mktemp(dir='/tmp')
+                #_url = sciurl.replace('sciimg', 'diffimgpsf')
+                #if diff_downloaded:  # no need to DL PSF if diff not DL'ed
+                #    diffpsf_downloaded = self._download_file(
+                #        irsa, _url, diffpsffn, clean_failed=True)
+                #else:
+                #    diffpsf_downloaded = False
+                diffpsf_downloaded = False
 
                 # update header and add mask and PSF
                 with fits.open(fn, 'update') as hdu:
