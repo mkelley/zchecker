@@ -75,6 +75,7 @@ class IRSA:
             raise e
 
     def _wget(self, url, fn, save_cookies=False):
+        import sys
         from subprocess import check_call
 
         args = ['wget']
@@ -84,5 +85,4 @@ class IRSA:
             args.append('--load-cookies={}/cookies.txt'.format(self.path))
         args.extend(['-O', fn, url])
         
-        check_call(args)
-
+        check_call(args, stdout=sys.stderr)

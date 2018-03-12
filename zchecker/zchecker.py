@@ -486,7 +486,6 @@ class ZChecker:
         with ProgressBar(len(jd), self.logger) as bar:
             for i in range(len(jd)):
                 bar.update()
-                print('\r', jd[i], sep='', end='')
 
                 quad_ra = np.radians([quad['ra'] for quad in quads[jd[i]]])
                 quad_dec = np.radians([quad['dec'] for quad in quads[jd[i]]])
