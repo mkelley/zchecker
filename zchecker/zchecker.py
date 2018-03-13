@@ -682,7 +682,7 @@ class ZChecker:
                 #    irsa, _url, difffn, clean_failed=True)
                 diff_downloaded = False
                 
-                #diffpsffn = mktemp(dir='/tmp')
+                diffpsffn = mktemp(dir='/tmp')
                 #_url = sciurl.replace('sciimg', 'diffimgpsf')
                 #if diff_downloaded:  # no need to DL PSF if diff not DL'ed
                 #    diffpsf_downloaded = self._download_file(
