@@ -601,13 +601,13 @@ class ZChecker:
 
         c = self.db.execute('''
         SELECT desg,obsjd,rh,rdot,delta,phase,selong,sangle,vangle,
-          trueanomaly,tmtp,ra,dec,dra,ddec,ra3sig,dec3sig,url
+          trueanomaly,tmtp,ra,dec,dra,ddec,ra3sig,dec3sig,url,foundid
           FROM foundobs ORDER BY desg,obsjd
         ''')
         rows = c.fetchall()
         (desg, obsjd, rh, rdot, delta, phase, selong, sangle, vangle,
          trueanomaly, tmtp, ra, dec, dra, ddec, ra3sig, dec3sig,
-         url) = zip(*rows)
+         url, foundid) = zip(*rows)
         obsjd = np.array(obsjd, float)
 
         # rotate 180 deg
@@ -665,6 +665,7 @@ class ZChecker:
                                  ' arcsec'),
                     'tgtdesig': (dec3sig[i], 'Target Dec 3-sigma uncertainty,'
                                  ' arcsec'),
+                    'foundid': (foundid[i], 'ZChecker DB foundid'),
                 }
 
                 maskfn = mktemp(dir='/tmp')
