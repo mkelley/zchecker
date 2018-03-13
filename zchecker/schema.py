@@ -104,5 +104,18 @@ schema = [
         qid,
         found.ra,
         found.dec)
-    FROM found INNER JOIN obs ON found.pid=obs.pid'''
+    FROM found INNER JOIN obs ON found.pid=obs.pid''',
+
+    '''CREATE TABLE IF NOT EXISTS archive(
+      foundid  INTEGER UNIQUE,
+      filename TEXT,
+      sci_sync_date TEXT,
+      sciimg INTEGER,
+      mskimg INTEGER,
+      scipsf INTEGER,
+      diffimg INTEGER,
+      diffpsf INTEGER,
+      vangleimg INTEGER
+    )'''
+      
 ]

@@ -421,8 +421,9 @@ class ZChecker:
                 row.extend([eph[k][i] for k in
                             ('RA', 'DEC', 'RA_rate', 'DEC_rate',
                              'RA_3sigma', 'DEC_3sigma', 'V', 'r',
-                             'r_rate', 'delta', 'alpha', 'elong',
-                             'sunTargetPA', 'velocityPA')])
+                             'r_rate', 'delta', 'alpha', 'elong')])
+                row.extend([(eph[k][i] + 180) % 360 for k in
+                            ('sunTargetPA', 'velocityPA')])
                 row.extend((orb['trueanomaly'][i], tmtp[i], fov['pid'],
                             int(p[0]), int(p[1]), now))
                 found.append(row)
@@ -609,10 +610,6 @@ class ZChecker:
          trueanomaly, tmtp, ra, dec, dra, ddec, ra3sig, dec3sig,
          url, foundid) = zip(*rows)
         obsjd = np.array(obsjd, float)
-
-        # rotate 180 deg
-        sangle = (np.array(sangle) + 180) % 360
-        vangle = (np.array(vangle) + 180) % 360
 
         self.logger.info('Checking {} cutouts.'.format(len(rows)))
 

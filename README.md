@@ -108,3 +108,11 @@ $ zchecker --help
 
      `zchecker download-cutouts`
 
+## Database
+
+### found
+
+| Column | Type  | Source   | Description |
+| ------ | ----- | -------- | ----------- |
+| sangle | float | HORIZONS | Projected target->Sun vector.  Note that this is 180 deg from HORIZONS's PsAng |
+| vangle | float | HORIZONS | Projected velocity.  Note that this is 180 deg from HORIZONS's PsAMV |
