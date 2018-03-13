@@ -27,6 +27,7 @@ class ZChecker:
         from astropy.time import Time
         self.logger.info('Closing database.')
         self.db.commit()
+        self.db.execute('PRAGMA optimize')
         self.db.close()
         self.logger.info(Time.now().iso)
 
