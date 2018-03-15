@@ -112,7 +112,35 @@ $ zchecker --help
 
 ### found
 
-| Column | Type  | Source   | Description |
-| ------ | ----- | -------- | ----------- |
-| sangle | float | HORIZONS | Projected target->Sun vector.  Note that this is 180 deg from HORIZONS's PsAng |
-| vangle | float | HORIZONS | Projected velocity.  Note that this is 180 deg from HORIZONS's PsAMV |
+| Column        | Type    | Source   | Description |
+| ------------- | ------- | -------- | ----------- |
+| desg          | text    | user     | target desgination |
+| obsjd         | text    | HORIZONS | observation Julian date, probably start time, UT |
+| ra            | float   | HORIZONS | ephemeris RA, degrees |
+| dec           | float   | HORIZONS | ephemeris Dec, degrees |
+| dra           | float   | HORIZONS | ephemeris RA*cos(Dec) rate of change, arcsec/s |
+| ddec          | float   | HORIZONS | ephemeris Dec rate of change, arcsec/s |
+| ra3sig        | float   | HORIZONS | ephemeris 3-sigma uncertainty in RA |
+| dec3sig       | float   | HORIZONS | ephemeris 3-sigma uncertainty in Dec |
+| vmag          | float   | HORIZONS | estimated visual magnitude |
+| rh            | float   | HORIZONS | heliocentric distance, au |
+| rdot          | float   | HORIZONS | heliocentric radial velocity, km/s |
+| delta         | float   | HORIZONS | observer-target distance, au |
+| phase         | float   | HORIZONS | Sun-target-observer angle, deg |
+| selong        | float   | HORIZONS | solar elongation, deg |
+| sangle        | float   | HORIZONS | projected target->Sun vector, HORIZONS's PsAng + 180, deg |
+| vangle        | float   | HORIZONS | projected velocity, HORIZONS's PsAMV + 180, deg |
+| trueanomaly   | float   | HORIZONS | true anomaly based on osculating elements, deg |
+| tmtp          | float   | HORIZONS | T-Tp, time from perihelion, based on osculating elements, days |
+| pid           | integer | ZTF      | corresponding ZTF product ID |
+| x             | integer | zchecker | approximate x-axis coordinate of ephemeris position in cutout image, pixels |
+| y             | integer | zchecker | approximate y-axis coordinate of ephemeris position in cutout image, pixels |
+| retrieved     | text    | zchecker | date the ephemeris was retrieved from HORIZONS |
+| archivefile   | text    | zchecker | cutout file name in the local archive |
+| sci_sync_date | text    | zchecker | date the science image was downloaded from IRSA |
+| sciimg        | integer | zchecker | 0 if the science image has not been downloaded |
+| mskimg        | integer | zchecker | 0 if the science mask image has not been downloaded |
+| scipsf        | integer | zchecker | 0 if the science PSF image has not been downloaded |
+| diffimg       | integer | zchecker | 0 if the difference image has not been downloaded |
+| diffpsf       | integer | zchecker | 0 if the difference PSF image has not been downloaded |
+| vangleimg     | integer |          | 0 if the velocity aligned image has not been calculated |
