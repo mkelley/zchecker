@@ -217,6 +217,7 @@ class ZChecker:
 
         """
         
+        import os
         from astropy.time import Time
 
         jd_start = Time(start).jd if start is not None else None
@@ -248,20 +249,25 @@ class ZChecker:
 
         self.logger.info(msg)
         total = 0
+        path = self.config['cutout path'] + os.path.sep
         for obj in objects:
             rows = self.db.execute(
-                'SELECT rowid,archivefile FROM foundarchive' + cmd,
+                'SELECT rowid,archivefile FROM found ' + cmd,
                 (obj,) + args).fetchall()
 
-            rowids, filenames = list(zip(*foundid))
+            if len(rows) == 0:
+                continue
+
+            rowids, filenames = list(zip(*rows))
             n = len(rowids)
             total += n
             self.logger.debug('* {}, {} detections'.format(obj, n))
 
-            rowid_list = '({})'.format(','.join('?' * n))
+            bindings = '({})'.format(','.join('?' * n))
             self.db.execute('DELETE FROM found WHERE rowid IN '
-                            + rowid_list)
-            print('rm ' + ' '.join(filenames))
+                            + bindings, rowids)
+            for f in filenames:
+                os.unlink(path + f)
 
         self.logger.info('Removed {} items from found database and file archive.'.format(total))
         self.db.commit()
@@ -571,7 +577,7 @@ class ZChecker:
 
             self.db.executemany('''
             INSERT OR REPLACE INTO found VALUES
-            (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,"","",0,0,0,0,0,0)
             ''', found)
 
             self.db.commit()
@@ -608,72 +614,79 @@ class ZChecker:
         from astropy.wcs import WCS
         from .ztf import IRSA
 
-        path = self.config['cutout path']
-        fntemplate = path + '/{desg}/{desg}-{datetime}-{prepost}{rh:.3f}-ztf.fits.gz'
-
-        c = self.db.execute('''
-        SELECT desg,obsjd,rh,rdot,delta,phase,selong,sangle,vangle,
-          trueanomaly,tmtp,ra,dec,dra,ddec,ra3sig,dec3sig,url,foundid
-          FROM foundobs ORDER BY desg,obsjd
-        ''')
-        rows = c.fetchall()
-        (desg, obsjd, rh, rdot, delta, phase, selong, sangle, vangle,
-         trueanomaly, tmtp, ra, dec, dra, ddec, ra3sig, dec3sig,
-         url, foundid) = zip(*rows)
-        obsjd = np.array(obsjd, float)
-
-        self.logger.info('Checking {} cutouts.'.format(len(rows)))
-
+        path = self.config['cutout path'] + os.path.sep
         if not os.path.exists(path):
             os.system('mkdir ' + path)
 
-        with IRSA(path, self.config.auth) as irsa:
-            for i in range(len(desg)):
-                d = desg2file(desg[i])
-                if not os.path.exists(os.path.join(path, d)):
-                    os.system('mkdir ' + os.path.join(path, d))
+        fntemplate = os.path.join(
+            '{desg}', '{desg}-{datetime}-{prepost}{rh:.3f}-ztf.fits.gz')
 
-                prepost = 'pre' if rdot[i] < 0 else 'post'
-                t = Time(obsjd[i], format='jd').iso
-                t = t.replace('-', '').replace(':', '').replace(' ', '_')[:15]
-                fn = fntemplate.format(desg=d, prepost=prepost, rh=rh[i],
+        rows = self.db.execute('''
+        SELECT * FROM foundobs
+        WHERE sciimg=0
+        ORDER BY desg,obsjd
+        ''').fetchall()
+
+        if len(rows) == 0:
+            self.logger.info('No cutouts to download.')
+            return
+
+        self.logger.info('{} cutouts to download.'.format(len(rows)))
+
+        with IRSA(path, self.config.auth) as irsa:
+            for row in rows:
+                # check if target cutout directory exists
+                d = desg2file(row['desg'])
+                if not os.path.exists(path + d):
+                    os.system('mkdir ' + path + d)
+
+                prepost = 'pre' if row['rdot'] < 0 else 'post'
+                sync_date = Time(float(row['obsjd']), format='jd').iso
+                t = sync_date.replace('-', '').replace(':', '').replace(' ', '_')[:15]
+                fn = fntemplate.format(desg=d, prepost=prepost, rh=row['rh'],
                                        datetime=t)
 
-                if os.path.exists(fn):
-                    continue
+                if os.path.exists(path + fn):
+                    self.logger.error(path + fn + ' exists, but was not expected.  Removing.')
+                    os.unlink(path + fn)
 
-                sciurl = url[i] + '&size=5arcmin'
-                success = self._download_file(irsa, sciurl, fn,
-                                              clean_failed=clean_failed)
-                if not success:
+                sciurl = row['url'] + '&size=5arcmin'
+                sci_downloaded = self._download_file(
+                    irsa, sciurl, path + fn, clean_failed=clean_failed)
+                if not sci_downloaded:
+                    self.db.execute('''
+                    UPDATE found SET
+                      sci_sync_date=?,
+                      sciimg=?,
+                      mskimg=?,
+                      scipsf=?,
+                      diffimg=?,
+                      diffpsf=?,
+                      vangleimg=0
+                    WHERE rowid=?
+                    ''', (sync_date, 0, 0, 0, 0, 0, row['foundid']))
+                    self.db.commit()
                     continue
 
                 updates = {
-                    'desg': (desg[i], 'Target designation'),
-                    'obsjd': (obsjd[i], 'Shutter start time'),
-                    'rh': (rh[i], 'Heliocentric distance, au'),
-                    'delta': (delta[i], 'Observer-target distance, au'),
-                    'phase': (phase[i], 'Sun-target-observer angle, deg'),
-                    'rdot': (rdot[i], 'Heliocentric radial velocity, km/s'),
-                    'selong': (selong[i], 'Solar elongation, deg'),
-                    'sangle': (sangle[i], 'Projected target->Sun position'
-                               ' angle, deg'),
-                    'vangle': (vangle[i], 'Projected velocity position angle,'
-                               ' deg'),
-                    'trueanom': (trueanomaly[i], 'True anomaly (osculating),'
-                                 ' deg'),
-                    'tmtp': (tmtp[i], 'T-Tp (osculating), days'),
-                    'tgtra': (ra[i], 'Target RA, deg'),
-                    'tgtdec': (dec[i], 'Target Dec, deg'),
-                    'tgtdra': (dra[i], 'Target RA*cos(dec) rate of change,'
-                               ' arcsec/s'),
-                    'tgtddec': (ddec[i], 'Target Dec rate of change,'
-                                ' arcsec/s'),
-                    'tgtrasig': (ra3sig[i], 'Target RA 3-sigma uncertainty,'
-                                 ' arcsec'),
-                    'tgtdesig': (dec3sig[i], 'Target Dec 3-sigma uncertainty,'
-                                 ' arcsec'),
-                    'foundid': (foundid[i], 'ZChecker DB foundid'),
+                    'desg': (row['desg'], 'Target designation'),
+                    'obsjd': (row['obsjd'], 'Shutter start time'),
+                    'rh': (row['rh'], 'Heliocentric distance, au'),
+                    'delta': (row['delta'], 'Observer-target distance, au'),
+                    'phase': (row['phase'], 'Sun-target-observer angle, deg'),
+                    'rdot': (row['rdot'], 'Heliocentric radial velocity, km/s'),
+                    'selong': (row['selong'], 'Solar elongation, deg'),
+                    'sangle': (row['sangle'], 'Projected target->Sun position angle, deg'),
+                    'vangle': (row['vangle'], 'Projected velocity position angle, deg'),
+                    'trueanom': (row['trueanomaly'], 'True anomaly (osculating), deg'),
+                    'tmtp': (row['tmtp'], 'T-Tp (osculating), days'),
+                    'tgtra': (row['ra'], 'Target RA, deg'),
+                    'tgtdec': (row['dec'], 'Target Dec, deg'),
+                    'tgtdra': (row['dra'], 'Target RA*cos(dec) rate of change, arcsec/s'),
+                    'tgtddec': (row['ddec'], 'Target Dec rate of change, arcsec/s'),
+                    'tgtrasig': (row['ra3sig'], 'Target RA 3-sigma uncertainty, arcsec'),
+                    'tgtdesig': (row['dec3sig'], 'Target Dec 3-sigma uncertainty, arcsec'),
+                    'foundid': (row['foundid'], 'ZChecker DB foundid'),
                 }
 
                 maskfn = mktemp(dir='/tmp')
@@ -703,12 +716,12 @@ class ZChecker:
                 diffpsf_downloaded = False
 
                 # update header and add mask and PSF
-                with fits.open(fn, 'update') as hdu:
+                with fits.open(path + fn, 'update') as hdu:
                     hdu[0].name = 'sci'
 
                     wcs = WCS(hdu[0].header)
                     x, y = wcs.all_world2pix(
-                        ra[i] * u.deg, dec[i] * u.deg, 0)
+                        row['ra'] * u.deg, row['dec'] * u.deg, 0)
                     updates['tgtx'] = int(x), 'Target x coordinate, 0-based'
                     updates['tgty'] = int(y), 'Target y coordinate, 0-based'
 
@@ -738,6 +751,22 @@ class ZChecker:
                     if os.path.exists(f):
                         os.unlink(f)
 
+                self.db.execute('''
+                UPDATE found SET
+                  archivefile=?,
+                  sci_sync_date=?,
+                  sciimg=?,
+                  mskimg=?,
+                  scipsf=?,
+                  diffimg=?,
+                  diffpsf=?,
+                  vangleimg=0
+                WHERE rowid=?
+                ''', (fn, sync_date, sci_downloaded, mask_downloaded,
+                      psf_downloaded, diff_downloaded, diffpsf_downloaded,
+                      row['foundid']))
+                self.db.commit()
+                
                 self.logger.info('  ' + os.path.basename(fn))
 
 desg2file = lambda s: s.replace('/', '').replace(' ', '').lower()
