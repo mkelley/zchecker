@@ -1,4 +1,4 @@
-# ZChecker
+# ZChecker v1.1.0
 ZTF moving target checker for short object lists.
 
 ## Requirements
@@ -98,7 +98,7 @@ $ zchecker --help
      
      `zchecker search "C/2017 Y1,C/2017 Y2" --full`
 
-1. Clean the found object database::
+1. Clean the found object database and associated cutout files, if they exist::
 
      `zchecker clean-found "C/2017 AB5"`
      
