@@ -205,7 +205,7 @@ class ZChecker:
         self.db.commit()
 
     def clean_found(self, objects, start=None, end=None):
-        """Remove found objects from the database.
+        """Remove found objects from the database and data archive.
 
         Parameters
         ----------
@@ -225,36 +225,47 @@ class ZChecker:
         if start is not None and end is not None:
             msg = ('Cleaning the found object database of {} objects,'
                    ' between {} and {}.').format(len(objects), start, end)
-            cmd = '''FROM found WHERE desg=? AND pid IN
+            cmd = '''WHERE desg=? AND pid IN
                      (SELECT pid FROM obs WHERE obsjd >= ? AND obsjd <= ?)'''
             args = (jd_start, jd_end)
         elif start is None and end is not None:
             msg = ('Cleaning the found object database of {} objects,'
                    ' all dates up to {}.').format(len(objects), end)
-            cmd = '''FROM found WHERE desg=? AND pid IN
+            cmd = '''WHERE desg=? AND pid IN
                      (SELECT pid FROM obs WHERE obsjd <= ?)'''
             args = (jd_end,)
         elif end is None and start is not None:
             msg = ('Cleaning the found object database of {} objects,'
                    ' all dates starting {}.').format(len(objects), start)
-            cmd = '''FROM found WHERE desg=? AND pid IN
+            cmd = '''WHERE desg=? AND pid IN
                      (SELECT pid FROM obs WHERE obsjd >= ?)'''
             args = (jd_start,)
         else:
             msg = ('Cleaning the found object database of {} objects,'
                    ' all dates.').format(len(objects))
-            cmd = 'FROM found WHERE desg=?'
+            cmd = 'WHERE desg=?'
             args = ()
 
         self.logger.info(msg)
+        total = 0
         for obj in objects:
-            n = self.db.execute('SELECT count() ' + cmd,
-                                (obj,) + args).fetchone()[0]
-            self.logger.debug('* {}, {} detections'.format(obj, n))
-            self.db.execute('DELETE ' + cmd, (obj,) + args)
+            rows = self.db.execute(
+                'SELECT rowid,archivefile FROM foundarchive' + cmd,
+                (obj,) + args).fetchall()
 
+            rowids, filenames = list(zip(*foundid))
+            n = len(rowids)
+            total += n
+            self.logger.debug('* {}, {} detections'.format(obj, n))
+
+            rowid_list = '({})'.format(','.join('?' * n))
+            self.db.execute('DELETE FROM found WHERE rowid IN '
+                            + rowid_list)
+            print('rm ' + ' '.join(filenames))
+
+        self.logger.info('Removed {} items from found database and file archive.'.format(total))
         self.db.commit()
-        
+
     def _get_ephemerides(self, objects, jd):
         """Retrieve approximate ephemerides by interpolation.
 
