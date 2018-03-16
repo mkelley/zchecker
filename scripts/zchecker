@@ -115,7 +115,7 @@ def clean_found(args):
     with ZChecker(config) as z:
         z.clean_found(args.objects, start=args.start, end=args.end)
 
-parser_found = subparsers.add_parser('clean-found', help='clean found object database and data archive', epilog='Date format: YYYY-MM-DD.  Date interval is inclusive.  Default is to remove all findings.', epilog='Files in the cutouts directory will also be removed.')
+parser_found = subparsers.add_parser('clean-found', help='clean found object database and data archive', epilog='Date format: YYYY-MM-DD.  Date interval is inclusive.  Default is to remove all findings.  Files in the cutouts directory will also be removed.')
 parser_found.add_argument('objects', type=object_list, help='file name listing one object per line, or a comma-separated list of objects, must be resolvable by JPL/HORIZONS')
 parser_found.add_argument('--start', help='start date to remove, UT')
 parser_found.add_argument('--end', help='end date to remove, UT')
