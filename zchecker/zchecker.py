@@ -624,7 +624,7 @@ class ZChecker:
         rows = self.db.execute('''
         SELECT * FROM foundobs
         WHERE sciimg=0
-          AND sci_sync_date IS null
+          AND sci_sync_date=''
         ORDER BY desg,obsjd
         ''').fetchall()
 
