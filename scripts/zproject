@@ -1,0 +1,178 @@
+#!/usr/bin/env python3
+import os
+import argparse
+from multiprocessing import Pool
+from astropy.io import fits
+import montage_wrapper as m
+from zchecker import ZChecker, Config
+
+parser = argparse.ArgumentParser(prog='zproject', description='ZTF image projection tool for the zchecker archive.')
+
+parser.add_argument('--desg', help='only project images of this target')
+parser.add_argument('--db', help='database file')
+parser.add_argument('--log', help='log file')
+parser.add_argument('--path', help='local cutout path')
+parser.add_argument('--config', default=os.path.expanduser('~/.config/zchecker.config'), help='configuration file')
+parser.add_argument('-v', action='store_true', help='increase verbosity')
+args = parser.parse_args()
+
+def estimate_background(im, mask):
+    from numpy import ma
+    from astropy.stats import sigma_clip
+    im = ma.MaskedArray(im.copy(), mask=mask, copy=True)
+    im[mask] = 0
+    scim = sigma_clip(ma.MaskedArray(im, mask=mask))
+    return ma.mean(scim), ma.median(scim), ma.std(scim), ma.sum(~scim.mask)
+
+def mkheader(radec, angle):
+    """WCS centered on `radec` (deg) with position angle `angle` (deg)."""
+    from tempfile import NamedTemporaryFile
+    with NamedTemporaryFile(mode='w', delete=False) as h:
+        h.write('''SIMPLE  = T
+BITPIX  = -64
+NAXIS   = 2
+NAXIS1  = 300
+NAXIS2  = 300
+CTYPE1  = 'RA---TAN'
+CTYPE2  = 'DEC--TAN'
+EQUINOX = 2000
+CRVAL1  =  {:13.9}
+CRVAL2  =  {:13.9}
+CRPIX1  =       150.0000
+CRPIX2  =       150.0000
+CDELT1  =   -0.000281156
+CDELT2  =    0.000281156
+CROTA2  =  {:13.9}
+END
+'''.format(radec[0], radec[1], angle))
+    return h.name
+
+def project_one(fn, ext):
+    """Project extension `extname` in file `fn` to projected velocity angle.
+
+    Projected velocity will be placed along the +x-axis.
+
+    Image distortions should be removed in the projected image.
+
+    """
+    from tempfile import mkstemp
+
+    h0 = fits.getheader(fn)
+    radec = (h0['tgtra'], h0['tgtdec'])
+    temp_header = mkheader(radec, h0['vangle'] - 90)
+
+    bitpix = fits.getheader(fn, ext=ext)['BITPIX']
+    if bitpix == 16:
+        # convert to float
+        fd_in, inf = mkstemp()
+        with fits.open(fn) as original:
+            newhdu = fits.PrimaryHDU(original[ext].data.astype(float),
+                                     original[ext].header)
+            newhdu.writeto(inf)
+        ext = 0
+    else:
+        fd_in = None
+        inf = fn
+    
+    fd_out, outf = mkstemp()
+    try:
+        m.reproject(inf, outf, hdu=ext, header=temp_header, exact_size=True)
+        im, h = fits.getdata(outf, header=True)
+        if bitpix == 16:
+            im = im.round().astype(int)
+            im[im < 0] = 0
+        projected = fits.ImageHDU(im, h)
+    except m.MontageError:
+        raise
+    finally:
+        # temp file clean up
+        if fd_in is not None:
+            os.fdopen(fd_in).close()
+            os.unlink(inf)
+        os.fdopen(fd_out).close()
+        os.unlink(outf)
+        os.unlink(temp_header)
+
+    return projected
+
+def append_image_to(hdu, newhdu, extname):
+    newhdu.name = extname
+    if extname in hdu:
+        hdu[extname] = newhdu
+    else:
+        hdu.append(newhdu)
+
+def project(fn):
+    import numpy as np
+    
+    with fits.open(fn) as hdu:
+        try:
+            newsci = project_one(fn, 0)
+            if 'MASK' in hdu:
+                newmask = project_one(fn, hdu.index_of('MASK'))
+            else:
+                newmask = None
+
+            mask = np.zeros_like(newsci.data, bool)
+            if newmask.data is not None:
+                mask += newmask.data == True
+            mask += ~np.isfinite(newsci.data)
+
+            bg = estimate_background(newsci.data, mask)
+            newsci.header['bgmean'] = bg[0], 'background sigma-clipped mean, subtracted'
+            newsci.header['bgmedian'] = bg[1], 'background sigma-clipped median'
+            newsci.header['bgstdev'] = bg[2], 'background sigma-clipped standard deviation'
+            newsci.header['nbg'] = bg[3], 'area considered in background statistics'
+            
+        except m.MontageError as e:
+            return str(e)
+
+    with fits.open(fn, mode='update') as hdu:
+        append_image_to(hdu, newsci, 'VANGLE')
+        if newmask is not None:
+            append_image_to(hdu, newmask, 'VANGLEMASK')
+
+    return True
+        
+with ZChecker(Config.from_args(args)) as z:
+    path = z.config['cutout path'] + os.path.sep
+
+    z.logger.info('ZProject')
+    if args.desg is None:
+        rows = z.db.execute('''
+        SELECT rowid,archivefile FROM found
+        WHERE sciimg!=0
+          AND vangleimg=0
+        ORDER BY desg + 0,desg
+        ''').fetchall()
+    else:
+        z.logger.info('Selecting files with target {}.'.format(args.desg))
+        rows = z.db.execute('''
+        SELECT rowid,archivefile FROM found
+        WHERE sciimg!=0
+          AND vangleimg=0
+          AND desg=?
+        ORDER BY desg + 0,desg
+        ''', [args.desg]).fetchall()
+        
+    z.logger.info('{} files to process.'.format(len(rows)))
+    if len(rows) > 0:
+        count = 0
+        error_count = 0
+        with Pool() as pool:
+            rowids, archivefiles = list(zip(*rows))
+            status = pool.map(project, [path + f for f in archivefiles])
+
+            for i in range(len(rowids)):
+                if status[i] is True:
+                    z.db.execute('UPDATE found SET vangleimg=1 WHERE rowid=?',
+                                 [rowids[i]])
+                    z.db.commit()
+                    count += 1
+                else:
+                    z.logger.error('    Error projecting {}: {}'.format(
+                        archivefiles[i], status[i]))
+                    error_count += 1
+
+        z.logger.info('Processed {} files, {} errors.'.format(
+            count, error_count))

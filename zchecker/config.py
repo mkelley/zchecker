@@ -54,3 +54,39 @@ class Config:
 
     def __getitem__(self, k):
         return self.config[k]
+
+    @classmethod
+    def from_args(cls, args):
+        """Initialize from command-line arguments.
+
+        Parameters
+        ----------
+        args : result from argparse.ArgumentParser.parse_args()
+          Options checked: --config, --db, --log, --path.
+
+        Returns
+        -------
+        config : Config
+
+        """
+
+        updates = {}
+
+        config_file = getattr(args, 'config', None)
+
+        db = getattr(args, 'db', None)
+        if db is not None:
+            updates['database'] = db
+
+        log = getattr(args, 'log', None)
+        if log is not None:
+            updates['log'] = log
+
+        path = getattr(args, 'path', None)
+        if path is not None:
+            updates['cutout path'] = path
+
+        return cls(config_file, **updates)
+
+
+        

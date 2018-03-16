@@ -9,6 +9,7 @@ ZTF moving target checker for short object lists.
 * callhorizons, latest version as of 17 Jan works (https://github.com/mommermi/callhorizons)
 * sqlite3
 * wget
+* Montage and montage_wrapper, optional, for image reprojection with zproject
 
 ## Configuration
 
@@ -107,6 +108,12 @@ $ zchecker --help
 1. Download cutouts around each found target::
 
      `zchecker download-cutouts`
+
+1. Reproject downloaded cutouts to align the projected velocity vector along the +x axis::
+
+     `zproject`
+	 
+   
 
 ## Database
 

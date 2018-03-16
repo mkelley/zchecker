@@ -14,24 +14,6 @@ def object_list(olist):
         objects = [s.strip() for s in olist.split(',')]
     return objects
 
-def get_updated_config(args):
-    from zchecker import Config
-    
-    updates = {}
-    # db and log are always defined
-    if args.db is not None:
-        updates['database'] = args.db
-        
-    if args.log is not None:
-        updates['log'] = args.log
-
-    # path is defined in a subcommand and may not be present
-    path = getattr(args, 'path', None)
-    if path is not None:
-        updates['cutout path'] = path
-
-    return Config(args.config, **updates)
-
 def test_date(date, msg):
     if date is not None:
         assert re.match('^20[12][0-9]-[01][0-9]-[0-3][0-9]$', date), '{}  Date format is YYYY-MM-DD'.format(msg).strip()
@@ -61,7 +43,7 @@ today = Time.now().iso[:10]
 
 # SEARCH ############################################################
 def search(args):
-    config = get_updated_config(args)
+    config = Config.from_args(args)
 
     with ZChecker(config) as z:
         if args.full:
@@ -97,7 +79,7 @@ def eph_update(args):
     test_date(args.start, 'Bad start date.')
     test_date(args.end, 'Bad start date.')
 
-    config = get_updated_config(args)
+    config = Config.from_args(args)
     with ZChecker(config) as z:
         z.update_ephemeris(args.objects, args.start, args.end,
                            update=args.update)
@@ -114,7 +96,7 @@ def clean_eph(args):
     test_date(args.start, 'Bad start date.')
     test_date(args.end, 'Bad start date.')
 
-    config = get_updated_config(args)
+    config = Config.from_args(args)
     with ZChecker(config) as z:
         z.clean_ephemeris(args.objects, start=args.start, end=args.end)
 
@@ -129,7 +111,7 @@ def clean_found(args):
     test_date(args.start, 'Bad start date.')
     test_date(args.end, 'Bad start date.')
 
-    config = get_updated_config(args)
+    config = Config.from_args(args)
     with ZChecker(config) as z:
         z.clean_found(args.objects, start=args.start, end=args.end)
 
@@ -143,7 +125,7 @@ parser_eph.set_defaults(func=clean_found)
 def ztf_update(args):
     test_date(args.date, 'Bad date.')
 
-    config = get_updated_config(args)
+    config = Config.from_args(args)
     with ZChecker(config) as z:
         z.update_obs(args.date)
 
@@ -153,7 +135,7 @@ parser_ztf.set_defaults(func=ztf_update)
 
 # GET-CUTOUTS ############################################################
 def download_cutouts(args):
-    config = get_updated_config(args)
+    config = Config.from_args(args)
     with ZChecker(config) as z:
         z.download_cutouts(clean_failed=args.clean_failed)
 
@@ -164,7 +146,7 @@ parser_cutout.set_defaults(func=download_cutouts)
 
 # LIST-NIGHTS ############################################################
 def list_nights(args):
-    config = get_updated_config(args)
+    config = Config.from_args(args)
     with ZChecker(config, log=False) as z:
         print('date       exposures')
         print('\n'.join(z.available_nights(exposures=args.exposures)))
@@ -175,7 +157,7 @@ parser_nights.set_defaults(func=list_nights)
 
 # LIST-OBJECTS ############################################################
 def list_objects(args):
-    config = get_updated_config(args)
+    config = Config.from_args(args)
     with ZChecker(config, log=False) as z:
         rows = z.available_objects()
 
