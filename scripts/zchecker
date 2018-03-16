@@ -100,11 +100,11 @@ def clean_eph(args):
     with ZChecker(config) as z:
         z.clean_ephemeris(args.objects, start=args.start, end=args.end)
 
-parser_eph = subparsers.add_parser('clean-eph', help='clean local ephemeris database', epilog='Date format: YYYY-MM-DD.  Date interval is inclusive.  Default is to remove the entire ephemeris.')
-parser_eph.add_argument('objects', type=object_list, help='file name listing one object per line, or a comma-separated list of objects, must be resolvable by JPL/HORIZONS')
-parser_eph.add_argument('--start', help='start date of ephemeris to remove, UT')
-parser_eph.add_argument('--end', help='end date of ephemeris to remove, UT')
-parser_eph.set_defaults(func=clean_eph)
+parser_cleph = subparsers.add_parser('clean-eph', help='clean local ephemeris database', epilog='Date format: YYYY-MM-DD.  Date interval is inclusive.  Default is to remove the entire ephemeris.')
+parser_cleph.add_argument('objects', type=object_list, help='file name listing one object per line, or a comma-separated list of objects, must be resolvable by JPL/HORIZONS')
+parser_cleph.add_argument('--start', help='start date of ephemeris to remove, UT')
+parser_cleph.add_argument('--end', help='end date of ephemeris to remove, UT')
+parser_cleph.set_defaults(func=clean_eph)
 
 # CLEAN-FOUND ############################################################
 def clean_found(args):
@@ -115,11 +115,11 @@ def clean_found(args):
     with ZChecker(config) as z:
         z.clean_found(args.objects, start=args.start, end=args.end)
 
-parser_eph = subparsers.add_parser('clean-found', help='clean found object database and data archive', epilog='Date format: YYYY-MM-DD.  Date interval is inclusive.  Default is to remove all findings.', epilog='Files in the cutouts directory will also be removed.')
-parser_eph.add_argument('objects', type=object_list, help='file name listing one object per line, or a comma-separated list of objects, must be resolvable by JPL/HORIZONS')
-parser_eph.add_argument('--start', help='start date to remove, UT')
-parser_eph.add_argument('--end', help='end date to remove, UT')
-parser_eph.set_defaults(func=clean_found)
+parser_found = subparsers.add_parser('clean-found', help='clean found object database and data archive', epilog='Date format: YYYY-MM-DD.  Date interval is inclusive.  Default is to remove all findings.', epilog='Files in the cutouts directory will also be removed.')
+parser_found.add_argument('objects', type=object_list, help='file name listing one object per line, or a comma-separated list of objects, must be resolvable by JPL/HORIZONS')
+parser_found.add_argument('--start', help='start date to remove, UT')
+parser_found.add_argument('--end', help='end date to remove, UT')
+parser_found.set_defaults(func=clean_found)
 
 # ZTF-UPDATE ############################################################
 def ztf_update(args):
