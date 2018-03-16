@@ -3,7 +3,7 @@ import os
 import re
 import argparse
 from astropy.time import Time
-from zchecker import ZChecker
+from zchecker import ZChecker, Config
 
 def object_list(olist):
     import os
