@@ -119,7 +119,7 @@ def project(fn):
             mask += ~np.isfinite(newsci.data)
 
             bg = estimate_background(newsci.data, mask)
-            newsci.header['bgmean'] = bg[0], 'background sigma-clipped mean, subtracted'
+            newsci.header['bgmean'] = bg[0], 'background sigma-clipped mean'
             newsci.header['bgmedian'] = bg[1], 'background sigma-clipped median'
             newsci.header['bgstdev'] = bg[2], 'background sigma-clipped standard deviation'
             newsci.header['nbg'] = bg[3], 'area considered in background statistics'
