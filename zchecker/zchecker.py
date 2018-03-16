@@ -624,6 +624,7 @@ class ZChecker:
         rows = self.db.execute('''
         SELECT * FROM foundobs
         WHERE sciimg=0
+          AND sci_sync_date IS null
         ORDER BY desg,obsjd
         ''').fetchall()
 
@@ -657,14 +658,14 @@ class ZChecker:
                     self.db.execute('''
                     UPDATE found SET
                       sci_sync_date=?,
-                      sciimg=?,
-                      mskimg=?,
-                      scipsf=?,
-                      diffimg=?,
-                      diffpsf=?,
+                      sciimg=0,
+                      mskimg=0,
+                      scipsf=0,
+                      diffimg=0,
+                      diffpsf=0,
                       vangleimg=0
                     WHERE rowid=?
-                    ''', (sync_date, 0, 0, 0, 0, 0, row['foundid']))
+                    ''', (sync_date, row['foundid']))
                     self.db.commit()
                     continue
 
