@@ -114,7 +114,7 @@ def project(fn):
                 newmask = None
 
             mask = np.zeros_like(newsci.data, bool)
-            if newmask.data is not None:
+            if newmask is not None:
                 mask += newmask.data == True
             mask += ~np.isfinite(newsci.data)
 
