@@ -179,7 +179,7 @@ with ZChecker(Config.from_args(args)) as z:
         z.logger.info('Selecting files with target {}.'.format(args.desg))
         cmd += ' AND desg=?'
         bindings.append(args.desg)
-    cmd += ' ORDER BY desg + 0,desg LIMIT 1'
+    cmd += ' ORDER BY desg + 0,desg'
 
     rows = z.db.execute(cmd, bindings).fetchall()
     z.logger.info('{} files to process.'.format(len(rows)))
