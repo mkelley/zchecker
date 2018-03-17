@@ -109,11 +109,9 @@ $ zchecker --help
 
      `zchecker download-cutouts`
 
-1. Reproject downloaded cutouts to align the projected velocity vector along the +x axis::
+1. Reproject downloaded cutouts to align projected velocity vectors and comet-Sun vectors along the +x axis::
 
      `zproject`
-	 
-   
 
 ## Database
 
@@ -173,7 +171,23 @@ The `obs` and `nights` tables joined by `nightid`.
 
 ### `eph`
 
+Coarse ephemerides for objects of interest.
+
+| Column    | Type  | Source   | Description                                   |
+|-----------|-------|----------|-----------------------------------------------|
+| desg      | text  | user     | target designation                            |
+| jd        | float | user     | Julian date                                   |
+| ra        | float | HORIZONS | ephemeris RA, degrees                         |
+| dec       | float | HORIZONS | ephemeris Dec, degrees                        |
+| dra       | float | HORIZONS | ephemers RA*cos(Dec) rate of change, arcsec/s |
+| ddec      | float | HORIZONS | ephemeris Dec rate of change, arcsec/s        |
+| retrieved | text  | zchecker | date ephemeris retrieved from HORIZONS        |
+
+The combination of `desg` and `jd` is unique in the table.
+
 ### `found`
+
+Objects with ephemeris positions covered by ZTF.
 
 | Column        | Type    | Source   | Description                                                                 |
 | ------------- | ------- | -------- | --------------------------------------------------------------------------- |
@@ -206,10 +220,11 @@ The `obs` and `nights` tables joined by `nightid`.
 | scipsf        | integer | zchecker | 0 if the science PSF image has not been downloaded                          |
 | diffimg       | integer | zchecker | 0 if the difference image has not been downloaded                           |
 | diffpsf       | integer | zchecker | 0 if the difference PSF image has not been downloaded                       |
-| vangleimg     | integer |          | 0 if the velocity aligned image has not been calculated                     |
+| vangleimg     | integer | zproject | 0 if the reprojected images have not been calculated                        |
+
+The combination of `desg` and `pid` is unique in the table.
 
 ### `foundobs`
 
 The `found` and `obs` tables joined together by product ID, with the addition of `url` for a URL to a cutout centered on the ephemeris position.  Append '&size=5arcmin` or similar to specify the cutout size.
-
 
