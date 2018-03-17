@@ -2,7 +2,7 @@
 def setup(enabled, filename='zchecker.log'):
     import sys
     import logging
-    from datetime import datetime
+    from astropy.time import Time
 
     logger = logging.Logger('ZChecker')
     logger.setLevel(logging.DEBUG)
@@ -24,7 +24,7 @@ def setup(enabled, filename='zchecker.log'):
             logger.addHandler(logfile)
 
     logger.info('#' * 70)
-    logger.info(datetime.now().isoformat())
+    logger.info(Time.now().iso + 'Z')
     logger.info('Command line: ' + ' '.join(sys.argv[1:]))
     if enabled:
         for handler in logger.handlers:

@@ -19,8 +19,6 @@ class ZChecker:
         self.connect_db()
 
     def __enter__(self):
-        from astropy.time import Time
-        self.logger.info(Time.now().iso)
         return self
 
     def __exit__(self, *args):
@@ -29,7 +27,7 @@ class ZChecker:
         self.db.commit()
         self.db.execute('PRAGMA optimize')
         self.db.close()
-        self.logger.info(Time.now().iso)
+        self.logger.info(Time.now().iso + 'Z')
 
     def connect_db(self):
         """Connect to database and setup tables, as needed."""

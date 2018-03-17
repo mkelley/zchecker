@@ -110,7 +110,8 @@ def project_one(fn, ext, alignment):
     
     fd_out, outf = mkstemp()
     try:
-        m.reproject(inf, outf, hdu=ext, header=temp_header, exact_size=True)
+        m.reproject(inf, outf, hdu=ext, header=temp_header, exact_size=True,
+                    silent_cleanup=True)
         im, h = fits.getdata(outf, header=True)
         if bitpix == 16:
             im = im.round().astype(int)
