@@ -160,7 +160,7 @@ def project(fn):
 
         with fits.open(fn, mode='update') as hdu:
             append_image_to(hdu, newsci, alignment.upper())
-            if newmask is not None:
+            if mask_ext is not None:
                 append_image_to(hdu, newmask, alignment.upper() + 'MASK')
 
     # background estimate
