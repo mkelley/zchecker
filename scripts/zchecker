@@ -44,7 +44,6 @@ today = Time.now().iso[:10]
 # SEARCH ############################################################
 def search(args):
     config = Config.from_args(args)
-
     with ZChecker(config, log=True) as z:
         if args.full:
             dates = sorted(z.available_nights(exposures=False))
@@ -64,7 +63,7 @@ def search(args):
         test_date(start, 'Bad start date.')
         test_date(end, 'Bad start date.')
 
-        z.fov_search(start, end, objects=args.objects)
+        z.fov_search(start, end, objects=args.objects, vlim=args.vlim)
 
 parser_search = subparsers.add_parser('search', help='search ZTF fields in local database', epilog='Date format: YYYY-MM-DD.  Object designations must be in the local database.')
 parser_search.add_argument('objects', type=object_list, nargs='?', help='file name listing one object per line, or a comma-separated list of objects; default is to search all targets in the ephemeris database defined over the requested date range')
@@ -72,6 +71,7 @@ parser_search.add_argument('--full', action='store_true', help='search all avail
 parser_search.add_argument('--date', default=today, help='search a single date, UT')
 parser_search.add_argument('--start', help='search a range of dates, beginning with this date, UT')
 parser_search.add_argument('--end', help='search a range of dates, ending with this date, UT')
+parser_search.add_argument('--vlim', type=float, default=22.0, help='skip epochs when object is fainter than vlim, mag')
 parser_search.set_defaults(func=search)
 
 # EPH-UPDATE ############################################################

@@ -285,9 +285,9 @@ class ZChecker:
         Returns
         -------
         eph : dict
-          Ephemerides as (ra, dec) in radians in a dictionary keyed by
-          object.
-          
+          Ephemerides as (ra, dec, vmag) in radians and magnitdues in
+          a dictionary keyed by object.
+
         mask : dict
           Missing dates are masked `True`.
 
@@ -303,7 +303,7 @@ class ZChecker:
         mask = {}
         for obj in objects:
             rows = self.db.execute('''
-            SELECT ra,dec,jd FROM eph
+            SELECT ra,dec,vmag,jd FROM eph
             WHERE desg=?
               AND jd>?
               AND jd<?
@@ -311,9 +311,10 @@ class ZChecker:
             if len(rows) == 0:
                 raise EphemerisError('No dates found for ' + obj)
 
-            ra, dec, eph_jd = zip(*rows)
+            ra, dec, vmag, eph_jd = zip(*rows)
             ra = np.radians(ra)
             dec = np.radians(dec)
+            vmag = np.array(vmag)
             eph_jd = np.array(eph_jd)
 
             # find bin index of each requested jd
@@ -331,9 +332,10 @@ class ZChecker:
             p1 = np.sin((1 - dt) * w) / np.sin(w)
             p2 = np.sin(dt * w) / np.sin(w)
 
-            # ra, dec
+            # ra, dec, vmag
             eph[obj] = np.c_[p1 * ra[i - 1] + p2 * ra[i],
-                             p1 * dec[i - 1] + p2 * dec[i]]
+                             p1 * dec[i - 1] + p2 * dec[i],
+                             (1 - dt) * vmag[i - 1] + dt * vmag[i]]
 
         return eph, mask
 
@@ -446,7 +448,7 @@ class ZChecker:
 
         return found
 
-    def fov_search(self, start, end, objects=None):
+    def fov_search(self, start, end, objects=None, vlim=35):
         """Search for objects in ZTF fields.
 
         Parameters
@@ -457,6 +459,9 @@ class ZChecker:
         objects : list of strings, optional
           Names of objects to search for.  Must be resolvable by
           JPL/HORIZONS.
+
+        vlim : float
+          Objects fainter than vlim are ignored.
 
         """
 
@@ -515,8 +520,12 @@ class ZChecker:
                         continue
 
                     # distance to field center
-                    ra, dec = eph[obj][i]
+                    ra, dec, vmag = eph[obj][i]
                     d = angular_separation(ra, dec, field_ra, field_dec)
+
+                    # fainter than vlim?  skip.
+                    if vmag < vlim:
+                        continue
 
                     # Farther than 6 deg?  skip.
                     if d > 0.1:
@@ -533,7 +542,7 @@ class ZChecker:
                     # Save for later
                     follow_up[obj] = follow_up.get(obj, []) + [quads[jd[i]][j]]
                     count += 1
-                    
+
                 if count >= horizons_chunk:
                     # Check quadrant and position in detail.
                     print()

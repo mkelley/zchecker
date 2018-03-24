@@ -52,6 +52,7 @@ schema = [
     dec FLOAT,
     dra FLOAT,
     ddec FLOAT,
+    vmag FLOAT,
     retrieved TEXT
     )''',
 

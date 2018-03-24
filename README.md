@@ -99,6 +99,10 @@ $ zchecker --help
      
      `zchecker search "C/2017 Y1,C/2017 Y2" --full`
 
+   Using a different V magnitude limit::
+
+     `zchecker search "C/2017 Y1,C/2017 Y2" --full --vlim=18`
+
 1. Clean the found object database and associated cutout files, if they exist::
 
      `zchecker clean-found "C/2017 AB5"`
