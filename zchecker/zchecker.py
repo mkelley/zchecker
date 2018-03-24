@@ -8,11 +8,11 @@ class ZChecker:
       ZChecker configuration class.
 
     log : bool, optional
-      Set to `False` to disable logging.
+      Set to `True` to log to file.
 
     """
 
-    def __init__(self, config, log=True):
+    def __init__(self, config, log=False):
         from . import logging
         self.logger = logging.setup(log, filename=config['log'])
         self.config = config

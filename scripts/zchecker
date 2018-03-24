@@ -45,7 +45,7 @@ today = Time.now().iso[:10]
 def search(args):
     config = Config.from_args(args)
 
-    with ZChecker(config) as z:
+    with ZChecker(config, log=True) as z:
         if args.full:
             dates = sorted(z.available_nights(exposures=False))
             start = dates[0]
@@ -80,7 +80,7 @@ def eph_update(args):
     test_date(args.end, 'Bad start date.')
 
     config = Config.from_args(args)
-    with ZChecker(config) as z:
+    with ZChecker(config, log=True) as z:
         z.update_ephemeris(args.objects, args.start, args.end,
                            update=args.update)
 
@@ -97,7 +97,7 @@ def clean_eph(args):
     test_date(args.end, 'Bad start date.')
 
     config = Config.from_args(args)
-    with ZChecker(config) as z:
+    with ZChecker(config, log=True) as z:
         z.clean_ephemeris(args.objects, start=args.start, end=args.end)
 
 parser_cleph = subparsers.add_parser('clean-eph', help='clean local ephemeris database', epilog='Date format: YYYY-MM-DD.  Date interval is inclusive.  Default is to remove the entire ephemeris.')
@@ -112,7 +112,7 @@ def clean_found(args):
     test_date(args.end, 'Bad start date.')
 
     config = Config.from_args(args)
-    with ZChecker(config) as z:
+    with ZChecker(config, log=True) as z:
         z.clean_found(args.objects, start=args.start, end=args.end)
 
 parser_found = subparsers.add_parser('clean-found', help='clean found object database and data archive', epilog='Date format: YYYY-MM-DD.  Date interval is inclusive.  Default is to remove all findings.  Files in the cutouts directory will also be removed.')
@@ -126,7 +126,7 @@ def ztf_update(args):
     test_date(args.date, 'Bad date.')
 
     config = Config.from_args(args)
-    with ZChecker(config) as z:
+    with ZChecker(config, log=True) as z:
         z.update_obs(args.date)
 
 parser_ztf = subparsers.add_parser('ztf-update', help='update local ZTF database', aliases=['ztf'])
@@ -136,7 +136,7 @@ parser_ztf.set_defaults(func=ztf_update)
 # GET-CUTOUTS ############################################################
 def download_cutouts(args):
     config = Config.from_args(args)
-    with ZChecker(config) as z:
+    with ZChecker(config, log=True) as z:
         z.download_cutouts(clean_failed=args.clean_failed)
 
 parser_cutout = subparsers.add_parser('download-cutouts', help='download cutouts.', aliases=['cutouts'])

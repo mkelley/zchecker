@@ -168,7 +168,7 @@ def project(fn):
 
     return True
 
-with ZChecker(Config.from_args(args)) as z:
+with ZChecker(Config.from_args(args), log=True) as z:
     z.logger.info('ZProject')
     path = z.config['cutout path'] + os.path.sep
 
