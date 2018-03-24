@@ -123,14 +123,38 @@ parser_found.set_defaults(func=clean_found)
 
 # ZTF-UPDATE ############################################################
 def ztf_update(args):
-    test_date(args.date, 'Bad date.')
+    import numpy as np
+    import astropy.units as u
+    
+    if args.start is not None:
+        if args.end is None:
+            args.end = today
+        test_date(args.start, 'Bad date.')
+        test_date(args.end, 'Bad date.')
+        assert args.start <= args.end, 'Start date must occure before end date.'
+    else:
+        test_date(args.date, 'Bad date.')
+        args.start = args.date
+        args.end = args.date
+
+    t0 = Time(args.start)
+    t1 = Time(args.end)
+    dt = int(round((t1 - t0).jd))
+    if dt == 0:
+        dates = [t0.iso[:10]]
+    else:
+        dates = [t.iso[:10] for t in (t0 + np.arange(dt) * u.day)]
 
     config = Config.from_args(args)
     with ZChecker(config, log=True) as z:
-        z.update_obs(args.date)
+        for date in dates:
+            z.update_obs(date)
 
 parser_ztf = subparsers.add_parser('ztf-update', help='update local ZTF database', aliases=['ztf'])
 parser_ztf.add_argument('--date', default=today, help='retrieve observations for this date, UT; default is today')
+parser_ztf.add_argument('--start', help='start date to retrieve, UT')
+parser_ztf.add_argument('--end', help='end date to retrieve, UT; default is today')
+
 parser_ztf.set_defaults(func=ztf_update)
 
 # GET-CUTOUTS ############################################################

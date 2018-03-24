@@ -7,7 +7,7 @@ schema = [
     )''',
 
     '''CREATE TABLE IF NOT EXISTS obs(
-    FOREIGN KEY(nightid) REFERENCES nights(nightid),
+    nightid INTEGER,
     infobits INTEGER,
     field INTEGER,
     ccdid INTEGER,
@@ -41,7 +41,8 @@ schema = [
     ra3 FLOAT,
     dec3 FLOAT,
     ra4 FLOAT,
-    dec4 FLOAT
+    dec4 FLOAT,
+    FOREIGN KEY(nightid) REFERENCES nights(nightid)
     )''',
 
     '''CREATE TABLE IF NOT EXISTS eph(
@@ -76,7 +77,7 @@ schema = [
     vangle FLOAT,
     trueanomaly FLOAT,
     tmtp FLOAT,
-    FOREIGN KEY(pid) REFERENCES obs(pid),
+    pid INTEGER,
     x INTEGER,
     y INTEGER,
     retrieved TEXT,
@@ -86,7 +87,8 @@ schema = [
     mskimg INTEGER,
     scipsf INTEGER,
     diffimg INTEGER,
-    diffpsf INTEGER
+    diffpsf INTEGER,
+    FOREIGN KEY(pid) REFERENCES obs(pid)
     )''',
 
     'CREATE UNIQUE INDEX IF NOT EXISTS desg_pid ON found(desg,pid)',

@@ -221,7 +221,6 @@ Objects with ephemeris positions covered by ZTF.
 | scipsf        | integer | zchecker | 0 if the science PSF image has not been downloaded                          |
 | diffimg       | integer | zchecker | 0 if the difference image has not been downloaded                           |
 | diffpsf       | integer | zchecker | 0 if the difference PSF image has not been downloaded                       |
-| vangleimg     | integer | zproject | 0 if the reprojected images have not been calculated                        |
 
 The combination of `desg` and `pid` is unique in the table.
 

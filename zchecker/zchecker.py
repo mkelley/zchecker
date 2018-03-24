@@ -42,9 +42,8 @@ class ZChecker:
 
         filename = self.config['database']
         self.db = sqlite3.connect(filename)
+        self.db.execute('PRAGMA foreign_keys = 1')
         self.db.row_factory = sqlite3.Row
-
-        self.db.execute('PRAGMA foreign_keys = ON;')
 
         for cmd in schema:
             self.db.execute(cmd)
@@ -95,7 +94,7 @@ class ZChecker:
                         self.config.auth)
 
         self.db.execute('''
-        INSERT OR REPLACE INTO nights VALUES (?,?)
+        INSERT OR REPLACE INTO nights (date,nframes) VALUES (?,?)
         ''', [date, len(tab)])
 
         nightid = self.nightid(date)
@@ -576,8 +575,12 @@ class ZChecker:
                 found_objects.get(obj, 0) + len(found))
 
             self.db.executemany('''
-            INSERT OR REPLACE INTO found VALUES
-            (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,"","",0,0,0,0,0,0)
+            INSERT OR REPLACE INTO found
+            (desg,obsjd,ra,dec,dra,ddec,ra3sig,dec3sig,vmag,rh,rdot,delta,
+             phase,selong,sangle,vangle,trueanomaly,tmtp,pid,x,y,retrieved,
+             archivefile,sci_sync_date,sciimg,mskimg,scipsf,diffimg,diffpsf)
+            VALUES
+            (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,"","",0,0,0,0,0)
             ''', found)
 
             self.db.commit()
@@ -662,8 +665,7 @@ class ZChecker:
                       mskimg=0,
                       scipsf=0,
                       diffimg=0,
-                      diffpsf=0,
-                      vangleimg=0
+                      diffpsf=0
                     WHERE rowid=?
                     ''', (sync_date, row['foundid']))
                     self.db.commit()
@@ -731,22 +733,22 @@ class ZChecker:
                     if mask_downloaded:
                         with fits.open(maskfn) as mask:
                             mask[0].name = 'mask'
-                            hdu.insert(1, mask[0])  # always second
+                            hdu.append(mask[0])
 
                     if psf_downloaded:
                         with fits.open(psffn) as psf:
                             psf[0].name = 'psf'
-                            hdu.insert(2, psf[0])  # always third
+                            hdu.append(psf[0])
 
                     if diff_downloaded:
                         with fits.open(difffn) as diff:
                             diff[0].name = 'diff'
-                            hdu.insert(3, psf[0])  # always fourth
+                            hdu.append(psf[0])
 
                     if diffpsf_downloaded:
                         with fits.open(diffpsffn) as diffpsf:
                             diffpsf[0].name = 'diff_psf'
-                            hdu.insert(4, psf[0])  # always fifth
+                            hdu.append(psf[0])
 
                 for f in (maskfn, psffn, difffn, diffpsffn):
                     if os.path.exists(f):
@@ -760,8 +762,7 @@ class ZChecker:
                   mskimg=?,
                   scipsf=?,
                   diffimg=?,
-                  diffpsf=?,
-                  vangleimg=0
+                  diffpsf=?
                 WHERE rowid=?
                 ''', (fn, sync_date, sci_downloaded, mask_downloaded,
                       psf_downloaded, diff_downloaded, diffpsf_downloaded,
