@@ -1,12 +1,13 @@
 # Licensed under a 3-clause BSD style license - see LICENSE.rst
 schema = [
     '''CREATE TABLE IF NOT EXISTS nights(
+    nightid INTEGER PRIMARY KEY,
     date TEXT UNIQUE,
     nframes INTEGER
     )''',
 
     '''CREATE TABLE IF NOT EXISTS obs(
-    nightid INTEGER,
+    FOREIGN KEY(nightid) REFERENCES nights(nightid),
     infobits INTEGER,
     field INTEGER,
     ccdid INTEGER,
@@ -14,7 +15,7 @@ schema = [
     rcid INTEGER,
     fid INTEGER,
     filtercode TEXT,
-    pid INTEGER UNIQUE,
+    pid INTEGER PRIMARY KEY,
     expid INTEGER,
     obsdate TEXT,
     obsjd FLOAT,
@@ -56,6 +57,7 @@ schema = [
     'CREATE UNIQUE INDEX IF NOT EXISTS desg_jd ON eph(desg,jd)',
 
     '''CREATE TABLE IF NOT EXISTS found(
+    foundid INTEGER PRIMARY KEY,
     desg TEXT,
     obsjd TEXT,
     ra FLOAT,
@@ -74,7 +76,7 @@ schema = [
     vangle FLOAT,
     trueanomaly FLOAT,
     tmtp FLOAT,
-    pid INTEGER,
+    FOREIGN KEY(pid) REFERENCES obs(pid),
     x INTEGER,
     y INTEGER,
     retrieved TEXT,
@@ -84,8 +86,7 @@ schema = [
     mskimg INTEGER,
     scipsf INTEGER,
     diffimg INTEGER,
-    diffpsf INTEGER,
-    vangleimg INTEGER
+    diffpsf INTEGER
     )''',
 
     'CREATE UNIQUE INDEX IF NOT EXISTS desg_pid ON found(desg,pid)',

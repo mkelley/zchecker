@@ -44,6 +44,8 @@ class ZChecker:
         self.db = sqlite3.connect(filename)
         self.db.row_factory = sqlite3.Row
 
+        self.db.execute('PRAGMA foreign_keys = ON;')
+
         for cmd in schema:
             self.db.execute(cmd)
 

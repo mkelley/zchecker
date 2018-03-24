@@ -1,4 +1,4 @@
-# ZChecker v1.1.0
+# ZChecker v1.2.0
 ZTF moving target checker for short object lists.
 
 ## Requirements
@@ -117,17 +117,18 @@ $ zchecker --help
 
 ### `nights`
 
-| Column  | Type    | Source | Description                                                                     |
-|---------|---------|--------|---------------------------------------------------------------------------------|
-| date    | text    | ZTF    | YYYY-MM-DD, UT, unique                                                          |
-| nframes | integer | ZTF    | number of frames (quads) returned by IRSA, divide by 64 for number of exposures |
+| Column  | Type    | Source   | Description                                                                     |
+|---------|---------|----------|---------------------------------------------------------------------------------|
+| nightid | integer | zchecker | Unique ID for each night                                                        |
+| date    | text    | ZTF      | YYYY-MM-DD, UT, unique                                                          |
+| nframes | integer | ZTF      | number of frames (quads) returned by IRSA, divide by 64 for number of exposures |
 
 ### `obs`
 
 | Column      | Type    | Source   | Description                                                              |
 |-------------|---------|----------|--------------------------------------------------------------------------|
 | desg        | text    | user     | target designation                                                       |
-| nightid     | integer | zchecker | corresponding rowid of `nights` table                                    |
+| nightid     | integer | zchecker | corresponding `nightid` of `nights` table                                |
 | infobits    | integer | ZTF      | info bit flags, see Section 10.4 of the [ZTF Science Data System][1]     |
 | field       | integer | ZTF      | ZTF field number                                                         |
 | ccdid       | integer | ZTF      | detector chip ID (1, ...16), see Fig. 1 of [ZTF Science Data System][1]  |
