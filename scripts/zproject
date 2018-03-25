@@ -172,7 +172,7 @@ with ZChecker(Config.from_args(args), log=True) as z:
     z.logger.info('ZProject')
     path = z.config['cutout path'] + os.path.sep
 
-    cmd = 'SELECT rowid,archivefile FROM found WHERE sciimg!=0'
+    cmd = 'SELECT foundid,archivefile FROM found WHERE sciimg!=0'
     bindings = []
     if not args.f:
         cmd += ' AND vangleimg=0'
@@ -184,18 +184,19 @@ with ZChecker(Config.from_args(args), log=True) as z:
 
     rows = z.db.execute(cmd, bindings).fetchall()
     z.logger.info('{} files to process.'.format(len(rows)))
+    stop
     
     if len(rows) > 0:
         count = 0
         error_count = 0
         with Pool() as pool:
-            rowids, archivefiles = list(zip(*rows))
+            foundids, archivefiles = list(zip(*rows))
             status = pool.map(project, [path + f for f in archivefiles])
 
-            for i in range(len(rowids)):
+            for i in range(len(foundids)):
                 if status[i] is True:
-                    z.db.execute('UPDATE found SET vangleimg=1 WHERE rowid=?',
-                                 [rowids[i]])
+                    z.db.execute('UPDATE found SET vangleimg=1 WHERE foundid=?',
+                                 [foundids[i]])
                     z.db.commit()
                     count += 1
                 else:

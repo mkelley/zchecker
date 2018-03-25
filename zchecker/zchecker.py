@@ -52,7 +52,7 @@ class ZChecker:
 
     def nightid(self, date):
         c = self.db.execute('''
-        SELECT rowid FROM nights WHERE date=?
+        SELECT mightid FROM nights WHERE date=?
         ''', [date])
         nightid = c.fetchone()
         if nightid is None:
@@ -145,7 +145,7 @@ class ZChecker:
                   AND jd <= ?
                 ''', (obj, jd_start, jd_end))
                 self.db.executemany('''
-                INSERT OR IGNORE INTO eph VALUES (?,?,?,?,?,?,?)
+                INSERT OR IGNORE INTO eph VALUES (?,?,?,?,?,?,?,?)
                 ''', eph.update(obj, start, end, '6h'))
             except ZCheckerError as e:
                 self.logger.error('Error retrieving ephemeris for {}'.format(obj))
@@ -251,20 +251,20 @@ class ZChecker:
         path = self.config['cutout path'] + os.path.sep
         for obj in objects:
             rows = self.db.execute(
-                'SELECT rowid,archivefile FROM found ' + cmd,
+                'SELECT foundid,archivefile FROM found ' + cmd,
                 (obj,) + args).fetchall()
 
             if len(rows) == 0:
                 continue
 
-            rowids, filenames = list(zip(*rows))
-            n = len(rowids)
+            foundids, filenames = list(zip(*rows))
+            n = len(foundids)
             total += n
             self.logger.debug('* {}, {} detections'.format(obj, n))
 
             bindings = '({})'.format(','.join('?' * n))
-            self.db.execute('DELETE FROM found WHERE rowid IN '
-                            + bindings, rowids)
+            self.db.execute('DELETE FROM found WHERE foundid IN '
+                            + bindings, foundids)
             for f in filenames:
                 os.unlink(path + f)
 
@@ -675,7 +675,7 @@ class ZChecker:
                       scipsf=0,
                       diffimg=0,
                       diffpsf=0
-                    WHERE rowid=?
+                    WHERE foundid=?
                     ''', (sync_date, row['foundid']))
                     self.db.commit()
                     continue
@@ -772,7 +772,7 @@ class ZChecker:
                   scipsf=?,
                   diffimg=?,
                   diffpsf=?
-                WHERE rowid=?
+                WHERE foundid=?
                 ''', (fn, sync_date, sci_downloaded, mask_downloaded,
                       psf_downloaded, diff_downloaded, diffpsf_downloaded,
                       row['foundid']))
