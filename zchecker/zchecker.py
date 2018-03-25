@@ -314,7 +314,10 @@ class ZChecker:
             ra, dec, vmag, eph_jd = zip(*rows)
             ra = np.radians(ra)
             dec = np.radians(dec)
-            vmag = np.array(vmag)
+            vmag = np.array([v if v is not None else 99.0
+                             for v in vmag])
+            vmag = np.ma.MaskedArray(vmag, mask=(vmag == 99.0))
+            vmag = vmag.filled(99)
             eph_jd = np.array(eph_jd)
 
             # find bin index of each requested jd
@@ -331,7 +334,7 @@ class ZChecker:
             w = angular_separation(ra[i - 1], dec[i - 1], ra[i], dec[i])
             p1 = np.sin((1 - dt) * w) / np.sin(w)
             p2 = np.sin(dt * w) / np.sin(w)
-
+            
             # ra, dec, vmag
             eph[obj] = np.c_[p1 * ra[i - 1] + p2 * ra[i],
                              p1 * dec[i - 1] + p2 * dec[i],
@@ -519,15 +522,14 @@ class ZChecker:
                         # this epoch masked for this object
                         continue
 
-                    # distance to field center
                     ra, dec, vmag = eph[obj][i]
-                    d = angular_separation(ra, dec, field_ra, field_dec)
-
-                    # fainter than vlim?  skip.
-                    if vmag < vlim:
+                    
+                    # vmag greater than vlim?  skip.
+                    if vmag > vlim:
                         continue
 
                     # Farther than 6 deg?  skip.
+                    d = angular_separation(ra, dec, field_ra, field_dec)
                     if d > 0.1:
                         continue
 
