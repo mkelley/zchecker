@@ -95,12 +95,12 @@ schema = [
     'CREATE UNIQUE INDEX IF NOT EXISTS desg_pid ON found(desg,pid)',
 
     '''CREATE VIEW IF NOT EXISTS obsnight AS
-    SELECT * FROM obs INNER JOIN nights''',
+    SELECT * FROM obs INNER JOIN nights ON obs.nightid=nights.nightid''',
 
     '''CREATE VIEW IF NOT EXISTS foundobs AS
     SELECT * FROM found
-    INNER JOIN obs
-    INNER JOIN cutouturl''',
+    INNER JOIN obs ON obs.pid=found.pid
+    INNER JOIN cutouturl ON found.foundid=cutouturl.foundid''',
 
     '''CREATE VIEW IF NOT EXISTS cutouturl (foundid,url) AS
     SELECT
@@ -116,6 +116,6 @@ schema = [
         qid,
         found.ra,
         found.dec)
-    FROM found INNER JOIN obs''',
+    FROM found INNER JOIN obs ON obs.pid=found.pid''',
 
 ]
