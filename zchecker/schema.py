@@ -95,16 +95,16 @@ schema = [
     'CREATE UNIQUE INDEX IF NOT EXISTS desg_pid ON found(desg,pid)',
 
     '''CREATE VIEW IF NOT EXISTS obsnight AS
-    SELECT * FROM obs INNER JOIN nights ON obs.nightid=nights.nightid''',
+    SELECT * FROM obs INNER JOIN nights''',
 
     '''CREATE VIEW IF NOT EXISTS foundobs AS
     SELECT * FROM found
-    INNER JOIN obs ON found.pid=obs.pid
-    INNER JOIN cutouturl ON found.foundid=cutouturl.foundid''',
+    INNER JOIN obs
+    INNER JOIN cutouturl''',
 
     '''CREATE VIEW IF NOT EXISTS cutouturl (foundid,url) AS
     SELECT
-      found.foundid,
+      foundid,
       printf("https://irsa.ipac.caltech.edu/ibe/data/ztf/products/sci/%s/%s/%s/ztf_%s_%06d_%s_c%02d_o_q%1d_sciimg.fits?center=%f,%fdeg",
         substr(filefracday,1,4),
         substr(filefracday,5,4),
@@ -116,6 +116,6 @@ schema = [
         qid,
         found.ra,
         found.dec)
-    FROM found INNER JOIN obs ON found.pid=obs.pid''',
+    FROM found INNER JOIN obs''',
 
 ]
