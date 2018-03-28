@@ -4,18 +4,19 @@ class ZChecker:
 
     Parameters
     ----------
-    config : Config
-      ZChecker configuration class.
+    config : Config, optional
+      ZChecker configuration class, or `None` to load the default.
 
     log : bool, optional
       Set to `True` to log to file.
 
     """
 
-    def __init__(self, config, log=False):
+    def __init__(self, config=None, log=False):
         from . import logging
-        self.logger = logging.setup(log, filename=config['log'])
-        self.config = config
+        from .config import Config
+        self.config = Config() if config is None else config
+        self.logger = logging.setup(log, filename=self.config['log'])
         self.connect_db()
 
     def __enter__(self):
