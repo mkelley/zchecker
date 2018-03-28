@@ -52,7 +52,7 @@ class ZChecker:
 
     def nightid(self, date):
         c = self.db.execute('''
-        SELECT mightid FROM nights WHERE date=?
+        SELECT nightid FROM nights WHERE date=?
         ''', [date])
         nightid = c.fetchone()
         if nightid is None:
