@@ -673,7 +673,10 @@ class ZChecker:
                                            datetime=t)
 
                     if os.path.exists(path + fn):
-                        self.logger.error(path + fn + ' exists, but was not expected.  Removing.')
+                        self.logger.error(
+                            path + fn + 
+                            ' exists, but was not expected.  Removing.'
+                        )
                         os.unlink(path + fn)
 
                     sciurl = row['url'] + '&size=5arcmin'
@@ -789,6 +792,7 @@ class ZChecker:
                     ''', (fn, sync_date, sci_downloaded, mask_downloaded,
                           psf_downloaded, diff_downloaded, diffpsf_downloaded,
                           row['foundid']))
+
                     self.db.commit()
 
                     self.logger.info('  [{}] {}'.format(

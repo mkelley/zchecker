@@ -5,8 +5,9 @@ from multiprocessing import Pool
 from astropy.io import fits
 import montage_wrapper as m
 from zchecker import ZChecker, Config
+from zchecker.logging import ProgressBar
 
-parser = argparse.ArgumentParser(prog='zproject', description='ZTF image projection tool for the zchecker archive.')
+parser = argparse.ArgumentParser(prog='zproject', description='ZTF image projection tool for the ZChecker archive.')
 
 parser.add_argument('--desg', help='only project images of this target')
 parser.add_argument('-f', action='store_true', help='force projection, even if previously calculated')
@@ -16,6 +17,15 @@ parser.add_argument('--path', help='local cutout path')
 parser.add_argument('--config', default=os.path.expanduser('~/.config/zchecker.config'), help='configuration file')
 parser.add_argument('-v', action='store_true', help='increase verbosity')
 args = parser.parse_args()
+
+def setup_table(z):
+    z.db.execute('''
+    CREATE TABLE IF NOT EXISTS projections(
+    foundid INTEGER PRIMARY KEY,
+    vangleimg INTEGER,
+    sangleimg INTEGER,
+    FOREIGN KEY(foundid) REFERENCES found(foundid)
+    )''')
 
 def update_background(fn):
     import numpy as np
@@ -31,9 +41,18 @@ def update_background(fn):
 
         scim = sigma_clip(im)
 
-        hdu['SCI'].header['bgmean'] = ma.mean(scim), 'background sigma-clipped mean'
-        hdu['SCI'].header['bgmedian'] = ma.median(scim), 'background sigma-clipped median'
-        hdu['SCI'].header['bgstdev'] = ma.std(scim), 'background sigma-clipped standard dev.'
+        mean = ma.mean(scim)
+        mean = mean if mean is not ma.masked else 0
+
+        median = ma.median(scim)
+        median = median if median is not ma.masked else 0
+
+        stdev = ma.std(scim)
+        stdev = stdev if stdev is not ma.masked else 0
+
+        hdu['SCI'].header['bgmean'] = mean, 'background sigma-clipped mean'
+        hdu['SCI'].header['bgmedian'] = median, 'background sigma-clipped median'
+        hdu['SCI'].header['bgstdev'] = stdev, 'background sigma-clipped standard dev.'
         hdu['SCI'].header['nbg'] = ma.sum(~scim.mask), 'area considered in background stats.'
 
 def mkheader(radec, angle):
@@ -170,39 +189,55 @@ def project(fn):
 
 with ZChecker(Config.from_args(args), log=True) as z:
     z.logger.info('ZProject')
+    setup_table(z)
+
     path = z.config['cutout path'] + os.path.sep
 
-    cmd = 'SELECT foundid,archivefile FROM found WHERE sciimg!=0'
+    cmd = '''
+    SELECT found.foundid,archivefile FROM found
+    LEFT JOIN projections ON found.foundid=projections.foundid
+    WHERE sciimg!=0
+    '''
+
     bindings = []
-    if not args.f:
-        cmd += ' AND vangleimg=0'
+    if not args.f:  # not forced execution
+        cmd += ' AND vangleimg IS NULL'
     if args.desg is not None:
         z.logger.info('Selecting files with target {}.'.format(args.desg))
         cmd += ' AND desg=?'
         bindings.append(args.desg)
-    cmd += ' ORDER BY desg + 0,desg'
+    cmd += ' ORDER BY desg + 0,desg LIMIT 100'
 
-    rows = z.db.execute(cmd, bindings).fetchall()
-    z.logger.info('{} files to process.'.format(len(rows)))
-    stop
-    
-    if len(rows) > 0:
-        count = 0
-        error_count = 0
-        with Pool() as pool:
-            foundids, archivefiles = list(zip(*rows))
-            status = pool.map(project, [path + f for f in archivefiles])
+    count = z.db.execute(
+        cmd.replace('found.foundid,archivefile', 'count()')
+    ).fetchone()[0]
 
-            for i in range(len(foundids)):
-                if status[i] is True:
-                    z.db.execute('UPDATE found SET vangleimg=1 WHERE foundid=?',
-                                 [foundids[i]])
-                    z.db.commit()
-                    count += 1
-                else:
-                    z.logger.error('    Error projecting {}: {}'.format(
-                        archivefiles[i], status[i]))
-                    error_count += 1
+    z.logger.info('{} files to process.'.format(count))
 
-        z.logger.info('Processed {} files, {} errors.'.format(
-            count, error_count))
+    error_count = 0
+    with ProgressBar(count, z.logger) as bar:
+        while True:
+            rows = z.db.execute(cmd, bindings).fetchall()
+            if len(rows) == 0:
+                break
+
+            with Pool() as pool:
+                foundids, archivefiles = list(zip(*rows))
+                status = pool.map(project, [path + f for f in archivefiles])
+
+                for i in range(len(foundids)):
+                    if status[i] is True:
+                        z.db.execute('''
+                        INSERT OR REPLACE INTO projections
+                        (foundid,vangleimg,sangleimg) VALUES (?,1,1)
+                        ''', [foundids[i]])
+                        z.db.commit()
+                        bar.update()
+                    else:
+                        z.logger.error('    Error projecting {}: {}'.format(
+                            archivefiles[i], status[i]))
+                        bar.update()
+
+                z.db.commit()
+
+    z.logger.info('{} errors.'.format(error_count))
