@@ -118,4 +118,41 @@ schema = [
         found.dec)
     FROM found INNER JOIN obs ON obs.pid=found.pid''',
 
+    # for zproject
+    '''CREATE TABLE IF NOT EXISTS projections(
+    foundid INTEGER PRIMARY KEY,
+    vangleimg INTEGER,
+    sangleimg INTEGER
+    FOREIGN KEY(foundid) REFERENCES found(foundid)
+    )''',
+
+    # for zstack
+    '''CREATE TABLE IF NOT EXISTS stacks(
+    foundid INTEGER PRIMARY KEY,
+    stackfile TEXT,
+    stacked INTEGER,
+    FOREIGN KEY(foundid) REFERENCES found(foundid)
+    )''',
+
+    # triggers
+    'CREATE TABLE IF NOT EXISTS stale_files(
+      path TEXT,
+      archivefile TEXT
+    )',
+
+    '''CREATE TRIGGER IF NOT EXISTS delete_found DELETE ON found
+    BEGIN
+      INSERT INTO stale_files (
+        SELECT 'cutout path',archivefile FROM old WHERE archivefile IS NOT NULL
+      );
+      DELETE FROM projections WHERE foundid=old.foundid;
+      INSERT INTO stale_files (
+        SELECT 'stack path',stackfile FROM stacks
+        WHERE foundid=old.foundid
+          AND stackfile IS NOT NULL
+      );
+      DELETE FROM stacks WHERE foundid=old.foundid;
+    END;
+    ''',
+      
 ]

@@ -24,6 +24,7 @@ class ZChecker:
 
     def __exit__(self, *args):
         from astropy.time import Time
+        self.clean_stale_files()
         self.logger.info('Closing database.')
         self.db.commit()
         self.db.execute('PRAGMA optimize')
@@ -50,6 +51,21 @@ class ZChecker:
             self.db.execute(cmd)
 
         self.logger.info('Connected to database: {}'.format(filename))
+
+    def clean_stale_files(self):
+        """Delete stale files from the archive."""
+        import os
+
+        rows = self.db.execute('SELECT source,archivefile FROM stale_files')
+        if len(rows) == 0:
+            return
+
+        self.logger.info('{} stale archive files to remove.'.format(
+            len(rows)))
+        for row in rows:
+            f = os.path.join(self.config[row[0]], row[1])
+            if os.path.exists(f):
+                os.unlink(f)
 
     def nightid(self, date):
         c = self.db.execute('''
@@ -592,7 +608,7 @@ class ZChecker:
              phase,selong,sangle,vangle,trueanomaly,tmtp,pid,x,y,retrieved,
              archivefile,sci_sync_date,sciimg,mskimg,scipsf,diffimg,diffpsf)
             VALUES
-            (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,"","",0,0,0,0,0)
+            (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NULL,NULL,0,0,0,0,0)
             ''', found)
 
             self.db.commit()
@@ -639,7 +655,7 @@ class ZChecker:
         count = self.db.execute('''
             SELECT count() FROM found
             WHERE sciimg=0
-              AND sci_sync_date=''
+              AND sci_sync_date IS NULL
             ''').fetchone()[0]
 
         if count == 0:
@@ -653,7 +669,7 @@ class ZChecker:
                 rows = self.db.execute('''
                 SELECT * FROM foundobs
                 WHERE sciimg=0
-                  AND sci_sync_date=''
+                  AND sci_sync_date IS NULL
                 LIMIT 1000
                 ''').fetchall()
 
