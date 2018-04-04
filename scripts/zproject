@@ -18,15 +18,6 @@ parser.add_argument('--config', default=os.path.expanduser('~/.config/zchecker.c
 parser.add_argument('-v', action='store_true', help='increase verbosity')
 args = parser.parse_args()
 
-def setup_table(z):
-    z.db.execute('''
-    CREATE TABLE IF NOT EXISTS projections(
-    foundid INTEGER PRIMARY KEY,
-    vangleimg INTEGER,
-    sangleimg INTEGER,
-    FOREIGN KEY(foundid) REFERENCES found(foundid)
-    )''')
-
 def update_background(fn):
     import numpy as np
     from numpy import ma
@@ -189,7 +180,6 @@ def project(fn):
 
 with ZChecker(Config.from_args(args), log=True) as z:
     z.logger.info('ZProject')
-    setup_table(z)
 
     path = z.config['cutout path'] + os.path.sep
 
@@ -229,7 +219,7 @@ with ZChecker(Config.from_args(args), log=True) as z:
                     if status[i] is True:
                         z.db.execute('''
                         INSERT OR REPLACE INTO projections
-                        (foundid,vangleimg,sangleimg) VALUES (?,1,1)
+                        (foundid,vangleimg,sangleimg,stacked) VALUES (?,1,1,0)
                         ''', [foundids[i]])
                         z.db.commit()
                         bar.update()

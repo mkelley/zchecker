@@ -1,4 +1,4 @@
-# ZChecker v1.2.0
+# ZChecker v1.2.1
 ZTF moving target checker for short object lists.
 
 ## Requirements
@@ -26,7 +26,8 @@ $ zchecker --help
   "log": "/path/to/zchecker.log",
   "user": "IRSA account user name",
   "password": "IRSA account password",
-  "cutout path": "/path/to/cutout/target/directory"
+  "cutout path": "/path/to/cutout/directory",
+  "stack path": "/path/to/stack/directory"
 }
 
 ```
