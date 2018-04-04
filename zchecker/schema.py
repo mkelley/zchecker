@@ -135,15 +135,17 @@ schema = [
     )''',
 
     # triggers
-    'CREATE TABLE IF NOT EXISTS stale_files(
+    '''CREATE TABLE IF NOT EXISTS stale_files(
       path TEXT,
       archivefile TEXT
-    )',
+    )''',
 
-    '''CREATE TRIGGER IF NOT EXISTS delete_found DELETE ON found
+    '''CREATE TRIGGER IF NOT EXISTS delete_found BEFORE DELETE ON found
     BEGIN
       INSERT INTO stale_files
-        SELECT 'cutout path',archivefile FROM old WHERE archivefile IS NOT NULL;
+        SELECT 'cutout path',archivefile FROM found
+        WHERE foundid=old.foundid
+          AND archivefile IS NOT NULL;
       DELETE FROM projections WHERE foundid=old.foundid;
       INSERT INTO stale_files
         SELECT 'stack path',stackfile FROM stacks

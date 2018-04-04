@@ -45,6 +45,7 @@ class ZChecker:
         filename = self.config['database']
         self.db = sqlite3.connect(filename)
         self.db.execute('PRAGMA foreign_keys = 1')
+        self.db.execute('PRAGMA recursive_triggers = 1')
         self.db.row_factory = sqlite3.Row
 
         for cmd in schema:
@@ -56,16 +57,19 @@ class ZChecker:
         """Delete stale files from the archive."""
         import os
 
-        rows = self.db.execute('SELECT source,archivefile FROM stale_files')
+        rows = self.db.execute(
+            'SELECT rowid,path,archivefile FROM stale_files'
+        ).fetchall()
         if len(rows) == 0:
             return
 
         self.logger.info('{} stale archive files to remove.'.format(
             len(rows)))
         for row in rows:
-            f = os.path.join(self.config[row[0]], row[1])
+            f = os.path.join(self.config[row[1]], row[2])
             if os.path.exists(f):
                 os.unlink(f)
+            self.db.execute('DELETE FROM stale_files WHERE rowid=?', [row[0]])
 
     def nightid(self, date):
         c = self.db.execute('''
@@ -635,7 +639,7 @@ class ZChecker:
                 os.unlink(filename)
             return False
 
-    def download_cutouts(self, clean_failed=True):
+    def download_cutouts(self, desg=None, clean_failed=True):
         import os
         from tempfile import mktemp
         import numpy as np
@@ -652,11 +656,18 @@ class ZChecker:
         fntemplate = os.path.join(
             '{desg}', '{desg}-{datetime}-{prepost}{rh:.3f}-ztf.fits.gz')
 
+        if desg is None:
+            desg_constraint = ''
+            parameters = []
+        else:
+            desg_constraint = ' AND desg=? '
+            parameters = [desg]
+
         count = self.db.execute('''
             SELECT count() FROM found
             WHERE sciimg=0
               AND sci_sync_date IS NULL
-            ''').fetchone()[0]
+            ''' + desg_constraint, parameters).fetchone()[0]
 
         if count == 0:
             self.logger.info('No cutouts to download.')
@@ -670,8 +681,9 @@ class ZChecker:
                 SELECT * FROM foundobs
                 WHERE sciimg=0
                   AND sci_sync_date IS NULL
+                ''' + desg_constraint + '''
                 LIMIT 1000
-                ''').fetchall()
+                ''', parameters).fetchall()
 
                 if len(rows) == 0:
                     break
