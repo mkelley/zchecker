@@ -122,7 +122,7 @@ schema = [
     '''CREATE TABLE IF NOT EXISTS projections(
     foundid INTEGER PRIMARY KEY,
     vangleimg INTEGER,
-    sangleimg INTEGER
+    sangleimg INTEGER,
     FOREIGN KEY(foundid) REFERENCES found(foundid)
     )''',
 
@@ -142,17 +142,14 @@ schema = [
 
     '''CREATE TRIGGER IF NOT EXISTS delete_found DELETE ON found
     BEGIN
-      INSERT INTO stale_files (
-        SELECT 'cutout path',archivefile FROM old WHERE archivefile IS NOT NULL
-      );
+      INSERT INTO stale_files
+        SELECT 'cutout path',archivefile FROM old WHERE archivefile IS NOT NULL;
       DELETE FROM projections WHERE foundid=old.foundid;
-      INSERT INTO stale_files (
+      INSERT INTO stale_files
         SELECT 'stack path',stackfile FROM stacks
         WHERE foundid=old.foundid
-          AND stackfile IS NOT NULL
-      );
+          AND stackfile IS NOT NULL;
       DELETE FROM stacks WHERE foundid=old.foundid;
     END;
     ''',
-      
 ]
