@@ -134,7 +134,7 @@ schema = [
     FOREIGN KEY(foundid) REFERENCES found(foundid)
     )''',
 
-    # triggers
+    # triggers and file clean up
     '''CREATE TABLE IF NOT EXISTS stale_files(
       path TEXT,
       archivefile TEXT

@@ -1,0 +1,320 @@
+#!/usr/bin/env python3
+import os
+import argparse
+import numpy as np
+import scipy.ndimage as nd
+from astropy.io import fits
+from zchecker import ZChecker
+
+parser = argparse.ArgumentParser(description='Solar System target image stacker for ZChecker.')
+parser.add_argument('--desg', help='find and stack images for this target')
+parser.add_argument('--scale', default='both', help='image scaling based on: coma, surface, or both (default)')
+parser.add_argument('--baseline', default=14, help='number of days to search for creating baseline image')
+parser.add_argument('-f', action='store_true', help='force stacking, even if previous calculated')
+parser.add_argument('--db', help='database file')
+parser.add_argument('--log', help='log file')
+parser.add_argument('--path', help='local cutout path')
+parser.add_argument('--config', default=os.path.expanduser('~/.config/zchecker.config'), help='configuration file')
+parser.add_argument('-v', action='store_true', help='increase verbosity')
+
+args = parser.parse_args()
+
+assert args.scale in ['coma', 'surface', 'both']
+if args.scale == 'both':
+    scale_by = ['coma', 'surface']
+else:
+    scale_by = [args.scale]
+
+class BadDataSet(Exception):
+    pass
+    
+def data_to_stack(z, t_baseline, desg=None, restack=False):
+    """Find and return images to stack."""
+    from astropy.time import Time
+
+    # estimate number of target-nights to stack
+    if desg is not None:
+        desg_match = ' AND desg=?'
+        parameters = [desg]
+    else:
+        desg_match = ''
+        parameters = []
+
+    # find any night, or only those with images not yet stacked
+    if restack:
+        stack_match = ''
+    else:
+        stack_match = 'AND (stacked=0 OR stacked IS NULL)'
+
+    # find nights with projected images, respecting desg and restack
+    rows = z.db.execute('''
+    SELECT count(DISTINCT desg) FROM foundobs
+    INNER JOIN projections ON foundobs.foundid = projections.foundid
+    LEFT JOIN stacks ON foundobs.foundid = stacks.foundid
+    WHERE infobits=0
+      AND sangleimg!=0
+    ''' + desg_match + '''
+    ''' + stack_match + '''
+    GROUP BY nightid
+    ''', parameters).fetchone()
+    count = int(rows[0])
+    z.logger.info('{} sets to stack.'.format(count))
+
+    nights = z.db.execute('''
+    SELECT DISTINCT nightid FROM foundobs
+    INNER JOIN projections ON foundobs.foundid = projections.foundid
+    LEFT JOIN stacks ON foundobs.foundid = stacks.foundid
+    WHERE infobits=0
+      AND sangleimg!=0
+    ''' + stack_match + '''
+    ''' + desg_match, parameters).fetchall()
+    nights = list([n[0] for n in nights])
+
+    # loop by day, target
+    for night in nights:
+        parameters = [night]
+        if desg is not None:
+            parameters += [desg]
+
+        targets = z.db.execute('''
+        SELECT desg,AVG(rh),AVG(rdot) FROM foundobs
+        INNER JOIN projections ON foundobs.foundid = projections.foundid
+        WHERE infobits=0
+          AND sangleimg!=0
+          AND nightid=?
+        ''' + desg_match + '''
+        GROUP BY desg
+        ''', parameters).fetchall()
+        targets = list(targets)
+
+        for target, rh, rdot in targets:
+            rows = z.db.execute('''
+            SELECT foundobs.foundid,obsjd,archivefile FROM foundobs
+            INNER JOIN projections ON foundobs.foundid = projections.foundid
+            WHERE infobits=0
+              AND sangleimg!=0
+              AND nightid=?
+              AND desg=?
+            ''', [night, target]).fetchall()
+            foundid, obsjd, nightly = list(zip(*rows))
+            obsjd = np.array(obsjd, float)
+
+            rows = z.db.execute('''
+            SELECT archivefile FROM foundobs
+            INNER JOIN projections ON foundobs.foundid = projections.foundid
+            WHERE infobits=0
+              AND sangleimg!=0
+              AND desg=?
+              AND obsjd<?
+              AND obsjd>=?
+            ''', [target, min(obsjd), min(obsjd) - t_baseline - 0.5]
+            ).fetchall()
+            if len(rows) == 0:
+                baseline = []
+            else:
+                baseline = list(zip(*rows))[0]
+
+            fn = '{desg}/{desg}-{date}-{prepost}{rh:.3f}-ztf-stack.fits.gz'.format(
+                desg=target.lower().replace(' ', '').replace('/', ''),
+                date=Time(obsjd.mean(), format='jd').iso[:10].replace('-', ''),
+                prepost='pre' if rdot < 0 else 'post', rh=rh)
+
+            yield foundid, fn, nightly, baseline
+
+
+######################################################################
+def check_target_paths(path, fn):
+    d = os.path.dirname(os.path.join(path, fn))
+    if not os.path.exists(d):
+        os.mkdir(d)
+        
+    return os.path.exists(os.path.join(path, fn))
+
+######################################################################
+def header(path, files):
+    """New FITS header based on this file list."""
+    from astropy.wcs import WCS
+    
+    headers = [fits.getheader(os.path.join(path, f)) for f in sorted(files)]
+
+    mean_key = lambda headers, key, comment, type: (
+        np.mean([type(h[key]) for h in headers]), comment)
+    
+    h = fits.Header()
+    h['BUNIT'] = 'e-/s'
+    h['ORIGIN'] = 'Zwicky Transient Facility', 'Data origin'
+    h['OBSERVER'] = 'ZTF Robotic Software', 'Observer'
+    h['INSTRUME'] = 'ZTF/MOSAIC', 'Instrument name'
+    h['OBSERVAT'] = 'Palomar Observatory', 'Observatory'
+    h['TELESCOP'] = 'Palomar 48-inch', 'Observatory telescope'
+    h['OBSLON'] = -116.8597, 'Observatory longitude (deg)'
+    h['OBSLAT'] = 33.3483, 'Observatory latitude (deg E)'
+    h['OBSALT'] = 1706., 'Observatory altitude (m)'
+    h['IMGTYPE'] = 'object', 'Image type'
+    h['NIMAGES'] = len(headers), 'Number of images in stack'
+    h['EXPOSURE'] = (sum([_['EXPOSURE'] for _ in headers]),
+                     'Total stack exposure time (s)')
+    h['FILTERS'] = (''.join([_['FILTER'].split()[1] for _ in headers]),
+                    'Filters in stack')
+    h['OBSJD1'] = float(headers[0]['OBSJD']), 'First shutter start time'
+    h['OBSJDN'] = float(headers[-1]['OBSJD']), 'Last shutter start time'
+    h['OBSJDM'] = mean_key(headers, 'OBSJD', 'Mean shutter start time', float)
+
+    wcs = WCS(fits.getheader(os.path.join(path, sorted(files)[0]),
+                             extname='SANGLE'))
+    h.update(wcs.to_header())
+
+    h['DBPID'] = (','.join([str(_['DBPID']) for _ in headers]),
+                  'Database processed-image IDs')
+    h['DESG'] = headers[0]['DESG'], 'Target designation'
+    for k, comment in {
+            'RH': 'Mean heliocentric distance (au)',
+            'DELTA': 'Mean observer-target distance (au)',
+            'PHASE': 'Mean Sun-target-observer angle (deg)',
+            'RDOT': 'Mean heliocentric radial velocity, km/s',
+            'SELONG': 'Mean solar elongation, deg',
+            'SANGLE': 'Mean projected target->Sun position angle, deg',
+            'VANGLE': 'Mean projected velocity position angle, deg',
+            'TRUEANOM': 'Mean true anomaly (osculating), deg',
+            'TMTP': 'Mean T-Tp (osculating), days',
+            'TGTRA': 'Mean target RA, deg',
+            'TGTDEC': 'Mean target Dec, deg',
+            'TGTDRA': 'Mean target RA*cos(dec) rate of change,arcsec/s',
+            'TGTDDEC': 'Mean target Dec rate of change, arcsec/s',
+            'TGTRASIG': 'Mean target RA 3-sigma uncertainty, arcsec',
+            'TGTDESIG': 'Mean target Dec 3-sigma uncertainty, arcsec',
+    }.items():
+        h[k] = mean_key(headers, k, comment, float)
+
+    return h
+
+######################################################################
+def weighted_median(stack, unc, axis=0):
+    # works, but is slow
+    if stack.shape[axis] == 1:
+        m = stack
+    elif stack.shape[axis] == 2:
+        m = np.ma.average(stack, axis=axis, weights=1/unc**2)
+    else:
+        stack = np.random.randint(1, 100, size=shape)
+        unc = np.sqrt(np.random.randint(1, 100, size=shape))
+        axis = 2
+
+        weight = 1 / unc**2
+        wstack = weight * stack
+        i = np.ma.argsort(wstack, axis=2)
+        a = wstack[list(np.ogrid[[slice(x) for x in wstack.shape]][:-1])+[i]]
+        w = weight[list(np.ogrid[[slice(x) for x in wstack.shape]][:-1])+[i]]
+
+        c = np.ma.cumsum(a, axis=2)
+        c /= np.ma.max(c, axis=2)[:, :, None]
+
+        i = np.ma.apply_along_axis(np.searchsorted, 2, c, [0.5])
+        wm = a[np.arange(a.shape[0])[:, None],
+               np.arange(a.shape[1]),
+               i]
+        wm = a[list(np.ogrid[[slice(x) for x in a.shape]][:-1])+[i]]
+        ww = w[list(np.ogrid[[slice(x) for x in a.shape]][:-1])+[i]]
+        m = wm / ww
+
+    return m
+
+######################################################################
+def combine(files, scale_by, path):
+    # coma: delta**1, surface: delta**2
+    if scale_by == 'coma':
+        k = 1
+    else:
+        k = 2
+
+    stack = []
+    # loop over each image
+    for f in files:
+        fn = os.path.join(path, f)
+        with fits.open(fn) as hdu:
+            h = hdu['SCI'].header
+            if 'MAGZP' not in h:
+                continue
+
+            # use provided mask, if possible
+            if 'SANGLEMASK' in hdu:
+                mask = hdu['SANGLEMASK'].data
+            else:
+                mask = np.zeros_like(hdu['SANGLE'].data, bool)
+
+            # unmask the target
+            lbl, n = nd.label(mask.astype(int))
+            if n > 1:
+                x = h['TGTX']
+                y = h['TGTY']
+                mask[lbl == lbl[y, x]] = 0
+
+            # update mask with nans
+            mask = (mask > 0) + ~np.isfinite(hdu['SANGLE'].data)
+
+            # get data, subtract background, convert to e-/s
+            im = np.ma.MaskedArray(hdu['SANGLE'].data, mask=mask)
+            im -= h['BGMEDIAN']
+            im *= h['GAIN'] / h['EXPOSURE']
+
+            # scale by image zero point, scale to rh=delta=1 au
+            im *= 10**(-0.4 * (h['magzp'] - 25.0))
+            im *= h['delta']**k * h['rh']**2
+
+        stack.append(im)
+
+    if len(stack) == 0:
+        raise BadDataSet
+    stack = np.ma.MaskedArray(stack)
+    combined = fits.ImageHDU(np.ma.median(stack, 0).filled(np.nan))
+    combined.name = '{} scaled'.format(scale_by)
+
+    return combined
+
+######################################################################
+with ZChecker(log=False) as z:
+    cutout_path = z.config['cutout path']
+    stack_path = z.config['stack path']
+    if not os.path.exists(stack_path):
+        os.mkdir(stack_path)
+
+    data = data_to_stack(z, args.baseline, desg=args.desg, restack=args.f)
+    n = 0
+    for foundids, fn, nightly, baseline in data:
+        if check_target_paths(stack_path, fn) and not args.f:
+            # file exists and overwrite not enabled
+            continue
+
+        print(fn)
+        hdu = fits.HDUList()
+        hdu.append(fits.PrimaryHDU(header=header(cutout_path, nightly)))
+        for i in range(len(scale_by)):
+            try:
+                hdu.append(combine(nightly, scale_by[i], cutout_path))
+            except BadDataSet:
+                continue
+
+            if len(baseline) > 0:
+                try:
+                    im = combine(baseline, scale_by[i], cutout_path)
+                except BadDataSet:
+                    continue
+                im.data = hdu[-1].data - im.data
+                im.name = '{}-baseline'.format(scale_by[i])
+                hdu.append(im)
+
+        if len(hdu) > 1:
+            hdu.writeto(os.path.join(stack_path, fn), overwrite=args.f)
+
+            # images were stacked
+            z.db.executemany('''
+            INSERT OR REPLACE INTO stacks VALUES (?,?,1)
+            ''', zip(foundids, [fn] * len(foundids)))
+        else:
+            # images were skipped
+            for foundid in foundids:
+                z.db.executemany('''
+                INSERT OR REPLACE INTO stacks VALUES (?,NULL,-1)
+                ''', zip(foundids))
+
+        z.db.commit()
