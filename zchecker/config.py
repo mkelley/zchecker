@@ -9,7 +9,8 @@ The configuration is a JSON-formatted file:
   "log": "/path/to/zchecker.log",
   "user": "IRSA account user name",
   "password": "IRSA account password",
-  "cutout path": "/path/to/cutout/target/directory"
+  "cutout path": "/path/to/cutout/directory",
+  "stack path": "/path/to/stack/directory"
 }
 
 """
