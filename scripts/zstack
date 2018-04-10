@@ -4,7 +4,7 @@ import argparse
 import numpy as np
 import scipy.ndimage as nd
 from astropy.io import fits
-from zchecker import ZChecker
+from zchecker import ZChecker, Config
 
 parser = argparse.ArgumentParser(description='Solar System target image stacker for ZChecker.')
 parser.add_argument('--desg', help='find and stack images for this target')
@@ -303,7 +303,8 @@ def combine(files, scale_by, path):
     return combined
 
 ######################################################################
-with ZChecker(log=True) as z:
+config = Config.from_args(args)
+with ZChecker(config, log=True) as z:
     # setup paths
     cutout_path = z.config['cutout path']
     stack_path = z.config['stack path']
