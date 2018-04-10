@@ -128,7 +128,8 @@ def data_to_stack(z, t_baseline, desg=None, restack=False):
             if len(rows) == 0:
                 baseline = {}
             else:
-                baseline = groupby(*list(zip(*rows)))
+                filters, files = list(zip(*rows))
+                baseline = groupby(files, filters)
 
             # fill missing baseline filters
             for k in nightly.keys():
@@ -145,8 +146,8 @@ def data_to_stack(z, t_baseline, desg=None, restack=False):
                           prepost='pre' if rdot < 0 else 'post',
                           rh=rh,
                           filt=filt)
-                n -= 1
                 yield n, foundid[filt], fn, nightly[filt], baseline[filt]
+                n -= 1
 
 ######################################################################
 def check_target_paths(path, fn):
@@ -311,7 +312,6 @@ with ZChecker(log=True) as z:
 
     # iterator of data that needs to be stacked
     data = data_to_stack(z, args.baseline, desg=args.desg, restack=args.f)
-    n = 0
     for n, foundids, fn, nightly, baseline in data:
         # file exists? is overwrite mode enabled?
         if check_target_paths(stack_path, fn) and not args.f:
