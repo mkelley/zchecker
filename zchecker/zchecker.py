@@ -16,7 +16,8 @@ class ZChecker:
         from . import logging
         from .config import Config
         self.config = Config() if config is None else config
-        self.logger = logging.setup(log, filename=self.config['log'])
+        filename = self.config['log'] if log else '/dev/null'
+        self.logger = logging.setup(filename=filename)
         self.connect_db()
 
     def __enter__(self):

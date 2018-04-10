@@ -1,5 +1,5 @@
 # Licensed under a 3-clause BSD style license - see LICENSE.rst
-def setup(enabled, filename='zchecker.log'):
+def setup(filename='zchecker.log'):
     import sys
     import logging
     from astropy.time import Time
@@ -12,24 +12,22 @@ def setup(enabled, filename='zchecker.log'):
     if len(logger.handlers) == 0:
         formatter = logging.Formatter('%(levelname)s: %(message)s')
 
-        if enabled:
-            console = logging.StreamHandler(sys.stdout)
-            console.setLevel(logging.DEBUG)
-            console.setFormatter(formatter)
-            logger.addHandler(console)
+        console = logging.StreamHandler(sys.stdout)
+        console.setLevel(logging.DEBUG)
+        console.setFormatter(formatter)
+        logger.addHandler(console)
 
-            logfile = logging.FileHandler(filename)
-            logfile.setLevel(logging.INFO)
-            logfile.setFormatter(formatter)
-            logger.addHandler(logfile)
+        logfile = logging.FileHandler(filename)
+        logfile.setLevel(logging.INFO)
+        logfile.setFormatter(formatter)
+        logger.addHandler(logfile)
 
     logger.info('#' * 70)
     logger.info(Time.now().iso + 'Z')
     logger.info('Command line: ' + ' '.join(sys.argv[1:]))
-    if enabled:
-        for handler in logger.handlers:
-            if hasattr(handler, 'baseFilename'):
-                logger.info('Logging to ' + handler.baseFilename)
+    for handler in logger.handlers:
+        if hasattr(handler, 'baseFilename'):
+            logger.info('Logging to ' + handler.baseFilename)
 
     return logger
 
