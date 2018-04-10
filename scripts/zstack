@@ -25,9 +25,21 @@ if args.scale == 'both':
 else:
     scale_by = [args.scale]
 
+########################################################################
 class BadDataSet(Exception):
     pass
-    
+########################################################################
+def groupby(values, keys):
+    """Sort values into `dict` via `set(key)`."""
+    groups = dict()
+    keys = np.array(keys)
+    values = np.array(values)
+    for k in set(keys):
+        i = keys == k
+        groups[k] = values[i]
+    return groups
+
+########################################################################
 def data_to_stack(z, t_baseline, desg=None, restack=False):
     """Find and return images to stack."""
     from astropy.time import Time
@@ -48,7 +60,7 @@ def data_to_stack(z, t_baseline, desg=None, restack=False):
 
     # find nights with projected images, respecting desg and restack
     rows = z.db.execute('''
-    SELECT count(DISTINCT desg) FROM foundobs
+    SELECT count(DISTINCT filtercode) FROM foundobs
     INNER JOIN projections ON foundobs.foundid = projections.foundid
     LEFT JOIN stacks ON foundobs.foundid = stacks.foundid
     WHERE infobits=0
@@ -56,8 +68,9 @@ def data_to_stack(z, t_baseline, desg=None, restack=False):
     ''' + desg_match + '''
     ''' + stack_match + '''
     GROUP BY nightid
-    ''', parameters).fetchone()
-    count = int(rows[0])
+    ''', parameters).fetchall()
+    count = sum([row[0] for row in rows])
+    n = count
     z.logger.info('{} sets to stack.'.format(count))
 
     nights = z.db.execute('''
@@ -89,38 +102,51 @@ def data_to_stack(z, t_baseline, desg=None, restack=False):
 
         for target, rh, rdot in targets:
             rows = z.db.execute('''
-            SELECT foundobs.foundid,obsjd,archivefile FROM foundobs
+            SELECT foundobs.foundid,obsjd,filtercode,archivefile FROM foundobs
             INNER JOIN projections ON foundobs.foundid = projections.foundid
             WHERE infobits=0
               AND sangleimg!=0
               AND nightid=?
               AND desg=?
             ''', [night, target]).fetchall()
-            foundid, obsjd, nightly = list(zip(*rows))
-            obsjd = np.array(obsjd, float)
+            foundid, obsjd, filters, files = list(zip(*rows))
+            foundid = groupby(foundid, filters)
+            baseline_start = float(min(obsjd))
+            obsjd = groupby(np.array(obsjd, float), filters)
+            nightly = groupby(files, filters)
 
             rows = z.db.execute('''
-            SELECT archivefile FROM foundobs
+            SELECT filtercode,archivefile FROM foundobs
             INNER JOIN projections ON foundobs.foundid = projections.foundid
             WHERE infobits=0
               AND sangleimg!=0
               AND desg=?
               AND obsjd<?
               AND obsjd>=?
-            ''', [target, min(obsjd), min(obsjd) - t_baseline - 0.5]
+            ''', [target, baseline_start, baseline_start - t_baseline - 0.5]
             ).fetchall()
             if len(rows) == 0:
-                baseline = []
+                baseline = {}
             else:
-                baseline = list(zip(*rows))[0]
+                baseline = groupby(*list(zip(*rows)))
 
-            fn = '{desg}/{desg}-{date}-{prepost}{rh:.3f}-ztf-stack.fits.gz'.format(
-                desg=target.lower().replace(' ', '').replace('/', ''),
-                date=Time(obsjd.mean(), format='jd').iso[:10].replace('-', ''),
-                prepost='pre' if rdot < 0 else 'post', rh=rh)
+            # fill missing baseline filters
+            for k in nightly.keys():
+                if k not in baseline:
+                    baseline[k] = []
 
-            yield foundid, fn, nightly, baseline
-
+            _desg = target.lower().replace(' ', '').replace('/', '')
+            for filt in nightly.keys():
+                date = Time(obsjd[filt].mean(), format='jd')
+                fn = ('{desg}/{desg}-{date}-{prepost}{rh:.3f}-{filt}'
+                      '-ztf-stack.fits.gz').format(
+                          desg=_desg,
+                          date=date.iso[:10].replace('-', ''),
+                          prepost='pre' if rdot < 0 else 'post',
+                          rh=rh,
+                          filt=filt)
+                n -= 1
+                yield n, foundid[filt], fn, nightly[filt], baseline[filt]
 
 ######################################################################
 def check_target_paths(path, fn):
@@ -154,8 +180,11 @@ def header(path, files):
     h['NIMAGES'] = len(headers), 'Number of images in stack'
     h['EXPOSURE'] = (sum([_['EXPOSURE'] for _ in headers]),
                      'Total stack exposure time (s)')
-    h['FILTERS'] = (''.join([_['FILTER'].split()[1] for _ in headers]),
-                    'Filters in stack')
+    #h['FILTERS'] = (''.join([_['FILTER'].split()[1] for _ in headers]),
+    #                'Filters in stack')
+    if len(headers) == 0:
+        return h
+
     h['OBSJD1'] = float(headers[0]['OBSJD']), 'First shutter start time'
     h['OBSJDN'] = float(headers[-1]['OBSJD']), 'Last shutter start time'
     h['OBSJDM'] = mean_key(headers, 'OBSJD', 'Mean shutter start time', float)
@@ -221,10 +250,11 @@ def weighted_median(stack, unc, axis=0):
 
 ######################################################################
 def combine(files, scale_by, path):
-    # coma: delta**1, surface: delta**2
     if scale_by == 'coma':
+        # coma: delta**1
         k = 1
     else:
+        # surface: delta**2
         k = 2
 
     stack = []
@@ -258,8 +288,8 @@ def combine(files, scale_by, path):
             im *= h['GAIN'] / h['EXPOSURE']
 
             # scale by image zero point, scale to rh=delta=1 au
-            im *= 10**(-0.4 * (h['magzp'] - 25.0))
-            im *= h['delta']**k * h['rh']**2
+            im *= 10**(-0.4 * (h['MAGZP'] - 25.0))
+            im *= h['DELTA']**k * h['RH']**2
 
         stack.append(im)
 
@@ -272,28 +302,45 @@ def combine(files, scale_by, path):
     return combined
 
 ######################################################################
-with ZChecker(log=False) as z:
+with ZChecker(log=True) as z:
+    # setup paths
     cutout_path = z.config['cutout path']
     stack_path = z.config['stack path']
     if not os.path.exists(stack_path):
         os.mkdir(stack_path)
 
+    # iterator of data that needs to be stacked
     data = data_to_stack(z, args.baseline, desg=args.desg, restack=args.f)
     n = 0
-    for foundids, fn, nightly, baseline in data:
+    for n, foundids, fn, nightly, baseline in data:
+        # file exists? is overwrite mode enabled?
         if check_target_paths(stack_path, fn) and not args.f:
-            # file exists and overwrite not enabled
             continue
 
-        print(fn)
+        z.logger.info('[{}] {}'.format(n, fn))
+
+        # setup FITS object, primary HDU is just a header
         hdu = fits.HDUList()
         hdu.append(fits.PrimaryHDU(header=header(cutout_path, nightly)))
+
+        # update header with baseline info
+        h = header(cutout_path, baseline)
+        hdu[0].header['BLPID'] = h.get('DBPID'), 'Baseline processed-image IDs'
+        h['BLNIMAGE'] = h.get('NIMAGES'), 'Number of images in baseline'
+        h['BLEXP'] = h.get('EXPOSURE'), 'Total baseline exposure time (s)'
+        h['BLOBSJD1'] = h.get('OBSJD1'), 'First baseline shutter start time'
+        h['BLOBSJDN'] = h.get('OBSJDN'), 'Last baseline shutter start time'
+        h['BLOBSJDM'] = h.get('OBSJDM'), 'Mean baseline shutter start time'
+
+        # loop over scaling models
         for i in range(len(scale_by)):
+            # combine nightly
             try:
                 hdu.append(combine(nightly, scale_by[i], cutout_path))
             except BadDataSet:
                 continue
 
+            # combine baseline
             if len(baseline) > 0:
                 try:
                     im = combine(baseline, scale_by[i], cutout_path)
@@ -303,10 +350,10 @@ with ZChecker(log=False) as z:
                 im.name = '{}-baseline'.format(scale_by[i])
                 hdu.append(im)
 
+        # database update
         if len(hdu) > 1:
-            hdu.writeto(os.path.join(stack_path, fn), overwrite=args.f)
-
             # images were stacked
+            hdu.writeto(os.path.join(stack_path, fn), overwrite=args.f)
             z.db.executemany('''
             INSERT OR REPLACE INTO stacks VALUES (?,?,1)
             ''', zip(foundids, [fn] * len(foundids)))
