@@ -219,7 +219,7 @@ with ZChecker(Config.from_args(args), log=True) as z:
                     if status[i] is True:
                         z.db.execute('''
                         INSERT OR REPLACE INTO projections
-                        (foundid,vangleimg,sangleimg,stacked) VALUES (?,1,1,0)
+                        (foundid,vangleimg,sangleimg) VALUES (?,1,1)
                         ''', [foundids[i]])
                         z.db.commit()
                         bar.update()
