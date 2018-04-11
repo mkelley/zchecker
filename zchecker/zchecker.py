@@ -384,7 +384,8 @@ class ZChecker:
         assert 'obsjd' in columns
 
         rows = self.db.execute(
-            'SELECT ' + columns + ' FROM obs WHERE obsjd>=? AND obsjd<=?',
+            'SELECT ' + columns + 
+            ' FROM obs WHERE obsjd>=? AND obsjd<=? ORDER BY obsjd',
             [start, end]).fetchall()
 
         quads = {}
@@ -416,8 +417,14 @@ class ZChecker:
             opts['asteroid'] = True
 
         # query HORIZONS for all requested epochs
-        obsjd = list([fov['obsjd'] for fov in fovs])
-        assert np.all(np.diff(obsjd) > 0), 'FOVs must be in order!'
+        obsjd = np.array([fov['obsjd'] for fov in fovs])
+        pid = np.array([fov['pid'] for fov in fovs])
+        diff = np.diff(obsjd)
+        i = np.where(diff <= 0)[0]
+        assert not np.any(i), 'FOVs must be in order! {}'.format(
+            '\n'.join([str(row) for row in 
+                       [(list(fovs[j]), list(fovs[j+1])) for j in i]]))
+        del diff, i, pid
 
         eph = callhorizons.query(desg, cap=True, nofrag=True, **opts)
         eph.set_discreteepochs(obsjd)
