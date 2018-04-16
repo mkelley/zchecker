@@ -214,7 +214,11 @@ def header(path, files):
             'TGTRASIG': 'Mean target RA 3-sigma uncertainty, arcsec',
             'TGTDESIG': 'Mean target Dec 3-sigma uncertainty, arcsec',
     }.items():
-        h[k] = mean_key(headers, k, comment, float)
+        try:
+            h[k] = mean_key(headers, k, comment, float)
+        except ValueError:
+            # target rates might be empty strings
+            h[k] = ''
 
     return h
 
@@ -322,7 +326,8 @@ with ZChecker(config, log=True) as z:
 
         # setup FITS object, primary HDU is just a header
         hdu = fits.HDUList()
-        hdu.append(fits.PrimaryHDU(header=header(cutout_path, nightly)))
+        primary_header = header(cutout_path, nightly)
+        hdu.append(fits.PrimaryHDU(header=primary_header))
 
         # update header with baseline info
         h = header(cutout_path, baseline)
