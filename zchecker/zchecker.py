@@ -680,9 +680,9 @@ class ZChecker:
             parameters = [desg]
 
         if retry_failed:
-            sync_constraint = 'AND sci_sync_date IS NULL '
-        else:
             sync_constraint = ''
+        else:
+            sync_constraint = 'AND sci_sync_date IS NULL '
         count = self.db.execute('''
             SELECT count() FROM found
             WHERE sciimg=0
@@ -700,7 +700,7 @@ class ZChecker:
                 rows = self.db.execute('''
                 SELECT * FROM foundobs
                 WHERE sciimg=0
-                  AND sci_sync_date IS NULL
+                ''' + sync_constraint + '''
                 ''' + desg_constraint + '''
                 LIMIT 1000
                 ''', parameters).fetchall()
