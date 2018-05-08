@@ -696,160 +696,157 @@ class ZChecker:
         self.logger.info('Downloading {} cutouts.'.format(count))
 
         with IRSA(path, self.config.auth) as irsa:
-            while True:
-                rows = self.db.execute('''
-                SELECT * FROM foundobs
-                WHERE sciimg=0
-                ''' + sync_constraint + '''
-                ''' + desg_constraint + '''
-                LIMIT 1000
-                ''', parameters).fetchall()
+            rows = self.db.execute('''
+            SELECT * FROM foundobs
+            WHERE sciimg=0
+            ''' + sync_constraint + '''
+            ''' + desg_constraint, parameters).fetchall()
 
-                if len(rows) == 0:
-                    break
+            if len(rows) == 0:
+                return
 
-                for row in rows:
-                    # check if target cutout directory exists
-                    d = desg2file(row['desg'])
-                    if not os.path.exists(path + d):
-                        os.system('mkdir ' + path + d)
+            for row in rows:
+                # check if target cutout directory exists
+                d = desg2file(row['desg'])
+                if not os.path.exists(path + d):
+                    os.system('mkdir ' + path + d)
 
-                    prepost = 'pre' if row['rdot'] < 0 else 'post'
-                    sync_date = Time(float(row['obsjd']), format='jd').iso
-                    t = sync_date.replace('-', '').replace(
-                        ':', '').replace(' ', '_')[:15]
-                    fn = fntemplate.format(
-                        desg=d, prepost=prepost, rh=row['rh'],
-                                           datetime=t)
+                prepost = 'pre' if row['rdot'] < 0 else 'post'
+                sync_date = Time(float(row['obsjd']), format='jd').iso
+                t = sync_date.replace('-', '').replace(
+                    ':', '').replace(' ', '_')[:15]
+                fn = fntemplate.format(
+                    desg=d, prepost=prepost, rh=row['rh'],
+                                       datetime=t)
 
-                    if os.path.exists(path + fn):
-                        self.logger.error(
-                            path + fn +
-                            ' exists, but was not expected.  Removing.'
-                        )
-                        os.unlink(path + fn)
+                if os.path.exists(path + fn):
+                    self.logger.error(
+                        path + fn +
+                        ' exists, but was not expected.  Removing.'
+                    )
+                    os.unlink(path + fn)
 
-                    sciurl = row['url'] + '&size=5arcmin'
-                    sci_downloaded = self._download_file(
-                        irsa, sciurl, path + fn, clean_failed=clean_failed)
-                    if not sci_downloaded:
-                        self.db.execute('''
-                        UPDATE found SET
-                          sci_sync_date=?,
-                          sciimg=0,
-                          mskimg=0,
-                          scipsf=0,
-                          diffimg=0,
-                          diffpsf=0
-                        WHERE foundid=?
-                        ''', (sync_date, row['foundid']))
-                        self.db.commit()
-                        continue
-
-                    updates = {
-                        'desg': (row['desg'], 'Target designation'),
-                        'obsjd': (row['obsjd'], 'Shutter start time'),
-                        'rh': (row['rh'], 'Heliocentric distance, au'),
-                        'delta': (row['delta'], 'Observer-target distance, au'),
-                        'phase': (row['phase'], 'Sun-target-observer angle, deg'),
-                        'rdot': (row['rdot'], 'Heliocentric radial velocity, km/s'),
-                        'selong': (row['selong'], 'Solar elongation, deg'),
-                        'sangle': (row['sangle'], 'Projected target->Sun position angle, deg'),
-                        'vangle': (row['vangle'], 'Projected velocity position angle, deg'),
-                        'trueanom': (row['trueanomaly'], 'True anomaly (osculating), deg'),
-                        'tmtp': (row['tmtp'], 'T-Tp (osculating), days'),
-                        'tgtra': (row['ra'], 'Target RA, deg'),
-                        'tgtdec': (row['dec'], 'Target Dec, deg'),
-                        'tgtdra': (row['dra'], 'Target RA*cos(dec) rate of change, arcsec/s'),
-                        'tgtddec': (row['ddec'], 'Target Dec rate of change, arcsec/s'),
-                        'tgtrasig': (row['ra3sig'], 'Target RA 3-sigma uncertainty, arcsec'),
-                        'tgtdesig': (row['dec3sig'], 'Target Dec 3-sigma uncertainty, arcsec'),
-                        'foundid': (row['foundid'], 'ZChecker DB foundid'),
-                    }
-
-                    maskfn = mktemp(dir='/tmp')
-                    _url = sciurl.replace('sciimg', 'mskimg')
-                    mask_downloaded = self._download_file(
-                        irsa, _url, maskfn, clean_failed=clean_failed)
-
-                    psffn = mktemp(dir='/tmp')
-                    _url = sciurl.replace('sciimg', 'sciimgdaopsfcent')
-                    _url = _url[:_url.rfind('?')]
-                    psf_downloaded = self._download_file(
-                        irsa, _url, psffn, clean_failed=True)
-
-                    difffn = mktemp(dir='/tmp')
-                    #_url = sciurl.replace('sciimg.fits', 'scimrefdiffimg.fits.fz')
-                    # diff_downloaded = self._download_file(
-                    #    irsa, _url, difffn, clean_failed=True)
-                    diff_downloaded = False
-
-                    diffpsffn = mktemp(dir='/tmp')
-                    #_url = sciurl.replace('sciimg', 'diffimgpsf')
-                    # if diff_downloaded:  # no need to DL PSF if diff not DL'ed
-                    #    diffpsf_downloaded = self._download_file(
-                    #        irsa, _url, diffpsffn, clean_failed=True)
-                    # else:
-                    #    diffpsf_downloaded = False
-                    diffpsf_downloaded = False
-
-                    # update header and add mask and PSF
-                    with fits.open(path + fn, 'update') as hdu:
-                        hdu[0].name = 'sci'
-
-                        wcs = WCS(hdu[0].header)
-                        x, y = wcs.all_world2pix(
-                            row['ra'] * u.deg, row['dec'] * u.deg, 0)
-                        updates['tgtx'] = int(
-                            x), 'Target x coordinate, 0-based'
-                        updates['tgty'] = int(
-                            y), 'Target y coordinate, 0-based'
-
-                        hdu[0].header.update(updates)
-
-                        if mask_downloaded:
-                            with fits.open(maskfn) as mask:
-                                mask[0].name = 'mask'
-                                hdu.append(mask[0])
-
-                        if psf_downloaded:
-                            with fits.open(psffn) as psf:
-                                psf[0].name = 'psf'
-                                hdu.append(psf[0])
-
-                        if diff_downloaded:
-                            with fits.open(difffn) as diff:
-                                diff[0].name = 'diff'
-                                hdu.append(psf[0])
-
-                        if diffpsf_downloaded:
-                            with fits.open(diffpsffn) as diffpsf:
-                                diffpsf[0].name = 'diff_psf'
-                                hdu.append(psf[0])
-
-                    for f in (maskfn, psffn, difffn, diffpsffn):
-                        if os.path.exists(f):
-                            os.unlink(f)
-
+                sciurl = row['url'] + '&size=5arcmin'
+                sci_downloaded = self._download_file(
+                    irsa, sciurl, path + fn, clean_failed=clean_failed)
+                if not sci_downloaded:
                     self.db.execute('''
                     UPDATE found SET
-                      archivefile=?,
                       sci_sync_date=?,
-                      sciimg=?,
-                      mskimg=?,
-                      scipsf=?,
-                      diffimg=?,
-                      diffpsf=?
+                      sciimg=0,
+                      mskimg=0,
+                      scipsf=0,
+                      diffimg=0,
+                      diffpsf=0
                     WHERE foundid=?
-                    ''', (fn, sync_date, sci_downloaded, mask_downloaded,
-                          psf_downloaded, diff_downloaded, diffpsf_downloaded,
-                          row['foundid']))
-
+                    ''', (sync_date, row['foundid']))
                     self.db.commit()
+                    continue
 
-                    self.logger.info('  [{}] {}'.format(
-                        count, os.path.basename(fn)))
-                    count -= 1
+                updates = {
+                    'desg': (row['desg'], 'Target designation'),
+                    'obsjd': (row['obsjd'], 'Shutter start time'),
+                    'rh': (row['rh'], 'Heliocentric distance, au'),
+                    'delta': (row['delta'], 'Observer-target distance, au'),
+                    'phase': (row['phase'], 'Sun-target-observer angle, deg'),
+                    'rdot': (row['rdot'], 'Heliocentric radial velocity, km/s'),
+                    'selong': (row['selong'], 'Solar elongation, deg'),
+                    'sangle': (row['sangle'], 'Projected target->Sun position angle, deg'),
+                    'vangle': (row['vangle'], 'Projected velocity position angle, deg'),
+                    'trueanom': (row['trueanomaly'], 'True anomaly (osculating), deg'),
+                    'tmtp': (row['tmtp'], 'T-Tp (osculating), days'),
+                    'tgtra': (row['ra'], 'Target RA, deg'),
+                    'tgtdec': (row['dec'], 'Target Dec, deg'),
+                    'tgtdra': (row['dra'], 'Target RA*cos(dec) rate of change, arcsec/s'),
+                    'tgtddec': (row['ddec'], 'Target Dec rate of change, arcsec/s'),
+                    'tgtrasig': (row['ra3sig'], 'Target RA 3-sigma uncertainty, arcsec'),
+                    'tgtdesig': (row['dec3sig'], 'Target Dec 3-sigma uncertainty, arcsec'),
+                    'foundid': (row['foundid'], 'ZChecker DB foundid'),
+                }
+
+                maskfn = mktemp(dir='/tmp')
+                _url = sciurl.replace('sciimg', 'mskimg')
+                mask_downloaded = self._download_file(
+                    irsa, _url, maskfn, clean_failed=clean_failed)
+
+                psffn = mktemp(dir='/tmp')
+                _url = sciurl.replace('sciimg', 'sciimgdaopsfcent')
+                _url = _url[:_url.rfind('?')]
+                psf_downloaded = self._download_file(
+                    irsa, _url, psffn, clean_failed=True)
+
+                difffn = mktemp(dir='/tmp')
+                #_url = sciurl.replace('sciimg.fits', 'scimrefdiffimg.fits.fz')
+                # diff_downloaded = self._download_file(
+                #    irsa, _url, difffn, clean_failed=True)
+                diff_downloaded = False
+
+                diffpsffn = mktemp(dir='/tmp')
+                #_url = sciurl.replace('sciimg', 'diffimgpsf')
+                # if diff_downloaded:  # no need to DL PSF if diff not DL'ed
+                #    diffpsf_downloaded = self._download_file(
+                #        irsa, _url, diffpsffn, clean_failed=True)
+                # else:
+                #    diffpsf_downloaded = False
+                diffpsf_downloaded = False
+
+                # update header and add mask and PSF
+                with fits.open(path + fn, 'update') as hdu:
+                    hdu[0].name = 'sci'
+
+                    wcs = WCS(hdu[0].header)
+                    x, y = wcs.all_world2pix(
+                        row['ra'] * u.deg, row['dec'] * u.deg, 0)
+                    updates['tgtx'] = int(
+                        x), 'Target x coordinate, 0-based'
+                    updates['tgty'] = int(
+                        y), 'Target y coordinate, 0-based'
+
+                    hdu[0].header.update(updates)
+
+                    if mask_downloaded:
+                        with fits.open(maskfn) as mask:
+                            mask[0].name = 'mask'
+                            hdu.append(mask[0])
+
+                    if psf_downloaded:
+                        with fits.open(psffn) as psf:
+                            psf[0].name = 'psf'
+                            hdu.append(psf[0])
+
+                    if diff_downloaded:
+                        with fits.open(difffn) as diff:
+                            diff[0].name = 'diff'
+                            hdu.append(psf[0])
+
+                    if diffpsf_downloaded:
+                        with fits.open(diffpsffn) as diffpsf:
+                            diffpsf[0].name = 'diff_psf'
+                            hdu.append(psf[0])
+
+                for f in (maskfn, psffn, difffn, diffpsffn):
+                    if os.path.exists(f):
+                        os.unlink(f)
+
+                self.db.execute('''
+                UPDATE found SET
+                  archivefile=?,
+                  sci_sync_date=?,
+                  sciimg=?,
+                  mskimg=?,
+                  scipsf=?,
+                  diffimg=?,
+                  diffpsf=?
+                WHERE foundid=?
+                ''', (fn, sync_date, sci_downloaded, mask_downloaded,
+                      psf_downloaded, diff_downloaded, diffpsf_downloaded,
+                      row['foundid']))
+
+                self.db.commit()
+
+                self.logger.info('  [{}] {}'.format(
+                    count, os.path.basename(fn)))
+                count -= 1
 
 desg2file = lambda s: s.replace('/', '').replace(' ', '').lower()
 
