@@ -1,5 +1,6 @@
 # Licensed under a 3-clause BSD style license - see LICENSE.rst
 class ZChecker:
+
     """ZTF field checker for small bodies.
 
     Parameters
@@ -84,7 +85,8 @@ class ZChecker:
 
     def available_nights(self, exposures=True):
         if exposures:
-            c = self.db.execute('SELECT date,nframes FROM nights ORDER BY date')
+            c = self.db.execute(
+                'SELECT date,nframes FROM nights ORDER BY date')
         else:
             c = self.db.execute('SELECT date FROM nights ORDER BY date')
         return list([' '.join([str(x) for x in row]) for row in c.fetchall()])
@@ -120,6 +122,7 @@ class ZChecker:
         ''', [date, len(tab)])
 
         nightid = self.nightid(date)
+
         def rows(nightid, tab):
             for row in tab:
                 yield (nightid,) + tuple(row)
@@ -129,7 +132,8 @@ class ZChecker:
         '''.format(','.join('?' * (len(cols) + 1))), rows(nightid, tab))
         self.db.commit()
 
-        self.logger.info('Updated observation log for {} UT with {} images.'.format(date, len(tab)))
+        self.logger.info(
+            'Updated observation log for {} UT with {} images.'.format(date, len(tab)))
 
     def update_ephemeris(self, objects, start, end, update=False):
         from astropy.time import Time
@@ -140,9 +144,11 @@ class ZChecker:
         jd_end = Time(end).jd
 
         if update:
-            self.logger.info('Updating ephemerides for the time period {} to {} UT.'.format(start, end))
+            self.logger.info(
+                'Updating ephemerides for the time period {} to {} UT.'.format(start, end))
         else:
-            self.logger.info('Verifying ephemerides for the time period {} to {} UT.'.format(start, end))
+            self.logger.info(
+                'Verifying ephemerides for the time period {} to {} UT.'.format(start, end))
 
         updated = 0
         for obj in objects:
@@ -170,7 +176,8 @@ class ZChecker:
                 INSERT OR IGNORE INTO eph VALUES (?,?,?,?,?,?,?,?)
                 ''', eph.update(obj, start, end, '6h'))
             except ZCheckerError as e:
-                self.logger.error('Error retrieving ephemeris for {}'.format(obj))
+                self.logger.error(
+                    'Error retrieving ephemeris for {}'.format(obj))
 
             updated += 1
 
@@ -189,12 +196,12 @@ class ZChecker:
           Default is to remove all dates.
 
         """
-        
+
         from astropy.time import Time
 
         jd_start = Time(start).jd if start is not None else None
         jd_end = Time(end).jd if end is not None else None
-        
+
         if start is not None and end is not None:
             msg = ('Cleaning the ephemeris database of {} objects,'
                    ' between {} and {}.').format(len(objects), start, end)
@@ -237,7 +244,7 @@ class ZChecker:
           Default is to remove all dates.
 
         """
-        
+
         import os
         from astropy.time import Time
 
@@ -290,7 +297,8 @@ class ZChecker:
             for f in filenames:
                 os.unlink(path + f)
 
-        self.logger.info('Removed {} items from found database and file archive.'.format(total))
+        self.logger.info(
+            'Removed {} items from found database and file archive.'.format(total))
         self.db.commit()
 
     def _get_ephemerides(self, objects, jd):
@@ -356,7 +364,7 @@ class ZChecker:
             w = angular_separation(ra[i - 1], dec[i - 1], ra[i], dec[i])
             p1 = np.sin((1 - dt) * w) / np.sin(w)
             p2 = np.sin(dt * w) / np.sin(w)
-            
+
             # ra, dec, vmag
             eph[obj] = np.c_[p1 * ra[i - 1] + p2 * ra[i],
                              p1 * dec[i - 1] + p2 * dec[i],
@@ -366,7 +374,7 @@ class ZChecker:
 
     def _get_quads(self, start, end, columns):
         """Search for ZTF CCD quadrants within date range.
-        
+
         Parameters
         ----------
         start, end : float
@@ -384,7 +392,7 @@ class ZChecker:
         assert 'obsjd' in columns
 
         rows = self.db.execute(
-            'SELECT ' + columns + 
+            'SELECT ' + columns +
             ' FROM obs WHERE obsjd>=? AND obsjd<=? ORDER BY obsjd',
             [start, end]).fetchall()
 
@@ -409,7 +417,7 @@ class ZChecker:
 
         opts = dict()
         if (desg.startswith(('P/', 'C/', 'I/', 'D/'))
-            or desg.split('-')[0].endswith(('P', 'D', 'I'))):
+                or desg.split('-')[0].endswith(('P', 'D', 'I'))):
             opts['comet'] = True
             opts['asteroid'] = False
         else:
@@ -422,8 +430,8 @@ class ZChecker:
         diff = np.diff(obsjd)
         i = np.where(diff <= 0)[0]
         assert not np.any(i), 'FOVs must be in order! {}'.format(
-            '\n'.join([str(row) for row in 
-                       [(list(fovs[j]), list(fovs[j+1])) for j in i]]))
+            '\n'.join([str(row) for row in
+                       [(list(fovs[j]), list(fovs[j + 1])) for j in i]]))
         del diff, i, pid
 
         eph = callhorizons.query(desg, cap=True, nofrag=True, **opts)
@@ -456,8 +464,8 @@ class ZChecker:
                 'cd2_1': fov['cd21'],
                 'cd2_2': fov['cd22'],
                 'RADESYS': 'ICRS',
-                'CTYPE1': 'RA---TAN', # not right, but OK for now
-                'CTYPE2': 'DEC--TAN', # not right, but OK for now
+                'CTYPE1': 'RA---TAN',  # not right, but OK for now
+                'CTYPE2': 'DEC--TAN',  # not right, but OK for now
                 'CUNIT1': 'deg',
                 'CUNIT2': 'deg',
                 'NAXIS1': 3072,
@@ -466,7 +474,7 @@ class ZChecker:
             p = wcs.all_world2pix(eph['RA'][i] * u.deg,
                                   eph['DEC'][i] * u.deg, 0)
 
-            if (p[0] >=0 and p[0] <= 3072 and p[1] >= 0 and p[1] <= 3080):
+            if (p[0] >= 0 and p[0] <= 3072 and p[1] >= 0 and p[1] <= 3080):
                 row = [desg, obsjd[i]]
                 row.extend([eph[k][i] for k in
                             ('RA', 'DEC', 'RA_rate', 'DEC_rate',
@@ -552,7 +560,7 @@ class ZChecker:
                         continue
 
                     ra, dec, vmag = eph[obj][i]
-                    
+
                     # vmag greater than vlim?  skip.
                     if vmag > vlim:
                         continue
@@ -627,7 +635,6 @@ class ZChecker:
 
         return found_objects
 
-        
     def _download_file(self, irsa, url, filename, clean_failed):
         """ZTF file download helper."""
         import os
@@ -647,7 +654,8 @@ class ZChecker:
                 os.unlink(filename)
             return False
 
-    def download_cutouts(self, desg=None, clean_failed=True):
+    def download_cutouts(self, desg=None, clean_failed=True,
+                         retry_failed=True):
         import os
         from tempfile import mktemp
         import numpy as np
@@ -671,11 +679,15 @@ class ZChecker:
             desg_constraint = ' AND desg=? '
             parameters = [desg]
 
+        if retry_failed:
+            sync_constraint = 'AND sci_sync_date IS NULL '
+        else:
+            sync_constraint = ''
         count = self.db.execute('''
             SELECT count() FROM found
             WHERE sciimg=0
-              AND sci_sync_date IS NULL
-            ''' + desg_constraint, parameters).fetchone()[0]
+            ''' + sync_constraint + desg_constraint, parameters
+                                ).fetchone()[0]
 
         if count == 0:
             self.logger.info('No cutouts to download.')
@@ -704,13 +716,15 @@ class ZChecker:
 
                     prepost = 'pre' if row['rdot'] < 0 else 'post'
                     sync_date = Time(float(row['obsjd']), format='jd').iso
-                    t = sync_date.replace('-', '').replace(':', '').replace(' ', '_')[:15]
-                    fn = fntemplate.format(desg=d, prepost=prepost, rh=row['rh'],
+                    t = sync_date.replace('-', '').replace(
+                        ':', '').replace(' ', '_')[:15]
+                    fn = fntemplate.format(
+                        desg=d, prepost=prepost, rh=row['rh'],
                                            datetime=t)
 
                     if os.path.exists(path + fn):
                         self.logger.error(
-                            path + fn + 
+                            path + fn +
                             ' exists, but was not expected.  Removing.'
                         )
                         os.unlink(path + fn)
@@ -766,16 +780,16 @@ class ZChecker:
 
                     difffn = mktemp(dir='/tmp')
                     #_url = sciurl.replace('sciimg.fits', 'scimrefdiffimg.fits.fz')
-                    #diff_downloaded = self._download_file(
+                    # diff_downloaded = self._download_file(
                     #    irsa, _url, difffn, clean_failed=True)
                     diff_downloaded = False
 
                     diffpsffn = mktemp(dir='/tmp')
                     #_url = sciurl.replace('sciimg', 'diffimgpsf')
-                    #if diff_downloaded:  # no need to DL PSF if diff not DL'ed
+                    # if diff_downloaded:  # no need to DL PSF if diff not DL'ed
                     #    diffpsf_downloaded = self._download_file(
                     #        irsa, _url, diffpsffn, clean_failed=True)
-                    #else:
+                    # else:
                     #    diffpsf_downloaded = False
                     diffpsf_downloaded = False
 
@@ -786,8 +800,10 @@ class ZChecker:
                         wcs = WCS(hdu[0].header)
                         x, y = wcs.all_world2pix(
                             row['ra'] * u.deg, row['dec'] * u.deg, 0)
-                        updates['tgtx'] = int(x), 'Target x coordinate, 0-based'
-                        updates['tgty'] = int(y), 'Target y coordinate, 0-based'
+                        updates['tgtx'] = int(
+                            x), 'Target x coordinate, 0-based'
+                        updates['tgty'] = int(
+                            y), 'Target y coordinate, 0-based'
 
                         hdu[0].header.update(updates)
 
@@ -837,6 +853,7 @@ class ZChecker:
 
 desg2file = lambda s: s.replace('/', '').replace(' ', '').lower()
 
+
 def leading_num_key(s):
     """Keys for sorting strings, based on leading multidigit numbers.
 
@@ -872,6 +889,7 @@ def leading_num_key(s):
         pfx = 0
     return pfx, sfx
 
+
 def spherical_mean(ra, dec):
     """Average spherical coordinate.
 
@@ -886,11 +904,11 @@ def spherical_mean(ra, dec):
       Radians.
 
     """
-    
+
     import numpy as np
-    
+
     x = np.mean(np.cos(dec) * np.cos(ra))
     y = np.mean(np.cos(dec) * np.sin(ra))
     z = np.mean(np.sin(dec))
-    
+
     return np.arctan2(y, x), np.arctan2(z, np.hypot(x, y))

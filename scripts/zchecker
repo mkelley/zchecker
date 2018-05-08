@@ -5,6 +5,7 @@ import argparse
 from astropy.time import Time
 from zchecker import ZChecker, Config
 
+
 def object_list(olist):
     import os
     if os.path.exists(olist):
@@ -14,9 +15,11 @@ def object_list(olist):
         objects = [s.strip() for s in olist.split(',')]
     return objects
 
+
 def test_date(date, msg):
     if date is not None:
-        assert re.match('^20[12][0-9]-[01][0-9]-[0-3][0-9]$', date), '{}  Date format is YYYY-MM-DD'.format(msg).strip()
+        assert re.match('^20[12][0-9]-[01][0-9]-[0-3][0-9]$',
+                        date), '{}  Date format is YYYY-MM-DD'.format(msg).strip()
 
 # create the top-level parser
 # Configuration file format should match the description in zchecker.config.
@@ -36,13 +39,16 @@ Configuration file format:
 
 parser.add_argument('--db', help='database file')
 parser.add_argument('--log', help='log file')
-parser.add_argument('--config', default=os.path.expanduser('~/.config/zchecker.config'), help='configuration file')
+parser.add_argument('--config', default=os.path.expanduser(
+    '~/.config/zchecker.config'), help='configuration file')
 parser.add_argument('-v', action='store_true', help='increase verbosity')
 subparsers = parser.add_subparsers(help='sub-commands')
 
 today = Time.now().iso[:10]
 
 # SEARCH ############################################################
+
+
 def search(args):
     config = Config.from_args(args)
     with ZChecker(config, log=True) as z:
@@ -66,16 +72,26 @@ def search(args):
 
         z.fov_search(start, end, objects=args.objects, vlim=args.vlim)
 
-parser_search = subparsers.add_parser('search', help='search ZTF fields in local database', epilog='Date format: YYYY-MM-DD.  Object designations must be in the local database.')
-parser_search.add_argument('objects', type=object_list, nargs='?', help='file name listing one object per line, or a comma-separated list of objects; default is to search all targets in the ephemeris database defined over the requested date range')
-parser_search.add_argument('--full', action='store_true', help='search all available nights')
-parser_search.add_argument('--date', default=today, help='search a single date, UT')
-parser_search.add_argument('--start', help='search a range of dates, beginning with this date, UT')
-parser_search.add_argument('--end', help='search a range of dates, ending with this date, UT')
-parser_search.add_argument('--vlim', type=float, default=22.0, help='skip epochs when object is fainter than vlim, mag')
+parser_search = subparsers.add_parser(
+    'search', help='search ZTF fields in local database',
+                                      epilog='Date format: YYYY-MM-DD.  Object designations must be in the local database.')
+parser_search.add_argument('objects', type=object_list, nargs='?',
+                           help='file name listing one object per line, or a comma-separated list of objects; default is to search all targets in the ephemeris database defined over the requested date range')
+parser_search.add_argument(
+    '--full', action='store_true', help='search all available nights')
+parser_search.add_argument(
+    '--date', default=today, help='search a single date, UT')
+parser_search.add_argument(
+    '--start', help='search a range of dates, beginning with this date, UT')
+parser_search.add_argument(
+    '--end', help='search a range of dates, ending with this date, UT')
+parser_search.add_argument('--vlim', type=float, default=22.0,
+                           help='skip epochs when object is fainter than vlim, mag')
 parser_search.set_defaults(func=search)
 
 # EPH-UPDATE ############################################################
+
+
 def eph_update(args):
     test_date(args.start, 'Bad start date.')
     test_date(args.end, 'Bad start date.')
@@ -85,14 +101,21 @@ def eph_update(args):
         z.update_ephemeris(args.objects, args.start, args.end,
                            update=args.update)
 
-parser_eph = subparsers.add_parser('eph-update', help='update local ephemeris database', aliases=['eph'], epilog='Date format: YYYY-MM-DD.')
-parser_eph.add_argument('objects', type=object_list, help='file name listing one object per line, or a comma-separated list of objects, must be resolvable by JPL/HORIZONS')
-parser_eph.add_argument('--start', default='2017-10-13', help='start date of ephemeris, UT')
-parser_eph.add_argument('--end', default='2018-03-01', help='end date of ephemeris, UT')
-parser_eph.add_argument('--add', dest='update', action='store_false', help='Only add missing ephemerides.')
+parser_eph = subparsers.add_parser(
+    'eph-update', help='update local ephemeris database', aliases=['eph'], epilog='Date format: YYYY-MM-DD.')
+parser_eph.add_argument('objects', type=object_list,
+                        help='file name listing one object per line, or a comma-separated list of objects, must be resolvable by JPL/HORIZONS')
+parser_eph.add_argument(
+    '--start', default='2017-10-13', help='start date of ephemeris, UT')
+parser_eph.add_argument(
+    '--end', default='2018-03-01', help='end date of ephemeris, UT')
+parser_eph.add_argument('--add', dest='update',
+                        action='store_false', help='Only add missing ephemerides.')
 parser_eph.set_defaults(func=eph_update)
 
 # CLEAN-EPH ############################################################
+
+
 def clean_eph(args):
     test_date(args.start, 'Bad start date.')
     test_date(args.end, 'Bad start date.')
@@ -101,13 +124,19 @@ def clean_eph(args):
     with ZChecker(config, log=True) as z:
         z.clean_ephemeris(args.objects, start=args.start, end=args.end)
 
-parser_cleph = subparsers.add_parser('clean-eph', help='clean local ephemeris database', epilog='Date format: YYYY-MM-DD.  Date interval is inclusive.  Default is to remove the entire ephemeris.')
-parser_cleph.add_argument('objects', type=object_list, help='file name listing one object per line, or a comma-separated list of objects, must be resolvable by JPL/HORIZONS')
-parser_cleph.add_argument('--start', help='start date of ephemeris to remove, UT')
+parser_cleph = subparsers.add_parser(
+    'clean-eph', help='clean local ephemeris database',
+                                     epilog='Date format: YYYY-MM-DD.  Date interval is inclusive.  Default is to remove the entire ephemeris.')
+parser_cleph.add_argument('objects', type=object_list,
+                          help='file name listing one object per line, or a comma-separated list of objects, must be resolvable by JPL/HORIZONS')
+parser_cleph.add_argument(
+    '--start', help='start date of ephemeris to remove, UT')
 parser_cleph.add_argument('--end', help='end date of ephemeris to remove, UT')
 parser_cleph.set_defaults(func=clean_eph)
 
 # CLEAN-FOUND ############################################################
+
+
 def clean_found(args):
     test_date(args.start, 'Bad start date.')
     test_date(args.end, 'Bad start date.')
@@ -116,17 +145,22 @@ def clean_found(args):
     with ZChecker(config, log=True) as z:
         z.clean_found(args.objects, start=args.start, end=args.end)
 
-parser_found = subparsers.add_parser('clean-found', help='clean found object database and data archive', epilog='Date format: YYYY-MM-DD.  Date interval is inclusive.  Default is to remove all findings.  Files in the cutouts directory will also be removed.')
-parser_found.add_argument('objects', type=object_list, help='file name listing one object per line, or a comma-separated list of objects, must be resolvable by JPL/HORIZONS')
+parser_found = subparsers.add_parser(
+    'clean-found', help='clean found object database and data archive',
+                                     epilog='Date format: YYYY-MM-DD.  Date interval is inclusive.  Default is to remove all findings.  Files in the cutouts directory will also be removed.')
+parser_found.add_argument('objects', type=object_list,
+                          help='file name listing one object per line, or a comma-separated list of objects, must be resolvable by JPL/HORIZONS')
 parser_found.add_argument('--start', help='start date to remove, UT')
 parser_found.add_argument('--end', help='end date to remove, UT')
 parser_found.set_defaults(func=clean_found)
 
 # ZTF-UPDATE ############################################################
+
+
 def ztf_update(args):
     import numpy as np
     import astropy.units as u
-    
+
     if args.start is not None:
         if args.end is None:
             args.end = today
@@ -151,37 +185,55 @@ def ztf_update(args):
         for date in dates:
             z.update_obs(date)
 
-parser_ztf = subparsers.add_parser('ztf-update', help='update local ZTF database', aliases=['ztf'])
-parser_ztf.add_argument('--date', default=today, help='retrieve observations for this date, UT; default is today')
+parser_ztf = subparsers.add_parser(
+    'ztf-update', help='update local ZTF database', aliases=['ztf'])
+parser_ztf.add_argument('--date', default=today,
+                        help='retrieve observations for this date, UT; default is today')
 parser_ztf.add_argument('--start', help='start date to retrieve, UT')
-parser_ztf.add_argument('--end', help='end date to retrieve, UT; default is today')
+parser_ztf.add_argument(
+    '--end', help='end date to retrieve, UT; default is today')
 
 parser_ztf.set_defaults(func=ztf_update)
 
 # GET-CUTOUTS ############################################################
+
+
 def download_cutouts(args):
     config = Config.from_args(args)
     with ZChecker(config, log=True) as z:
-        z.download_cutouts(desg=args.desg, clean_failed=args.clean_failed)
+        z.download_cutouts(
+            desg=args.desg, clean_failed=args.clean_failed,
+            retry_failed=args.retry_failed)
 
-parser_cutout = subparsers.add_parser('download-cutouts', help='download cutouts.', aliases=['cutouts'])
-parser_cutout.add_argument('--desg', help='only download cutouts for this target')
+parser_cutout = subparsers.add_parser(
+    'download-cutouts', help='download cutouts.', aliases=['cutouts'])
+parser_cutout.add_argument(
+    '--desg', help='only download cutouts for this target')
 parser_cutout.add_argument('--path', help='local cutout path')
-parser_cutout.add_argument('--clean-failed', action='store_true', help='Delete file after a failed download.')
+parser_cutout.add_argument('--leave-failed', dest='clean_failed',
+                           action='store_false', help='Leave empty file after failed download.')
+parser_cutout.add_argument(
+    '--retry-failed', action='store_true', help='Retry previously failed science image syncs.')
 parser_cutout.set_defaults(func=download_cutouts)
 
 # LIST-NIGHTS ############################################################
+
+
 def list_nights(args):
     config = Config.from_args(args)
     with ZChecker(config, log=False) as z:
         print('date       exposures')
         print('\n'.join(z.available_nights(exposures=args.exposures)))
 
-parser_nights = subparsers.add_parser('list-nights', help='list all ZTF nights saved to local database', aliases=['nights'])
-parser_nights.add_argument('--no-exposures', dest='exposures', action='store_false', help='do not list number of exposures')
+parser_nights = subparsers.add_parser(
+    'list-nights', help='list all ZTF nights saved to local database', aliases=['nights'])
+parser_nights.add_argument('--no-exposures', dest='exposures',
+                           action='store_false', help='do not list number of exposures')
 parser_nights.set_defaults(func=list_nights)
 
 # LIST-OBJECTS ############################################################
+
+
 def list_objects(args):
     config = Config.from_args(args)
     with ZChecker(config, log=False) as z:
@@ -189,7 +241,8 @@ def list_objects(args):
 
     n = max((max([len(row[0]) for row in rows]), 4))
     if args.dates:
-        print('{:{}}  {:10}  {:10}  {}'.format('desg', n, 'first', 'last', 'n'))
+        print('{:{}}  {:10}  {:10}  {}'.format(
+            'desg', n, 'first', 'last', 'n'))
         for row in rows:
             print('{:{}}  {}  {}  {}'.format(
                 row[0], n, Time(row[1], format='jd').iso[:10],
@@ -198,8 +251,10 @@ def list_objects(args):
         for row in rows:
             print('{:{}}'.format(row[0], n))
 
-parser_objects = subparsers.add_parser('list-objects', help='list all objects in the local database with their ephemeris ranges', aliases=['objects'])
-parser_objects.add_argument('--no-dates', dest='dates', action='store_false', help='do not list ephemeris date range')
+parser_objects = subparsers.add_parser(
+    'list-objects', help='list all objects in the local database with their ephemeris ranges', aliases=['objects'])
+parser_objects.add_argument(
+    '--no-dates', dest='dates', action='store_false', help='do not list ephemeris date range')
 parser_objects.set_defaults(func=list_objects)
 
 args = parser.parse_args()
@@ -217,4 +272,3 @@ except Exception as e:
         raise e
     else:
         print(e)
-
