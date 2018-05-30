@@ -1,12 +1,11 @@
-# ZChecker v1.2.1
+# ZChecker v1.3.0
 ZTF moving target checker for short object lists.
 
 ## Requirements
-
 * Python 3.5+
 * astropy v2.0+
 * requests
-* callhorizons, latest version as of 17 Jan works (https://github.com/mommermi/callhorizons)
+* astroquery 0.3.8
 * sqlite3
 * wget
 * Montage and montage_wrapper, optional, for image reprojection with zproject
