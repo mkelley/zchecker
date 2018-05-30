@@ -453,8 +453,8 @@ class ZChecker:
         searched = 0
         for quad in all_quads:
             searched += 1
-            if (searched % 1000) == 0:
-                self.logger.info('.' * (searched // 1000))
+            if (searched % 100000) == 0:
+                self.logger.info('.' * (searched // 100000))
 
             # collect by observation date
             if quad[0] == this_jd:
