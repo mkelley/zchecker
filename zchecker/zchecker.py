@@ -55,23 +55,41 @@ class ZChecker:
 
         self.logger.info('Connected to database: {}'.format(filename))
 
+    def fetch_iter(self, cmd, args=()):
+        """Generator looping over a database execute statement.
+
+        Why?  To implement a `StopIteration` when the rows are
+        exhausted.
+
+        Parameters
+        ----------
+        cmd : string
+          Statement to execute.
+        args : array-like, optional
+          Arguments for SQLite's parameter subsitution.
+
+        """
+        cursor = self.db.execute(cmd, args)
+        while True:
+            rows = cursor.fetchmany()
+            if not rows:
+                raise StopIteration
+            for row in rows:
+                yield row
+
     def clean_stale_files(self):
         """Delete stale files from the archive."""
         import os
-
-        rows = self.db.execute(
-            'SELECT rowid,path,archivefile FROM stale_files'
-        ).fetchall()
-        if len(rows) == 0:
-            return
-
-        self.logger.info('{} stale archive files to remove.'.format(
-            len(rows)))
+        rows = self.fetch_iter(
+            'SELECT rowid,path,archivefile FROM stale_files')
+        count = 0
         for row in rows:
             f = os.path.join(self.config[row[1]], row[2])
             if os.path.exists(f):
                 os.unlink(f)
             self.db.execute('DELETE FROM stale_files WHERE rowid=?', [row[0]])
+            count += 1
+        self.logger.info('{} stale archive files removed.'.format(count))
 
     def nightid(self, date):
         c = self.db.execute('''
@@ -279,214 +297,97 @@ class ZChecker:
         total = 0
         path = self.config['cutout path'] + os.path.sep
         for obj in objects:
-            rows = self.db.execute(
+            count = 0
+            rows = self.fetch_iter(
                 'SELECT foundid,archivefile FROM found ' + cmd,
-                (obj,) + args).fetchall()
+                (obj,) + args)
 
-            if len(rows) == 0:
-                continue
+            for row in rows:
+                count += 1
+                os.unlink(path + row['archivefile'])
+                self.db.execute('DELETE FROM found WHERE foundid=?'
+                                (row['foundid'],))
+                self.db.commit()
 
-            foundids, filenames = list(zip(*rows))
-            n = len(foundids)
-            total += n
-            self.logger.debug('* {}, {} detections'.format(obj, n))
-
-            bindings = '({})'.format(','.join('?' * n))
-            self.db.execute('DELETE FROM found WHERE foundid IN '
-                            + bindings, foundids)
-            for f in filenames:
-                os.unlink(path + f)
+            self.logger.debug('* {}, {} detections'.format(obj, count))
+            total += count
 
         self.logger.info(
-            'Removed {} items from found database and file archive.'.format(total))
-        self.db.commit()
+            'Removed {} items from found database and file archive.'.format(
+                total))
 
-    def _get_ephemerides(self, objects, jd):
-        """Retrieve approximate ephemerides by interpolation.
+    def _get_ephemeris(self, obj, jd):
+        """Retrieve approximate ephemeris by interpolation.
 
         Parameters
         ----------
-        objects : list
-          List of objects in database.
-
-        jd : array-like
-          Julian dates for the ephemerides.
+        obj: string
+          Requested object.
+        jd: float
+          Requested Julian date.
 
         Returns
         -------
-        eph : dict
-          Ephemerides as (ra, dec, vmag) in radians and magnitdues in
-          a dictionary keyed by object.
+        ra:
+          Right Ascension in radians.
+        dec: float
+          Declination in radians.
+        vmag: float
+          Apparent visual magnitude.
 
-        mask : dict
-          Missing dates are masked `True`.
+        Raises
+        ------
+        EphemerisError
+          For bad ephemeris coverage at `jd`.
 
         """
 
         import numpy as np
-        from astropy.coordinates import SkyCoord
         from astropy.coordinates.angle_utilities import angular_separation
         from .eph import interp
         from .exceptions import EphemerisError
 
-        eph = {}
-        mask = {}
-        for obj in objects:
-            rows = self.db.execute('''
-            SELECT ra,dec,vmag,jd FROM eph
-            WHERE desg=?
-              AND jd>?
-              AND jd<?
-            ''', (obj, min(jd) - 1, max(jd) + 1)).fetchall()
-            if len(rows) == 0:
-                raise EphemerisError('No dates found for ' + obj)
+        rows = self.db.execute('''
+        SELECT ra,dec,vmag,jd FROM eph
+        WHERE desg=?
+          AND jd>?
+          AND jd<?
+        ''', (obj, jd - 1, jd + 1)).fetchall()
+        if len(rows) == 0:
+            raise EphemerisError('No dates found for ' + obj)
 
-            ra, dec, vmag, eph_jd = zip(*rows)
-            ra = np.radians(ra)
-            dec = np.radians(dec)
-            vmag = np.array([v if v is not None else 99.0
-                             for v in vmag])
-            vmag = np.ma.MaskedArray(vmag, mask=(vmag == 99.0))
-            vmag = vmag.filled(99)
-            eph_jd = np.array(eph_jd)
+        ra, dec, vmag, eph_jd = zip(*rows)
+        ra = np.radians(ra)
+        dec = np.radians(dec)
+        vmag = np.array([v if v is not None else 99.0
+                         for v in vmag])
+        vmag = np.ma.MaskedArray(vmag, mask=(vmag == 99.0))
+        vmag = vmag.filled(99)
+        eph_jd = np.array(eph_jd)
 
-            # find bin index of each requested jd
-            i = np.digitize(jd, eph_jd)
-            mask[obj] = (i <= 0) + (i >= len(eph_jd))
-            if np.any(mask[obj]):
-                i[mask[obj]] = 1
+        # find bin index of requested jd
+        i = np.digitize([jd], eph_jd)[0]
+        if i <= 0 or i >= len(eph_jd):
+            raise EphemerisError(
+                'Incomplete coverage for {} at JD={}'.format(obj, jd))
 
-            dt = (jd - eph_jd[i - 1])
-            mask[obj] += dt > 1  # Bin larger than one day?  Skip.
+        dt = (jd - eph_jd[i - 1])
+        # Bin larger than one day?  Skip.
+        if dt > 1:
+            raise EphemerisError(
+                'Incomplete coverage for {} at JD={}'.format(obj, jd))
 
-            # spherical interpolation
-            dt /= (eph_jd[i] - eph_jd[i - 1])  # convert to bin fraction
-            w = angular_separation(ra[i - 1], dec[i - 1], ra[i], dec[i])
-            p1 = np.sin((1 - dt) * w) / np.sin(w)
-            p2 = np.sin(dt * w) / np.sin(w)
+        # spherical interpolation
+        dt /= (eph_jd[i] - eph_jd[i - 1])  # convert to bin fraction
+        w = angular_separation(ra[i - 1], dec[i - 1], ra[i], dec[i])
+        p1 = np.sin((1 - dt) * w) / np.sin(w)
+        p2 = np.sin(dt * w) / np.sin(w)
 
-            # ra, dec, vmag
-            eph[obj] = np.c_[p1 * ra[i - 1] + p2 * ra[i],
-                             p1 * dec[i - 1] + p2 * dec[i],
-                             (1 - dt) * vmag[i - 1] + dt * vmag[i]]
+        ra = p1 * ra[i - 1] + p2 * ra[i]
+        dec = p1 * dec[i - 1] + p2 * dec[i]
+        vmag = (1 - dt) * vmag[i - 1] + dt * vmag[i]
 
-        return eph, mask
-
-    def _get_quads(self, start, end, columns):
-        """Search for ZTF CCD quadrants within date range.
-
-        Parameters
-        ----------
-        start, end : float
-          Julian date time span to search.
-        columns : list of strings
-          Database columns to return.  obsjd is required.
-
-        Returns
-        -------
-        quads : dict
-          Database rows keyed by Julian date.
-
-        """
-
-        assert 'obsjd' in columns
-
-        rows = self.db.execute(
-            'SELECT ' + columns +
-            ' FROM obs WHERE obsjd>=? AND obsjd<=? ORDER BY obsjd',
-            [start, end]).fetchall()
-
-        quads = {}
-        for row in rows:
-            jd = row['obsjd']
-            if jd not in quads:
-                quads[jd] = []
-
-            quads[jd].append(row)
-
-        return quads
-
-    def _silicon_test(self, desg, fovs):
-        import numpy as np
-        import astropy.units as u
-        from astropy.time import Time
-        from astropy.wcs import WCS
-        import callhorizons
-
-        now = Time.now().iso[:-4]
-
-        opts = dict()
-        if (desg.startswith(('P/', 'C/', 'I/', 'D/'))
-                or desg.split('-')[0].endswith(('P', 'D', 'I'))):
-            opts['comet'] = True
-            opts['asteroid'] = False
-        else:
-            opts['comet'] = False
-            opts['asteroid'] = True
-
-        # query HORIZONS for all requested epochs
-        obsjd = np.array([fov['obsjd'] for fov in fovs])
-        pid = np.array([fov['pid'] for fov in fovs])
-        diff = np.diff(obsjd)
-        i = np.where(diff <= 0)[0]
-        assert not np.any(i), 'FOVs must be in order! {}'.format(
-            '\n'.join([str(row) for row in
-                       [(list(fovs[j]), list(fovs[j + 1])) for j in i]]))
-        del diff, i, pid
-
-        eph = callhorizons.query(desg, cap=True, nofrag=True, **opts)
-        eph.set_discreteepochs(obsjd)
-        if eph.get_ephemerides('I41') <= 0:
-            self.logger.error('Error retrieving ephemeris: {}, JD=\n{}'.format(
-                desg, obsjd))
-            return None
-
-        orb = callhorizons.query(desg, cap=True, nofrag=True, **opts)
-        orb.set_discreteepochs(obsjd)
-        if orb.get_elements() <= 0:
-            self.logger.error('Error retrieving orbit: {}, JD=\n{}'.format(
-                desg, jd))
-            return None
-
-        Tp = Time(orb['Tp'], format='jd', scale='tdb')
-        T = Time(obsjd, format='jd', scale='utc')
-        tmtp = (T - Tp).jd
-
-        found = []
-        for i, fov in enumerate(fovs):
-            wcs = WCS({
-                'crpix1': fov['crpix1'],
-                'crpix2': fov['crpix2'],
-                'crval1': fov['crval1'],
-                'crval2': fov['crval2'],
-                'cd1_1': fov['cd11'],
-                'cd1_2': fov['cd12'],
-                'cd2_1': fov['cd21'],
-                'cd2_2': fov['cd22'],
-                'RADESYS': 'ICRS',
-                'CTYPE1': 'RA---TAN',  # not right, but OK for now
-                'CTYPE2': 'DEC--TAN',  # not right, but OK for now
-                'CUNIT1': 'deg',
-                'CUNIT2': 'deg',
-                'NAXIS1': 3072,
-                'NAXIS2': 3080,
-            })
-            p = wcs.all_world2pix(eph['RA'][i] * u.deg,
-                                  eph['DEC'][i] * u.deg, 0)
-
-            if (p[0] >= 0 and p[0] <= 3072 and p[1] >= 0 and p[1] <= 3080):
-                row = [desg, obsjd[i]]
-                row.extend([eph[k][i] for k in
-                            ('RA', 'DEC', 'RA_rate', 'DEC_rate',
-                             'RA_3sigma', 'DEC_3sigma', 'V', 'r',
-                             'r_rate', 'delta', 'alpha', 'elong')])
-                row.extend([(eph[k][i] + 180) % 360 for k in
-                            ('sunTargetPA', 'velocityPA')])
-                row.extend((orb['trueanomaly'][i], tmtp[i], fov['pid'],
-                            int(p[0]), int(p[1]), now))
-                found.append(row)
-
-        return found
+        return ra, dec, vmag
 
     def fov_search(self, start, end, objects=None, vlim=35):
         """Search for objects in ZTF fields.
@@ -509,103 +410,225 @@ class ZChecker:
         import astropy.units as u
         from astropy.time import Time
         from astropy.coordinates.angle_utilities import angular_separation
-        from .logging import ProgressBar
         from .exceptions import DateRangeError
 
         self.logger.info('FOV search: {} to {}'.format(start, end))
 
         end = (Time(end) + 1 * u.day + 1 * u.s).iso[:10]
 
-        c = self.db.execute('''
-        SELECT DISTINCT obsjd FROM obsnight
-          WHERE date>=? AND date <=?
-          ORDER BY obsjd''', (start, end))
-        jd = list([row['obsjd'] for row in c.fetchall()])
-        if len(jd) == 0:
-            raise DateRangeError(
-                'No observations found for UT date range {} to {}.'.format(
-                    start, end))
+        jd_start = Time(start).jd - 0.01
+        jd_end = Time(end).jd + 1.01
 
         if objects is None:
-            jd_start = Time(start).jd - 0.01
-            jd_end = Time(end).jd + 1.01
             c = self.db.execute('''
             SELECT DISTINCT desg FROM eph WHERE jd>=? AND jd<=?
             ''', (jd_start, jd_end))
             objects = [str(row[0]) for row in c.fetchall()]
-
-        self.logger.info('Searching {} epochs for {} objects.'.format(
-            len(jd), len(objects)))
-
-        eph, mask = self._get_ephemerides(objects, jd)
-        cols = ('pid', 'obsjd', 'ra', 'dec', 'crpix1', 'crpix2',
-                'crval1', 'crval2', 'cd11', 'cd12', 'cd21', 'cd22')
-        quads = self._get_quads(min(jd), max(jd), ','.join(cols))
+        assert isinstance(objects, (list, tuple, np.ndarray))
+        self.logger.info('Searching for {} objects.'.format(len(objects)))
 
         found_objects = {}
         horizons_chunk = 2000  # collect N obs before querying HORIZONS
         follow_up = {}
-        count = 0
-        with ProgressBar(len(jd), self.logger) as bar:
-            for i in range(len(jd)):
-                bar.update()
+        follow_up_count = 0
+        searched = 0
 
-                quad_ra = np.radians([quad['ra'] for quad in quads[jd[i]]])
-                quad_dec = np.radians([quad['dec'] for quad in quads[jd[i]]])
-                field_ra, field_dec = spherical_mean(quad_ra, quad_dec)
+        # get all quads over requested date range and search them one
+        # epoch at a time
+        all_quads = self.fetch_iter('''
+        SELECT obsjd,pid,ra,dec,ra1,ra2,ra3,ra4,dec1,dec2,dec3,dec4 FROM obs
+        WHERE obsjd>=? and obsjd<=?
+        ORDER BY obsjd
+        ''', (jd_start, jd_end))
 
-                for obj in objects:
-                    if mask[obj][i]:
-                        # this epoch masked for this object
-                        continue
+        quad = next(all_quads)
+        if not quad:
+            raise DateRangeError(
+                'No observations found for UT date range {} to {}.'.format(
+                    start, end))
 
-                    ra, dec, vmag = eph[obj][i]
+        # initialize loop
+        quads = [quad]
+        this_jd = quad[0]
+        searched = 0
+        for quad in all_quads:
+            searched += 1
+            if (searched % 1000) == 0:
+                self.logger.info('.' * (searched // 1000))
 
-                    # vmag greater than vlim?  skip.
-                    if vmag > vlim:
-                        continue
-
-                    # Farther than 6 deg?  skip.
-                    d = angular_separation(ra, dec, field_ra, field_dec)
-                    if d > 0.1:
-                        continue
-
-                    # distance to all FOV centers
-                    d = angular_separation(ra, dec, quad_ra, quad_dec)
-
-                    # Find closest FOV.  Investigate if it is <1.5 deg away.
-                    j = d.argmin()
-                    if d[j] > 0.026:
-                        continue
-
-                    # Save for later
-                    follow_up[obj] = follow_up.get(obj, []) + [quads[jd[i]][j]]
-                    count += 1
-
-                if count >= horizons_chunk:
-                    # Check quadrant and position in detail.
-                    print()
-                    self.logger.debug('Collected {} FOVs to check.'
-                                      '  Calling HORIZONS.'.format(count))
-                    found_objects = self._fov_follow_up(
-                        follow_up, found_objects)
-
-                    follow_up = {}
-                    count = 0
+            # collect by observation date
+            if quad[0] == this_jd:
+                quads.append(quad)
             else:
-                # Check quadrant and position in detail.
-                self.logger.debug('\nCollected {} FOVs to check.'
-                                  '  Calling HORIZONS.'.format(count))
-                found_objects = self._fov_follow_up(
-                    follow_up, found_objects)
-        print()
+                # collected all quads
+                # coarse quad search
+                for obj, q in self.coarse_quad_search(
+                        this_jd, quads, objects, vlim):
+                    follow_up[obj] = follow_up.get(obj, []) + [q]
+                    follow_up_count += 1
 
-        msg = 'Found {} objects.\n'.format(len(found_objects))
+                # precise ephemeris check
+                if follow_up_count > horizons_chunk:
+                    found = self.fine_quad_search(follow_up)
+                    if len(found) > 0:
+                        for row in found:
+                            obj = row[0]
+                            found_objects[obj] = found_objects.get(obj, 0) + 1
+                        self._update_found(found)
+                    follow_up = {}
+                    follow_up_count = 0
+
+                # reset quad list
+                quads = [quad]
+                this_jd = quad[0]
+
+        # any remaining objects for follow_up?
+        if follow_up_count > 0:
+            found = self.fine_quad_search(follow_up)
+            if len(found) > 0:
+                for row in found:
+                    obj = row[0]
+                    found_objects[obj] = found_objects.get(obj, 0) + 1
+                self._update_found(found)
+
+        self.logger.info('Searched {} quads.'.format(searched))
+        self.logger.info('Found {} objects.'.format(len(found_objects)))
         if len(found_objects) > 0:
             for k in sorted(found_objects, key=leading_num_key):
-                msg += '  {:15} x{}\n'.format(k, found_objects[k])
+                self.logger.info('  {:15} x{}\n'.format(k, found_objects[k]))
 
-        self.logger.info(msg)
+    def coarse_quad_search(self, obsjd, quads, objects, vlim):
+        """Nearest-neighbor search.
+
+        Parameters
+        ----------
+        obsjd : float
+          Julian date.
+        quads : list of lists
+          Each item is a list of quadrant parameters:
+            obsjd, pid, ra_c, dec_c, ra1, ra2, ra3, ra4, dec1, dec2, dec3, dec4
+          where 1..4 are coordinates of the corners.
+        objects : list of string
+          Objects.
+        vlim : float
+          Limiting magnitude to consider.
+
+        Returns
+        -------
+        objects : list
+          Found objects.
+        quads : list
+          Nearest 4 quads for each object.
+
+        """
+
+        import numpy as np
+        from astropy.coordinates.angle_utilities import angular_separation
+        from .exceptions import EphemerisError
+
+        (ra_c, dec_c, ra1, ra2, ra3, ra4,
+         dec1, dec2, dec3, dec4) = [np.radians(x) for x in tuple(zip(*quads))[2:]]
+
+        found = []
+        for obj in objects:
+            try:
+                ra, dec, vmag = self._get_ephemeris(obj, obsjd)
+            except EphemerisError as e:
+                self.logger.debug(str(e))
+                continue
+
+            # vmag greater than vlim?  skip.
+            if vmag > vlim:
+                continue
+
+            # farther than 12 deg from any corner?  forget it
+            if angular_separation(ra, dec, ra_c[0], dec_c[0]) > 0.21:
+                continue
+
+            # Farther than 1.5 deg from any quad?  skip.
+            d = angular_separation(ra, dec, ra_c, dec_c)
+            if min(d) > 0.026:
+                continue
+
+            found.append((obj, [quads[i] for i in np.argsort(d)[:4]]))
+
+        return found
+
+    def fine_quad_search(self, follow_up):
+        """Precise ephemeris check using Horizons.
+
+        Parameters
+        ----------
+        follow_up : dict
+          Each item is a list of quadrant lists to search, organized
+          by epoch, all angles in radians.
+
+        Returns
+        -------
+        found : list
+          Parameters for found objects:
+             desg,obsjd,ra,dec,dra,ddec,ra3sig,dec3sig,vmag,rh,rdot,delta,
+             phase,selong,sangle,vangle,trueanomaly,tmtp,pid
+
+        """
+
+        import numpy as np
+        from astropy.time import Time
+        from astroquery.jplhorizons import Horizons
+        from .eph import ephemeris
+
+        found = []
+        for desg, all_quads in follow_up.items():
+            obsjd = np.array([quads[0]['obsjd'] for quads in all_quads])
+            assert not np.any(np.diff(obsjd) <=
+                              0), 'Quads must be in time order'
+
+            eph = ephemeris(desg, obsjd)
+            for i, quads in enumerate(all_quads):
+                for quad in quads:
+                    ra = np.radians(eph['RA'][i])
+                    dec = np.radians(eph['DEC'][i])
+                    ra_corners = quad[3:7]
+                    dec_corners = quad[7:11]
+                    if interior_test(ra, dec, ra_corners, dec_corners):
+                        # stop at first match
+                        row = [desg, obsjd[i]]
+                        row.extend([eph[k][i] for k in
+                                    ('RA', 'DEC', 'RA_rate', 'DEC_rate',
+                                     'RA_3sigma', 'DEC_3sigma')])
+                        if 'V' in eph.colnames:
+                            row.append(eph['V'][i])
+                        else:
+                            if eph['Tmag'].mask[i] * eph['Nmag'].mask[i]:
+                                row.append(99)
+                            elif eph['Tmag'].mask[i]:
+                                row.append(eph['Nmag'][i])
+                            else:
+                                row.append(eph['Tmag'][i])
+                        row.extend([eph[k][i] for k in
+                                    ('r', 'r_rate', 'delta', 'alpha', 'elong')])
+                        row.extend([(eph[k][i] + 180) % 360 for k in
+                                    ('sunTargetPA', 'velocityPA')])
+                        row.extend(
+                            (eph['nu'][i], eph['T-Tp'][i], quad['pid']))
+                        found.append(row)
+
+        return found
+
+    def _update_found(self, found):
+        from astropy.time import Time
+        now = Time.now().iso[: -4]
+        self.db.executemany('''
+            INSERT OR REPLACE INTO found
+            (desg,obsjd,ra,dec,dra,ddec,ra3sig,dec3sig,vmag,rh,rdot,delta,
+             phase,selong,sangle,vangle,trueanomaly,tmtp,pid,x,y,retrieved,
+             archivefile,sci_sync_date,sciimg,mskimg,scipsf,diffimg,diffpsf)
+            VALUES
+            (?,?,?,?,?,?,?,?,?,?,?,?,
+             ?,?,?,?,?,?,?,NULL,NULL,?,
+             NULL,NULL,0,0,0,0,0)
+            ''', [f + [now] for f in found])
+        self.db.commit()
 
     def _fov_follow_up(self, follow_up, found_objects):
         """Check objects and FOVs in follow_up and update found_objects."""
@@ -613,7 +636,7 @@ class ZChecker:
             # only check 100 at a time
             found = []
             for i in range(0, len(fovs), 100):
-                found.extend(self._silicon_test(obj, fovs[i:i + 100]))
+                found.extend(self._silicon_test(obj, fovs[i: i + 100]))
 
             if len(found) is 0:
                 continue
@@ -695,16 +718,13 @@ class ZChecker:
 
         self.logger.info('Downloading {} cutouts.'.format(count))
 
+        rows = self.fetch_iter('''
+        SELECT * FROM foundobs
+        WHERE sciimg=0
+        ''' + sync_constraint + '''
+        ''' + desg_constraint, parameters)
+
         with IRSA(path, self.config.auth) as irsa:
-            rows = self.db.execute('''
-            SELECT * FROM foundobs
-            WHERE sciimg=0
-            ''' + sync_constraint + '''
-            ''' + desg_constraint, parameters).fetchall()
-
-            if len(rows) == 0:
-                return
-
             for row in rows:
                 # check if target cutout directory exists
                 d = desg2file(row['desg'])
@@ -717,7 +737,7 @@ class ZChecker:
                     ':', '').replace(' ', '_')[:15]
                 fn = fntemplate.format(
                     desg=d, prepost=prepost, rh=row['rh'],
-                                       datetime=t)
+                    datetime=t)
 
                 if os.path.exists(path + fn):
                     self.logger.error(
@@ -848,7 +868,8 @@ class ZChecker:
                     count, os.path.basename(fn)))
                 count -= 1
 
-desg2file = lambda s: s.replace('/', '').replace(' ', '').lower()
+
+def desg2file(s): return s.replace('/', '').replace(' ', '').lower()
 
 
 def leading_num_key(s):
@@ -909,3 +930,80 @@ def spherical_mean(ra, dec):
     z = np.mean(np.sin(dec))
 
     return np.arctan2(y, x), np.arctan2(z, np.hypot(x, y))
+
+
+def interior_test(ra, dec, ra_corners, dec_corners):
+    """Test if point is within rectangular field of view.
+
+    Corner order does not matter.  Test does not rigorously consider
+    spherical geometry, if that matters.
+
+    Parameters
+    ----------
+    ra: float
+      Right Ascension to test in radians.
+    dec: float
+      Declination to test in radians.
+    ra_corners: array-like
+      RA corners of the rectangle, in radians.
+    dec_corners: array-like
+      Dec. corners of the rectangle, in radians.
+
+    Returns
+    -------
+    test : bool
+      `True` if the point is interior.
+
+    """
+
+    import numpy as np
+    from astropy.coordinates.angle_utilities import angular_separation
+
+    ra_c = np.array(ra_corners)
+    dec_c = np.array(dec_corners)
+
+    # check if interior using triangle tests
+    # first triangle: vertex 0 and next two closest
+    i = np.argsort(angular_separation(ra_c[0], dec_c[0], ra_c, dec_c))
+    tri = i[:3]
+    if triangle_test((ra, dec), np.c_[ra_c[tri], dec_c[tri]]):
+        return True
+
+    # second triangle: swap vertex 0 with farthest vertex
+    tri = i[1:]
+    if triangle_test((ra, dec), np.c_[ra_c[tri], dec_c[tri]]):
+        return True
+
+    return False
+
+
+def triangle_test(p, v):
+    """Test if point p lies within the triangle with vertices v.
+
+    All points in units of raidans.
+
+    Edges and vertices are included.
+
+    Assumes points are located on the unit sphere.
+
+    http://mathworld.wolfram.com/TriangleInterior.html
+
+    """
+
+    import numpy as np
+    from astropy.coordinates.angle_utilities import (
+        angular_separation, position_angle)
+
+    # project coordinate system about p to avoid polar and boundary issues
+    # Zenithal projection
+    th = angular_separation(p[0], p[1], v[:, 0], v[:, 1])
+    phi = position_angle(p[0], p[1], v[:, 0], v[:, 1])
+    x = np.c_[th * np.sin(phi), -th * np.cos(phi)]
+
+    a = x[1] - x[0]
+    b = x[2] - x[0]
+    #s = (np.cross(p, b) - np.cross(v[0], b)) / np.cross(a, b)
+    #t = -(np.cross(p, a) - np.cross(v[0], a)) / np.cross(a, b)
+    s = -np.cross(x[0], b) / np.cross(a, b)
+    t = np.cross(x[0], a) / np.cross(a, b)
+    return (s >= 0) * (t >= 0) * (s + t <= 1)

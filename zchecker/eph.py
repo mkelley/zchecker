@@ -1,8 +1,10 @@
 # Licensed under a 3-clause BSD style license - see LICENSE.rst
 from .exceptions import ZCheckerError
 
+
 class NoEphemerisReturned(ZCheckerError):
     pass
+
 
 def interp(jd, c1, c2):
     """Interpolate between two ephemeris positions.
@@ -39,24 +41,64 @@ def interp(jd, c1, c2):
 
     return SkyCoord(ra, dec, unit='deg')
 
-def update(obj, start, end, step):
+
+def update(desg, start, end, step):
     from astropy.time import Time
-    import callhorizons
-    opts = dict()
-    if (obj.startswith(('P/', 'C/', 'I/', 'D/'))
-        or obj.split('-')[0].endswith(('P', 'D', 'I'))):
-        opts['comet'] = True
-        opts['asteroid'] = False
-    else:
-        opts['comet'] = False
-        opts['asteroid'] = True
-
-    q = callhorizons.query(obj, cap=True, nofrag=True, **opts)
-    q.set_epochrange(start, end, '6h')
-    if q.get_ephemerides('I41') <= 0:
-        raise NoEphemerisReturned
-
     now = Time.now().iso[:16]
+    eph = ephemeris(desg, {'start': start, 'stop': end, 'step': step})
     for i in range(len(q)):
-        yield (obj, q['datetime_jd'][i], q['RA'][i], q['DEC'][i],
+        yield (desg, q['datetime_jd'][i], q['RA'][i], q['DEC'][i],
                q['RA_rate'][i], q['DEC_rate'][i], q['V'][i], now)
+
+
+def ephemeris(desg, epochs):
+    """Ephemeris and orbital parameters.
+
+    Parameters
+    ----------
+    desg : string
+      Object designation.
+    epochs : array-like or dictionary
+      `epochs` parameter for `astroquery.jplhorizons.Horizons`.
+
+    Returns
+    -------
+    eph : astropy.table.Table
+      All jplhorizons ephemeris and orbital quantities, plus 'T-Tp'.
+    """
+
+    from astropy.time import Time
+    from astropy.table import Column, join
+    from astroquery.jplhorizons import Horizons
+    from .exceptions import EphemerisError
+
+    opts = {}
+    if (desg.startswith(('P/', 'C/', 'I/', 'D/'))
+            or desg.split('-')[0].endswith(('P', 'D', 'I'))):
+        id_type = 'designation'
+        opts['closest_apparition'] = True
+        opts['no_fragments'] = True
+    else:
+        id_type = 'smallbody'
+
+    q = Horizons(id=desg, id_type=id_type, location='I41', epochs=epochs)
+    eph = q.ephemerides(**opts)
+    if len(eph) == 0:
+        raise EphemerisError('{}'.format(desg))
+
+    q = Horizons(id=desg, id_type=id_type, location='0', epochs=epochs)
+    orb = q.elements(**opts)
+    if len(orb) == 0:
+        raise EphemerisError('{}'.format(desg))
+
+    Tp = Time(orb['Tp_jd'], format='jd', scale='tdb')
+    T = Time(orb['datetime_jd'], format='jd', scale='utc')
+    tmtp = (T - Tp).jd
+    orb.add_column(Column(tmtp, name='T-Tp'))
+
+    # remove repeated columns
+    repeated = [c for c in orb.colnames
+                if (c in eph.colnames) and (c != 'datetime_jd')]
+    orb.remove_columns(repeated)
+
+    return join(eph, orb)
