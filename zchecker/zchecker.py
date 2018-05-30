@@ -436,7 +436,7 @@ class ZChecker:
         # get all quads over requested date range and search them one
         # epoch at a time
         all_quads = self.fetch_iter('''
-        SELECT obsjd,pid,ra,dec,ra1,ra2,ra3,ra4,dec1,dec2,dec3,dec4 FROM obs
+        SELECT obsjd,pid,ra * 0.017453292519943295,dec * 0.017453292519943295,ra1 * 0.017453292519943295,ra2 * 0.017453292519943295,ra3 * 0.017453292519943295,ra4 * 0.017453292519943295,dec1 * 0.017453292519943295,dec2 * 0.017453292519943295,dec3 * 0.017453292519943295,dec4 * 0.017453292519943295 FROM obs
         WHERE obsjd>=? and obsjd<=?
         ORDER BY obsjd
         ''', (jd_start, jd_end))
@@ -527,7 +527,7 @@ class ZChecker:
         from .exceptions import EphemerisError
 
         (ra_c, dec_c, ra1, ra2, ra3, ra4,
-         dec1, dec2, dec3, dec4) = [np.radians(x) for x in tuple(zip(*quads))[2:]]
+         dec1, dec2, dec3, dec4) = tuple(zip(*quads))[2:]
 
         found = []
         for obj in objects:
@@ -577,8 +577,14 @@ class ZChecker:
         from astroquery.jplhorizons import Horizons
         from .eph import ephemeris
 
+        self.logger.info('Checking {} objects in detail.'.format(
+            len(follow_up)))
+
         found = []
         for desg, all_quads in follow_up.items():
+            self.logger.debug('  {}, {} epochs'.format(
+                desg, len(all_quads)))
+
             obsjd = np.array([quads[0]['obsjd'] for quads in all_quads])
             assert not np.any(np.diff(obsjd) <=
                               0), 'Quads must be in time order'
@@ -588,8 +594,8 @@ class ZChecker:
                 for quad in quads:
                     ra = np.radians(eph['RA'][i])
                     dec = np.radians(eph['DEC'][i])
-                    ra_corners = quad[3:7]
-                    dec_corners = quad[7:11]
+                    ra_corners = quad[4:8]
+                    dec_corners = quad[8:12]
                     if interior_test(ra, dec, ra_corners, dec_corners):
                         # stop at first match
                         row = [desg, obsjd[i]]
@@ -958,6 +964,8 @@ def interior_test(ra, dec, ra_corners, dec_corners):
 
     import numpy as np
     from astropy.coordinates.angle_utilities import angular_separation
+
+    print(ra, dec, ra_corners, dec_corners)
 
     ra_c = np.array(ra_corners)
     dec_c = np.array(dec_corners)
