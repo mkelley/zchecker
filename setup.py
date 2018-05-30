@@ -3,7 +3,7 @@ from setuptools import setup, find_packages
 
 if __name__ == "__main__":
     setup(name='zchecker',
-          version='1.2.1',
+          version='1.3.0',
           description='ZTF moving target checker for short object lists',
           author="Michael S. P. Kelley",
           author_email="msk@astro.umd.edu",
@@ -12,4 +12,4 @@ if __name__ == "__main__":
           requires=['numpy', 'astropy', 'requests'],
           scripts=['scripts/zchecker', 'scripts/zproject', 'scripts/zstack'],
           license='BSD',
-      )
+          )
