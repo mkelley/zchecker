@@ -965,8 +965,6 @@ def interior_test(ra, dec, ra_corners, dec_corners):
     import numpy as np
     from astropy.coordinates.angle_utilities import angular_separation
 
-    print(ra, dec, ra_corners, dec_corners)
-
     ra_c = np.array(ra_corners)
     dec_c = np.array(dec_corners)
 
