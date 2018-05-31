@@ -425,6 +425,15 @@ class ZChecker:
             ''', (jd_start, jd_end))
             objects = [str(row[0]) for row in c.fetchall()]
         assert isinstance(objects, (list, tuple, np.ndarray))
+        objects = list(objects)
+
+        repeats = len(objects) - len(set(objects))
+        if repeats > 0:
+            self.logger.warning('{} repeated objects in input list'.format(repeats))
+            remove = [obj for obj in objects if objects.count(obj) > 1]
+            objects = list(set(objects))
+            self.logger.warning('Removed extra entries: {}'.format(str(list(remove))))
+
         self.logger.info('Searching for {} objects.'.format(len(objects)))
 
         found_objects = {}
@@ -586,8 +595,8 @@ class ZChecker:
                 desg, len(all_quads)))
 
             obsjd = np.array([quads[0]['obsjd'] for quads in all_quads])
-            assert not np.any(np.diff(obsjd) <=
-                              0), 'Quads must be in time order'
+            dt = np.diff(obsjd)
+            assert not np.any(dt<=0), 'Quads must be in time order, found a time step of {}; checking expids: {}'.format(str(dt[dt<=0]), [quads[0]['expid'] for quads in all_quads])
 
             eph = ephemeris(desg, obsjd)
             for i, quads in enumerate(all_quads):
