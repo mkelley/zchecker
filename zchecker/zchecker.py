@@ -603,10 +603,8 @@ class ZChecker:
                                     ('RA', 'DEC', 'RA_rate', 'DEC_rate',
                                      'RA_3sigma', 'DEC_3sigma')])
 
-                        if eph['V'].mask[i]:
-                            row.append(99)
-                        else:
-                            row.append(eph['V'][i])
+                        V = eph['V']
+                        row.append(99 if V is np.ma.masked else V)
 
                         row.extend([eph[k][i] for k in
                                     ('r', 'r_rate', 'delta', 'alpha', 'elong')])
