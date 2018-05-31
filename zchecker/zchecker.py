@@ -427,10 +427,10 @@ class ZChecker:
         assert isinstance(objects, (list, tuple, np.ndarray))
         objects = list(objects)
 
-        repeats = len(objects) - len(set(objects))
-        if repeats > 0:
-            self.logger.warning('{} repeated objects in input list'.format(repeats))
+        if len(objects) - len(set(objects)) > 0:
+            self.logger.warning('Repeated objects in input list')
             remove = [obj for obj in objects if objects.count(obj) > 1]
+            remove = list(set(remove))
             objects = list(set(objects))
             self.logger.warning('Removed extra entries: {}'.format(str(list(remove))))
 
