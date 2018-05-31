@@ -602,15 +602,12 @@ class ZChecker:
                         row.extend([eph[k][i] for k in
                                     ('RA', 'DEC', 'RA_rate', 'DEC_rate',
                                      'RA_3sigma', 'DEC_3sigma')])
-                        if 'V' in eph.colnames:
-                            row.append(eph['V'][i])
+
+                        if eph['V'].mask[i]:
+                            row.append(99)
                         else:
-                            if eph['Tmag'].mask[i] * eph['Nmag'].mask[i]:
-                                row.append(99)
-                            elif eph['Tmag'].mask[i]:
-                                row.append(eph['Nmag'][i])
-                            else:
-                                row.append(eph['Tmag'][i])
+                            row.append(eph['V'][i])
+
                         row.extend([eph[k][i] for k in
                                     ('r', 'r_rate', 'delta', 'alpha', 'elong')])
                         row.extend([(eph[k][i] + 180) % 360 for k in

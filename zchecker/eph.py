@@ -42,16 +42,17 @@ def interp(jd, c1, c2):
     return SkyCoord(ra, dec, unit='deg')
 
 
-def update(desg, start, end, step):
+def update(desg, start, end, step, orbit=False):
     from astropy.time import Time
     now = Time.now().iso[:16]
     eph = ephemeris(desg, {'start': start, 'stop': end, 'step': step})
-    for i in range(len(q)):
-        yield (desg, q['datetime_jd'][i], q['RA'][i], q['DEC'][i],
-               q['RA_rate'][i], q['DEC_rate'][i], q['V'][i], now)
+
+    for i in range(len(eph)):
+        yield (desg, eph['datetime_jd'][i], eph['RA'][i], eph['DEC'][i],
+               eph['RA_rate'][i], eph['DEC_rate'][i], eph['V'][i], now)
 
 
-def ephemeris(desg, epochs):
+def ephemeris(desg, epochs, orbit=True):
     """Ephemeris and orbital parameters.
 
     Parameters
@@ -60,11 +61,14 @@ def ephemeris(desg, epochs):
       Object designation.
     epochs : array-like or dictionary
       `epochs` parameter for `astroquery.jplhorizons.Horizons`.
+    orbit : bool, optional
+      Set to `False` to exclude orbital parameters.
 
     Returns
     -------
     eph : astropy.table.Table
       All jplhorizons ephemeris and orbital quantities, plus 'T-Tp'.
+
     """
 
     from astropy.time import Time
@@ -86,19 +90,32 @@ def ephemeris(desg, epochs):
     if len(eph) == 0:
         raise EphemerisError('{}'.format(desg))
 
-    q = Horizons(id=desg, id_type=id_type, location='0', epochs=epochs)
-    orb = q.elements(**opts)
-    if len(orb) == 0:
-        raise EphemerisError('{}'.format(desg))
+    # combine Tmag and Nmag into V
+    if 'Tmag' in eph.colnames:
+        V = eph['Tmag']
+        try:
+            i = eph['Tmag'].mask
+            V[i] = eph['Nmag'][i]
+        except AttributeError as e:
+            pass
+        eph.add_column(V, name='V')
 
-    Tp = Time(orb['Tp_jd'], format='jd', scale='tdb')
-    T = Time(orb['datetime_jd'], format='jd', scale='utc')
-    tmtp = (T - Tp).jd
-    orb.add_column(Column(tmtp, name='T-Tp'))
+    if orbit:
+        q = Horizons(id=desg, id_type=id_type, location='0', epochs=epochs)
+        orb = q.elements(**opts)
+        if len(orb) == 0:
+            raise EphemerisError('{}'.format(desg))
 
-    # remove repeated columns
-    repeated = [c for c in orb.colnames
-                if (c in eph.colnames) and (c != 'datetime_jd')]
-    orb.remove_columns(repeated)
+        Tp = Time(orb['Tp_jd'], format='jd', scale='tdb')
+        T = Time(orb['datetime_jd'], format='jd', scale='utc')
+        tmtp = (T - Tp).jd
+        orb.add_column(Column(tmtp, name='T-Tp'))
 
-    return join(eph, orb)
+        # remove repeated columns
+        repeated = [c for c in orb.colnames
+                    if (c in eph.colnames) and (c != 'datetime_jd')]
+        orb.remove_columns(repeated)
+
+        eph = join(eph, orb)
+
+    return eph
