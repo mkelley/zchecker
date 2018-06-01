@@ -608,9 +608,17 @@ class ZChecker:
                     if interior_test(ra, dec, ra_corners, dec_corners):
                         # stop at first match
                         row = [desg, obsjd[i]]
-                        row.extend([eph[k][i] for k in
-                                    ('RA', 'DEC', 'RA_rate', 'DEC_rate',
-                                     'RA_3sigma', 'DEC_3sigma')])
+                        row.append(eph['RA'][i])
+                        row.append(eph['DEC'][i])
+                        row.append(eph['RA_rate'][i])
+                        row.append(eph['DEC_rate'][i])
+                        try:
+                            float(eph['RA_3sigma'][i])
+                            float(eph['DEC_3sigma'][i])
+                            row.extend([eph['RA_3sigma'][i],
+                                        eph['DEC_3sigma'][i]])
+                        except ValueError:
+                            row.append((None, None))
 
                         V = eph['V'][i]
                         row.append(99 if V is np.ma.masked else V)
