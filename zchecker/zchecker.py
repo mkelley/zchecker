@@ -504,7 +504,7 @@ class ZChecker:
         self.logger.info('Found {} objects.'.format(len(found_objects)))
         if len(found_objects) > 0:
             for k in sorted(found_objects, key=leading_num_key):
-                self.logger.info('  {:15} x{}\n'.format(k, found_objects[k]))
+                self.logger.info('  {:15} x{}'.format(k, found_objects[k]))
 
     def coarse_quad_search(self, obsjd, quads, objects, vlim):
         """Nearest-neighbor search.

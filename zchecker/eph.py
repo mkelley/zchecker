@@ -72,9 +72,18 @@ def ephemeris(desg, epochs, orbit=True):
     """
 
     from astropy.time import Time
-    from astropy.table import Column, join
+    from astropy.table import Column, join, vstack
     from astroquery.jplhorizons import Horizons
     from .exceptions import EphemerisError
+
+    # limit Horizons requests to 200 individual epochs (530 is definitely too many)
+    if not isinstance(epochs, dict):
+        if len(epochs) > 200:
+            eph = ephemeris(desg, epochs[:200], orbit=orbit)
+            for i in range(200, len(epochs), 200):
+                j = min(i + 200, len(epochs))
+                eph = vstack((eph, ephemeris(desg, epochs[i:j], orbit=orbit)))
+            return eph
 
     opts = {}
     if (desg.startswith(('P/', 'C/', 'I/', 'D/'))
