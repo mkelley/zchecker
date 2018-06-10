@@ -615,10 +615,11 @@ class ZChecker:
                         try:
                             float(eph['RA_3sigma'][i])
                             float(eph['DEC_3sigma'][i])
-                            row.extend([eph['RA_3sigma'][i],
-                                        eph['DEC_3sigma'][i]])
                         except ValueError:
                             row.append((None, None))
+                        else:
+                            row.extend([eph['RA_3sigma'][i],
+                                        eph['DEC_3sigma'][i]])
 
                         V = eph['V'][i]
                         row.append(99 if V is np.ma.masked else V)
@@ -840,7 +841,12 @@ class ZChecker:
                     updates['tgty'] = int(
                         y), 'Target y coordinate, 0-based'
 
-                    hdu[0].header.update(updates)
+                    try:
+                        hdu[0].header.update(updates)
+                    except ValueError as e:
+                        self.logger.error('Error creating FITS header for foundid {}: {}'.format(row['foundid'], str(e)))
+                        hdu.close()
+                        continue
 
                     if mask_downloaded:
                         with fits.open(maskfn) as mask:
