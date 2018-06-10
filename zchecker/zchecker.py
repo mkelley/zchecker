@@ -58,8 +58,7 @@ class ZChecker:
     def fetch_iter(self, cmd, args=()):
         """Generator looping over a database execute statement.
 
-        Why?  To implement a `StopIteration` when the rows are
-        exhausted.
+        Should be more memory efficient for large numbers of rows.
 
         Parameters
         ----------
@@ -73,7 +72,7 @@ class ZChecker:
         while True:
             rows = cursor.fetchmany()
             if not rows:
-                raise StopIteration
+                return
             for row in rows:
                 yield row
 
