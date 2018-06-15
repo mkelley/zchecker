@@ -609,8 +609,8 @@ class ZChecker:
                         row = [desg, obsjd[i]]
                         row.append(eph['RA'][i])
                         row.append(eph['DEC'][i])
-                        row.append(eph['RA_rate'][i])
-                        row.append(eph['DEC_rate'][i])
+                        row.append(eph['RA_rate'][i] / 3600)
+                        row.append(eph['DEC_rate'][i] / 3600)
                         try:
                             float(eph['RA_3sigma'][i])
                             float(eph['DEC_3sigma'][i])
