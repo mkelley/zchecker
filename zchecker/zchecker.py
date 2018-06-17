@@ -303,8 +303,7 @@ class ZChecker:
 
             for row in rows:
                 count += 1
-                os.unlink(path + row['archivefile'])
-                self.db.execute('DELETE FROM found WHERE foundid=?'
+                self.db.execute('DELETE FROM found WHERE foundid=?',
                                 (row['foundid'],))
                 self.db.commit()
 
@@ -312,8 +311,7 @@ class ZChecker:
             total += count
 
         self.logger.info(
-            'Removed {} items from found database and file archive.'.format(
-                total))
+            'Removed {} items from found database.'.format(total))
 
     def _get_ephemeris(self, obj, jd):
         """Retrieve approximate ephemeris by interpolation.
