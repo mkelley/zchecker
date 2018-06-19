@@ -125,6 +125,9 @@ def ephemeris(desg, epochs, orbit=True):
                     if (c in eph.colnames) and (c != 'datetime_jd')]
         orb.remove_columns(repeated)
 
+        # cheat to avoid float errors
+        orb['datetime_jd'] = eph['datetime_jd']
+
         eph = join(eph, orb)
 
     return eph
