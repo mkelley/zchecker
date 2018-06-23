@@ -156,7 +156,7 @@ def project(fn):
         else:
             mask_ext = None
 
-    for alignment in ['vangle', 'sangle']:
+    for alignment in ['sangle']:
         try:
             newsci = project_one(fn, 0, alignment)
         except (m.MontageError, AssertionError) as e:
@@ -191,7 +191,7 @@ with ZChecker(Config.from_args(args), log=True) as z:
 
     bindings = []
     if not args.f:  # not forced execution
-        cmd += ' AND vangleimg IS NULL'
+        cmd += ' AND sangleimg IS NULL'
     if args.desg is not None:
         z.logger.info('Selecting files with target {}.'.format(args.desg))
         cmd += ' AND desg=?'
@@ -219,7 +219,7 @@ with ZChecker(Config.from_args(args), log=True) as z:
                     if status[i] is True:
                         z.db.execute('''
                         INSERT OR REPLACE INTO projections
-                        (foundid,vangleimg,sangleimg) VALUES (?,1,1)
+                        (foundid,vangleimg,sangleimg) VALUES (?,0,1)
                         ''', [foundids[i]])
                         z.db.commit()
                         bar.update()
