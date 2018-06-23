@@ -43,9 +43,15 @@ def interp(jd, c1, c2):
 
 
 def update(desg, start, end, step, orbit=False):
+    import numpy as np
     from astropy.time import Time
     now = Time.now().iso[:16]
-    eph = ephemeris(desg, {'start': start, 'stop': end, 'step': step})
+    if isinstance(start, str):
+        eph = ephemeris(desg, {'start': start, 'stop': end, 'step': step})
+    else:
+        # step in hours
+        n = int(round((end - start) / (step / 24)))
+        eph = ephemeris(desg, np.linspace(start, end, n))
 
     for i in range(len(eph)):
         yield (desg, eph['datetime_jd'][i], eph['RA'][i], eph['DEC'][i],
@@ -71,12 +77,14 @@ def ephemeris(desg, epochs, orbit=True):
 
     """
 
+    import re
     from astropy.time import Time
     from astropy.table import Column, join, vstack
     from astroquery.jplhorizons import Horizons
     from .exceptions import EphemerisError
 
-    # limit Horizons requests to 200 individual epochs (530 is definitely too many)
+    # limit Horizons requests to 200 individual epochs (530 is
+    # definitely too many)
     if not isinstance(epochs, dict):
         if len(epochs) > 200:
             eph = ephemeris(desg, epochs[:200], orbit=orbit)
@@ -86,8 +94,7 @@ def ephemeris(desg, epochs, orbit=True):
             return eph
 
     opts = {}
-    if (desg.startswith(('P/', 'C/', 'I/', 'D/'))
-            or desg.split('-')[0].endswith(('P', 'D', 'I'))):
+    if re.match('^([CPID]/|[0-9]+P)', desg) is not None:
         id_type = 'designation'
         opts['closest_apparition'] = True
         opts['no_fragments'] = True
@@ -108,6 +115,9 @@ def ephemeris(desg, epochs, orbit=True):
         except AttributeError as e:
             pass
         eph.add_column(V, name='V')
+
+    V = eph['V'].data.astype(float)
+    eph['V'] = Column(V, name='V')
 
     if orbit:
         q = Horizons(id=desg, id_type=id_type, location='0', epochs=epochs)

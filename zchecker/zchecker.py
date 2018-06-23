@@ -120,6 +120,7 @@ class ZChecker:
         from astropy.time import Time
         from . import ztf
 
+        # these dates are Pacific time
         end = '{} 12:00'.format(date)
         start = (Time(end) - 24 * u.hr).iso[:16]
         q = "obsdate>'{}' AND obsdate<'{}'".format(start, end)
@@ -157,15 +158,21 @@ class ZChecker:
         from . import eph
         from .exceptions import ZCheckerError
 
-        jd_start = Time(start).jd
-        jd_end = Time(end).jd
+        # Pacific Standard Time is UT - 8 and we want ephmeris
+        # boundaries in the middle of the day.
+
+        jd_start = Time(start).jd - 0.833333
+        jd_end = Time(end).jd + 0.166667
+
+        pst_start = Time(jd_start, format='jd').iso[:16]
+        pst_end = Time(jd_end, format='jd').iso[:16]
 
         if update:
             self.logger.info(
-                'Updating ephemerides for the time period {} to {} UT.'.format(start, end))
+                'Updating ephemerides for the time period {} to {} PST.'.format(pst_start, pst_end))
         else:
             self.logger.info(
-                'Verifying ephemerides for the time period {} to {} UT.'.format(start, end))
+                'Verifying ephemerides for the time period {} to {} PST.'.format(pst_start, pst_end))
 
         updated = 0
         for obj in objects:
@@ -190,8 +197,12 @@ class ZChecker:
                   AND jd <= ?
                 ''', (obj, jd_start, jd_end))
                 self.db.executemany('''
-                INSERT OR IGNORE INTO eph VALUES (?,?,?,?,?,?,?,?)
-                ''', eph.update(obj, start, end, '6h'))
+                INSERT OR REPLACE INTO eph VALUES (?,?,?,?,?,?,?,?)
+                ''', eph.update(
+                    obj,
+                    jd_start,
+                    jd_end,
+                    6))
             except ZCheckerError as e:
                 self.logger.error(
                     'Error retrieving ephemeris for {}'.format(obj))
@@ -219,11 +230,11 @@ class ZChecker:
         if start is None:
             jd_start = None
         else:
-            jd_start = Time(start + ' 12:00').jd - 1
+            jd_start = Time(start).jd - 0.5
         if end is None:
             jd_end = None
         else:
-            jd_end = Time(end + ' 12:00').jd
+            jd_end = Time(end).jd + 0.5
 
         if start is not None and end is not None:
             msg = ('Cleaning the ephemeris database of {} objects,'
@@ -274,11 +285,11 @@ class ZChecker:
         if start is None:
             jd_start = None
         else:
-            jd_start = Time(start + ' 12:00').jd - 1
+            jd_start = Time(start).jd - 0.5
         if end is None:
             jd_end = None
         else:
-            jd_end = Time(end + ' 12:00').jd
+            jd_end = Time(end).jd + 0.5
 
         if start is not None and end is not None:
             msg = ('Cleaning the found object database of {} objects,'
@@ -361,15 +372,19 @@ class ZChecker:
         WHERE desg=?
           AND jd>?
           AND jd<?
-        ''', (obj, jd - 1, jd + 1)).fetchall()
+        ''', (obj, jd - 1.01, jd + 1.01)).fetchall()
         if len(rows) == 0:
             raise EphemerisError('No dates found for ' + obj)
 
         ra, dec, vmag, eph_jd = zip(*rows)
         ra = np.radians(ra)
         dec = np.radians(dec)
-        vmag = np.array([v if v is not None else 99.0
-                         for v in vmag])
+        vmag = np.array([
+            v if (
+                (v is not None)
+                and (v != b'\x00\x00\x00\x00\x00\x00\x00\x00')
+            ) else 99.0
+            for v in vmag])
         vmag = np.ma.MaskedArray(vmag, mask=(vmag == 99.0))
         vmag = vmag.filled(99)
         eph_jd = np.array(eph_jd)
@@ -398,7 +413,7 @@ class ZChecker:
 
         return ra, dec, vmag
 
-    def fov_search(self, start, end, objects=None, vlim=35):
+    def fov_search(self, start, end, objects=None, vlim=25):
         """Search for objects in ZTF fields.
 
         Parameters
@@ -423,8 +438,8 @@ class ZChecker:
 
         self.logger.info('FOV search: {} to {}'.format(start, end))
 
-        jd_start = Time(start + ' 12:00').jd - 1.01
-        jd_end = Time(end + ' 12:00').jd + 0.01
+        jd_start = Time(start).jd - 0.5
+        jd_end = Time(end).jd + 0.5
 
         if objects is None:
             c = self.db.execute('''
