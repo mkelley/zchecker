@@ -51,7 +51,7 @@ def update(desg, start, end, step, orbit=False):
     else:
         # step in hours
         n = int(round((end - start) / (step / 24)))
-        eph = ephemeris(desg, np.linspace(start, end, n))
+        eph = ephemeris(desg, np.linspace(start, end, n + 1))
 
     for i in range(len(eph)):
         yield (desg, eph['datetime_jd'][i], eph['RA'][i], eph['DEC'][i],

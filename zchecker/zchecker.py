@@ -120,7 +120,7 @@ class ZChecker:
         from astropy.time import Time
         from . import ztf
 
-        # these dates are Pacific time
+        # obsdate is Pacific time
         end = '{} 12:00'.format(date)
         start = (Time(end) - 24 * u.hr).iso[:16]
         q = "obsdate>'{}' AND obsdate<'{}'".format(start, end)
@@ -230,11 +230,11 @@ class ZChecker:
         if start is None:
             jd_start = None
         else:
-            jd_start = Time(start).jd - 0.5
+            jd_start = Time(start).jd - 0.833333
         if end is None:
             jd_end = None
         else:
-            jd_end = Time(end).jd + 0.5
+            jd_end = Time(end).jd + 0.166667
 
         if start is not None and end is not None:
             msg = ('Cleaning the ephemeris database of {} objects,'
@@ -285,11 +285,11 @@ class ZChecker:
         if start is None:
             jd_start = None
         else:
-            jd_start = Time(start).jd - 0.5
+            jd_start = Time(start).jd - 0.833333
         if end is None:
             jd_end = None
         else:
-            jd_end = Time(end).jd + 0.5
+            jd_end = Time(end).jd + 0.166667
 
         if start is not None and end is not None:
             msg = ('Cleaning the found object database of {} objects,'
@@ -438,8 +438,8 @@ class ZChecker:
 
         self.logger.info('FOV search: {} to {}'.format(start, end))
 
-        jd_start = Time(start).jd - 0.5
-        jd_end = Time(end).jd + 0.5
+        jd_start = Time(start).jd - 0.833333
+        jd_end = Time(end).jd + 0.166667
 
         if objects is None:
             c = self.db.execute('''
