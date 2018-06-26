@@ -120,9 +120,9 @@ class ZChecker:
         from astropy.time import Time
         from . import ztf
 
-        # obsdate is Pacific time
-        end = '{} 12:00'.format(date)
-        start = (Time(end) - 24 * u.hr).iso[:16]
+        # date is UT, obsdate is Pacific time
+        end = '{} 12:00'.format(date)  # PT
+        start = (Time(end) - 24 * u.hr).iso[:16]  # PT
         q = "obsdate>'{}' AND obsdate<'{}'".format(start, end)
 
         cols = ['infobits', 'field', 'ccdid', 'qid', 'rcid', 'fid',
@@ -158,21 +158,19 @@ class ZChecker:
         from . import eph
         from .exceptions import ZCheckerError
 
-        # Pacific Standard Time is UT - 8 and we want ephmeris
-        # boundaries in the middle of the day.
+        # ephmeris boundaries at 0 UT are OK for Palomar
+        jd_start = Time(start).jd
+        jd_end = Time(end).jd + 1.0  # end of the day
 
-        jd_start = Time(start).jd - 0.833333
-        jd_end = Time(end).jd + 0.166667
-
-        pst_start = Time(jd_start, format='jd').iso[:16]
-        pst_end = Time(jd_end, format='jd').iso[:16]
+        date_start = Time(jd_start, format='jd').iso[:16]
+        date_end = Time(jd_end, format='jd').iso[:16]
 
         if update:
             self.logger.info(
-                'Updating ephemerides for the time period {} to {} PST.'.format(pst_start, pst_end))
+                'Updating ephemerides for the time period {} to {} UT.'.format(date_start, date_end))
         else:
             self.logger.info(
-                'Verifying ephemerides for the time period {} to {} PST.'.format(pst_start, pst_end))
+                'Verifying ephemerides for the time period {} to {} UT.'.format(date_start, date_end))
 
         updated = 0
         for obj in objects:
@@ -230,11 +228,11 @@ class ZChecker:
         if start is None:
             jd_start = None
         else:
-            jd_start = Time(start).jd - 0.833333
+            jd_start = Time(start).jd
         if end is None:
             jd_end = None
         else:
-            jd_end = Time(end).jd + 0.166667
+            jd_end = Time(end).jd + 1.0  # end of the day
 
         if start is not None and end is not None:
             msg = ('Cleaning the ephemeris database of {} objects,'
@@ -285,11 +283,11 @@ class ZChecker:
         if start is None:
             jd_start = None
         else:
-            jd_start = Time(start).jd - 0.833333
+            jd_start = Time(start).jd
         if end is None:
             jd_end = None
         else:
-            jd_end = Time(end).jd + 0.166667
+            jd_end = Time(end).jd + 1.0  # end of the day
 
         if start is not None and end is not None:
             msg = ('Cleaning the found object database of {} objects,'
@@ -436,10 +434,14 @@ class ZChecker:
         from astropy.coordinates.angle_utilities import angular_separation
         from .exceptions import DateRangeError
 
-        self.logger.info('FOV search: {} to {}'.format(start, end))
-
-        jd_start = Time(start).jd - 0.833333
-        jd_end = Time(end).jd + 0.166667
+        # fov_search takes days as input, splits them 0 UT
+        jd_start = Time(start).jd
+        jd_end = Time(end).jd + 1.0  # end of the day
+        
+        self.logger.info('FOV search: {} to {} UT (JD {} to {})'.format(
+            Time(jd_start, format='jd').iso[:16],
+            Time(jd_end, format='jd').iso[:16],
+            jd_start, jd_end))
 
         if objects is None:
             c = self.db.execute('''
