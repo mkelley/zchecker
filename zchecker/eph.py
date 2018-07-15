@@ -101,8 +101,12 @@ def ephemeris(desg, epochs, orbit=True):
     else:
         id_type = 'smallbody'
 
-    q = Horizons(id=desg, id_type=id_type, location='I41', epochs=epochs)
-    eph = q.ephemerides(**opts)
+    try:
+        q = Horizons(id=desg, id_type=id_type, location='I41', epochs=epochs)
+        eph = q.ephemerides(**opts)
+    except Exception as e:
+        raise EphemerisError('{}: {}'.format(desg, str(e)))
+
     if len(eph) == 0:
         raise EphemerisError('{}'.format(desg))
 
