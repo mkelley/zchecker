@@ -637,13 +637,16 @@ class ZChecker:
                         row.append(eph['RA_rate'][i] / 3600)
                         row.append(eph['DEC_rate'][i] / 3600)
                         try:
-                            float(eph['RA_3sigma'][i])
-                            float(eph['DEC_3sigma'][i])
+                            ra3sig = float(eph['RA_3sigma'][i])
+                            dec3sig = float(eph['DEC_3sigma'][i])
                         except ValueError:
                             row.append((None, None))
                         else:
-                            row.extend([eph['RA_3sigma'][i],
-                                        eph['DEC_3sigma'][i]])
+                            if not np.isfinite(ra3sig):
+                                ra3sig = None
+                            if not np.isfinite(dec3sig):
+                                dec3sig = None
+                            row.extend([ra3sig, dec3sig])
 
                         V = eph['V'][i]
                         row.append(99 if V is np.ma.masked else V)
