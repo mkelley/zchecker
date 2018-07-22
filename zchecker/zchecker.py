@@ -132,8 +132,8 @@ class ZChecker:
                 'crval2', 'cd11', 'cd12', 'cd21', 'cd22',
                 'ra', 'dec', 'ra1', 'dec1', 'ra2', 'dec2',
                 'ra3', 'dec3', 'ra4', 'dec4']
-        tab = ztf.query({'WHERE': q, 'COLUMNS': ','.join(cols)},
-                        self.config.auth)
+        payload = {'WHERE': q, 'COLUMNS': ','.join(cols)}
+        tab = ztf.query(payload, self.config.auth)
 
         self.db.execute('''
         INSERT OR REPLACE INTO nights (date,nframes) VALUES (?,?)

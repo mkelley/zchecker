@@ -154,4 +154,16 @@ schema = [
       DELETE FROM stacks WHERE foundid=old.foundid;
     END;
     ''',
+
+    '''CREATE TRIGGER IF NOT EXISTS delete_obs BEFORE DELETE ON obs
+    BEGIN
+      DELETE FROM found WHERE pid=old.pid;
+    END;
+    ''',
+
+    '''CREATE TRIGGER IF NOT EXISTS delete_nights BEFORE DELETE ON nights
+    BEGIN
+      DELETE FROM obs WHERE nightid=old.nightid;
+    END;
+    ''',
 ]

@@ -1,7 +1,7 @@
 # Licensed under a 3-clause BSD style license - see LICENSE.rst
 from contextlib import contextmanager
 
-def query(params, auth):
+def query(params, auth, logger=None):
     import requests
     from astropy.io import ascii
     
@@ -12,6 +12,9 @@ def query(params, auth):
         'https://irsa.ipac.caltech.edu/ibe/search/ztf/products/sci',
         auth=(auth['user'], auth['password']),
         params=params)
+
+    if logger:
+        logger.debug(r.url)
 
     print('Done.  {} lines returned.'.format(r.text.count('\n')))
 
