@@ -120,10 +120,10 @@ class ZChecker:
         from astropy.time import Time
         from . import ztf
 
-        # date is UT, obsdate is Pacific time
-        end = '{} 12:00'.format(date)  # PT
-        start = (Time(end) - 24 * u.hr).iso[:16]  # PT
-        q = "obsdate>'{}' AND obsdate<'{}'".format(start, end)
+        # update_obs takes days as input, splits them at 0 UT
+        jd_start = Time(date).jd
+        jd_end = jd_start + 1.0
+        q = "obsjd>{} AND obsjd<{}".format(jd_start, jd_end)
 
         cols = ['infobits', 'field', 'ccdid', 'qid', 'rcid', 'fid',
                 'filtercode', 'pid', 'expid', 'obsdate',
@@ -133,7 +133,7 @@ class ZChecker:
                 'ra', 'dec', 'ra1', 'dec1', 'ra2', 'dec2',
                 'ra3', 'dec3', 'ra4', 'dec4']
         payload = {'WHERE': q, 'COLUMNS': ','.join(cols)}
-        tab = ztf.query(payload, self.config.auth)
+        tab = ztf.query(payload, self.config.auth, logger=self.logger)
 
         self.db.execute('''
         INSERT OR REPLACE INTO nights (date,nframes) VALUES (?,?)
