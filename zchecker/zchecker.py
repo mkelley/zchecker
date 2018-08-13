@@ -607,7 +607,6 @@ class ZChecker:
 
         import numpy as np
         from astropy.time import Time
-        from astroquery.jplhorizons import Horizons
         from .eph import ephemeris
 
         self.logger.info('Checking {} objects in detail.'.format(
