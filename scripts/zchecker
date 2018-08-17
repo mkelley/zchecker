@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import os
 import re
+import sys
 import argparse
 from astropy.time import Time
 from zchecker import ZChecker, Config
@@ -295,7 +296,12 @@ try:
     getattr(args, 'func')
 except AttributeError as e:
     parser.print_help()
+    sys.exit()
+
+try:
+    args.func(args)
+except:
     if args.v:
         raise(e)
-
-args.func(args)
+    else:
+        sys.exit()
