@@ -277,13 +277,13 @@ def combine(files, scale_by, path):
             else:
                 mask = np.zeros_like(hdu['SANGLE'].data, bool)
 
-            # update mask with nans
-            mask = mask + ~np.isfinite(hdu['SANGLE'].data)
-
             # unmask objects within ~5" of target position
             lbl, n = nd.label(mask.astype(int))
-            for m in np.unique(lbl[145:156, 145:156]):
+            for m in np.unique(lbl[145:156, 145:156]):	        
                 mask[lbl == m] = False
+
+            # update mask with nans
+            mask = mask + ~np.isfinite(hdu['SANGLE'].data)
 
             # get data, subtract background, convert to e-/s
             im = np.ma.MaskedArray(hdu['SANGLE'].data, mask=mask)
