@@ -300,7 +300,7 @@ except AttributeError as e:
 
 try:
     args.func(args)
-except:
+except Exception as e:
     if args.v:
         raise(e)
     else:
