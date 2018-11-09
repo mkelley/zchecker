@@ -2,8 +2,15 @@
 """config
 =========
 
-The configuration is a JSON-formatted file:
+The configuration is a JSON-formatted file.  See ``_config_example``.
 
+"""
+import os
+import sbsearch.config
+
+__all__ = ['Config']
+
+_config_example = '''
 {
   "database": "/path/to/zchecker.db",
   "log": "/path/to/zchecker.log",
@@ -12,12 +19,10 @@ The configuration is a JSON-formatted file:
   "cutout path": "/path/to/cutout/directory",
   "stack path": "/path/to/stack/directory"
 }
+'''
 
-"""
-# Configuration file format should match the description in
-# scripts/zchecker help.
 
-class Config:
+class Config(sbsearch.config.Config):
     """ZChecker configuration.
 
     Controls database location, log file location, IRSA user
@@ -27,67 +32,25 @@ class Config:
 
     Parameters
     ----------
-    filename : string
-      The file to load, or `None` to load the default location
-      '~/.config/zchecker.config'.
+    **kwargs
+        Override parameters with these values.
 
     **kwargs
       Additional or updated configuration parameters and values.
 
     """
 
-    def __init__(self, filename=None, **kwargs):
-        import os
+    DEFAULT_FILE = os.path.expanduser('~/.config/zchecker.config')
+
+    def __init__(self, **kwargs):
         import json
-        
-        if filename is None:
-            filename = os.path.expanduser('~/.config/zchecker.config')
+        config = json.loads(_config_example)
+        config.update(**kwargs)
+        super().__init__(**config)
 
-        with open(filename) as f:
-            self.config = json.load(f)
-
-        self.config.update(kwargs)
-
-        self.auth = {
-            'user': self.config.pop('user'),
-            'password': self.config.pop('password')
+    @property
+    def auth(self):
+        return {
+            "user": self['user'],
+            "password": self['password']
         }
-
-    def __getitem__(self, k):
-        return self.config[k]
-
-    @classmethod
-    def from_args(cls, args):
-        """Initialize from command-line arguments.
-
-        Parameters
-        ----------
-        args : result from argparse.ArgumentParser.parse_args()
-          Options checked: --config, --db, --log, --path.
-
-        Returns
-        -------
-        config : Config
-
-        """
-
-        updates = {}
-
-        config_file = getattr(args, 'config', None)
-
-        db = getattr(args, 'db', None)
-        if db is not None:
-            updates['database'] = db
-
-        log = getattr(args, 'log', None)
-        if log is not None:
-            updates['log'] = log
-
-        path = getattr(args, 'path', None)
-        if path is not None:
-            updates['cutout path'] = path
-
-        return cls(config_file, **updates)
-
-
-        
