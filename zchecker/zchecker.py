@@ -5,7 +5,7 @@ import os
 import numpy as np
 import astropy.units as u
 from astropy.time import Time
-from sbpy.data import natural_sort_key
+from astropy.table import Table
 from sbsearch import SBSearch
 
 from . import ztf
@@ -89,7 +89,63 @@ class ZChecker(SBSearch):
         self.db.close()
         self.logger.info(Time.now().iso + 'Z')
 
-    def update_obs(self, start, stop):
+    def clean_found(self, objects=None, start=None, stop=None):
+        """Remove found object from the database and data archive.
+
+        Parameters
+        ----------
+        objects : string or int, optional
+            Objects to remove; default: remove all.
+
+        start, stop : float, string, or astropy.time.Time, optional
+            Start and stop epochs, as Julian dates or format parseable
+            by `~astropy.time.Time`.
+
+        """
+
+        if objects is None:
+            objects = [None]
+
+        count = 0
+        for obj in objects:
+            foundids = self.db.get_found(obj, start=start, stop=stop,
+                                         generator=True)
+            count += self.db.clean_found(foundids)
+
+        self.logger.info('Removed {} found objects.'.format(count))
+
+    def observation_summary(self, observations):
+        """Summarize observations.
+
+        Parameters
+        ----------
+        observations : tuple or list of dict-like
+            Observations to summarize.
+
+        Returns
+        -------
+        summary : Table
+            Summary table.
+
+        """
+        obsid, date, ra, dec = [], [], [], []
+        field, ccdid, qid, filtercode = [], [], [], []
+        for obs in observations:
+            obsid.append(obs['obsid'])
+            jd = (obs['jd_start'] + obs['jd_stop']) / 2
+            date.append(Time(jd, format='jd').iso)
+            ra.append(np.degrees(obs['ra']))
+            dec.append(np.degrees(obs['dec']))
+            field.append(obs['field'])
+            ccdid.append(obs['ccdid'])
+            qid.append(obs['qid'])
+            filtercode.append(obs['filtercode'])
+
+        return Table((obsid, date, ra, dec, field, ccdid, qid, filtercode),
+                     names=('obsid', 'date', 'ra', 'dec', 'field', 'ccd',
+                            'quad', 'filter'))
+
+    def update_observations(self, start, stop):
         """Sync observation database with IRSA.
 
         Parameters
@@ -131,31 +187,6 @@ class ZChecker(SBSearch):
         self.logger.info(
             'Updated observation table for {} with {} images.'.format(
                 d, len(tab)))
-
-    def clean_found(self, objects=None, start=None, stop=None):
-        """Remove found object from the database and data archive.
-
-        Parameters
-        ----------
-        objects : string or int, optional
-            Objects to remove; default: remove all.
-
-        start, stop : float, string, or astropy.time.Time, optional
-            Start and stop epochs, as Julian dates or format parseable
-            by `~astropy.time.Time`.
-
-        """
-
-        if objects is None:
-            objects = [None]
-
-        count = 0
-        for obj in objects:
-            foundids = self.db.get_found(obj, start=start, stop=stop,
-                                         generator=True)
-            count += self.db.clean_found(foundids)
-
-        self.logger.info('Removed {} found objects.'.format(count))
 
     def _download_file(self, irsa, url, filename, clean_failed):
         """ZTF file download helper."""
