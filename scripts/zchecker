@@ -101,7 +101,8 @@ parser_search.add_argument(
     ' list of objects; default is to search all targets in the ephemeris'
     ' database defined over the requested date range')
 parser_search.add_argument(
-    '--print', action='store_true', help='print results; do not save to database')
+    '--print', action='store_true',
+    help='print results; do not save to database')
 mutex = parser_search.add_mutually_exclusive_group()
 mutex.add_argument(
     '--full', action='store_true', help='search all available nights')
@@ -118,6 +119,48 @@ parser_search.add_argument(
     '--vmax', type=float, default=25,
     help='skip epochs when object is fainter than vmax, mag')
 parser_search.set_defaults(func=search)
+
+## ONE_SHOT ############################################################
+
+
+def one_shot(args):
+    start = args.start
+    stop = args.stop + 1 * u.day  # search limit is end of the day
+    epochs = {
+        'start': start.iso[:10],
+        'stop': stop.iso[:10],
+        'step': args.step
+    }
+
+    config = Config.from_args(args)
+    with ZChecker(config, savelog=True) as z:
+        try:
+            eph = z.db.get_ephemeris_exact(
+                args.object, 'I41', epochs, source=args.source)
+            n, obs, tab = z.find_by_ephemeris(eph)
+        except Exception as e:
+            z.logger.error(str(e))
+            raise e
+
+        tab.pprint(max_lines=-1, max_width=-1)
+
+
+parser_one_shot = subparsers.add_parser(
+    'one-shot', help='search ZTF fields on the fly',
+    epilog='Date format: YYYY-MM-DD.')
+parser_one_shot.add_argument(
+    'object',
+    help='object designation to resolve')
+parser_one_shot.add_argument(
+    'start', type=as_time, help='search beginning with this date, UT')
+parser_one_shot.add_argument(
+    'stop', type=as_time, help='search ending with this date, UT')
+parser_one_shot.add_argument(
+    '--source', choices=['jpl', 'mpc'], default='jpl',
+    help='base search on ephemerides from JPL or MPC')
+parser_one_shot.add_argument(
+    '--step', default='1d', help='step size for ephemeris generation')
+parser_one_shot.set_defaults(func=one_shot)
 
 # EPH-UPDATE ############################################################
 
