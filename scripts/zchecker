@@ -179,31 +179,32 @@ parser_eph.set_defaults(func=eph_update)
 # parser_cleph.add_argument('--stop', help='stop date of ephemeris to remove, UT')
 # parser_cleph.set_defaults(func=clean_eph)
 #
-## CLEAN-FOUND ############################################################
-#
-#
-# def clean_found(args):
-#    test_date(args.start, 'Bad start date.')
-#    test_date(args.stop, 'Bad start date.')
-#
-#    config = Config.from_args(args)
-#    with ZChecker(config, savelog=True) as z:
-#        try:
-#            z.clean_found(args.objects, start=args.start, stop=args.stop)
-#        except Exception as e:
-#            z.logger.error(str(e))
-#            raise e
-#
-#
-# parser_found = subparsers.add_parser(
-#    'clean-found', help='clean found object database and data archive',
-#    epilog='Date format: YYYY-MM-DD.  Date interval is inclusive.  Default is to remove all findings.  Files in the cutouts directory will also be removed.')
-# parser_found.add_argument('objects', type=object_list,
-#                          help='file name listing one object per line, or a comma-separated list of objects, must be resolvable by JPL/HORIZONS')
-# parser_found.add_argument('--start', help='start date to remove, UT')
-# parser_found.add_argument('--stop', help='stop date to remove, UT')
-# parser_found.set_defaults(func=clean_found)
-#
+# CLEAN-FOUND ############################################################
+
+
+def clean_found(args):
+    config = Config.from_args(args)
+    with ZChecker(config, savelog=True) as z:
+        try:
+            z.clean_found(args.objects, start=args.start, stop=args.stop)
+        except Exception as e:
+            z.logger.error(str(e))
+            raise e
+
+
+parser_found = subparsers.add_parser(
+    'clean-found', help='clean found object database and data archive',
+    epilog='Date format: YYYY-MM-DD.  Date interval is inclusive.  Default is to remove all findings.  Files in the cutouts directory will also be removed.')
+parser_found.add_argument(
+    'objects', type=object_list,
+    help='file name listing one object per line, or a comma-separated'
+    ' list of objects, must be resolvable by JPL/Horizons')
+parser_found.add_argument(
+    '--start', type=as_time, help='start date to remove, UT')
+parser_found.add_argument(
+    '--stop', type=as_time, help='stop date to remove, UT')
+parser_found.set_defaults(func=clean_found)
+
 # ZTF-UPDATE ############################################################
 
 

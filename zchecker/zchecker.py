@@ -89,31 +89,6 @@ class ZChecker(SBSearch):
         self.db.close()
         self.logger.info(Time.now().iso + 'Z')
 
-    def clean_found(self, objects=None, start=None, stop=None):
-        """Remove found object from the database and data archive.
-
-        Parameters
-        ----------
-        objects : string or int, optional
-            Objects to remove; default: remove all.
-
-        start, stop : float, string, or astropy.time.Time, optional
-            Start and stop epochs, as Julian dates or format parseable
-            by `~astropy.time.Time`.
-
-        """
-
-        if objects is None:
-            objects = [None]
-
-        count = 0
-        for obj in objects:
-            foundids = self.db.get_found(obj, start=start, stop=stop,
-                                         generator=True)
-            count += self.db.clean_found(foundids)
-
-        self.logger.info('Removed {} found objects.'.format(count))
-
     def observation_summary(self, observations):
         """Summarize observations.
 
