@@ -6,42 +6,6 @@ class NoEphemerisReturned(ZCheckerError):
     pass
 
 
-def interp(jd, c1, c2):
-    """Interpolate between two ephemeris positions.
-
-    jd : float
-      Julian date of the result.
-
-    c1, c2 : dictionaries
-      Ephemeris positions as dictionaries: 'jd', 'ra', 'dec'.
-      RA and Dec are in degrees.
-
-    Returns
-    -------
-    eph : SkyCoord
-      Ephemeris positions of each object.
-
-    """
-
-    import numpy as np
-    from numpy import pi
-    from astropy.coordinates import SkyCoord
-
-    _c1 = SkyCoord(c1['ra'], c1['dec'], unit='deg')
-    _c2 = SkyCoord(c2['ra'], c2['dec'], unit='deg')
-
-    dt = (jd - c1['jd']) / (c2['jd'] - c1['jd'])
-    w = _c1.separation(_c2)
-
-    p1 = np.sin((1 - dt) * w.rad) / np.sin(w.rad)
-    p2 = np.sin(dt * w.rad) / np.sin(w.rad)
-
-    ra = p1 * c1['ra'] + p2 * c2['ra']
-    dec = p1 * c1['dec'] + p2 * c2['dec']
-
-    return SkyCoord(ra, dec, unit='deg')
-
-
 def update(desg, start, end, step, orbit=False):
     import numpy as np
     from astropy.time import Time
