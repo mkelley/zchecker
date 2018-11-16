@@ -265,16 +265,15 @@ def ztf_update(args):
     if stop is None:
         stop = date
 
-    if start >= stop:
+    if start > stop:
         raise ValueError('Start date must occur before stop date.')
-
-    stop = stop + 1 * u.day  # limit to end of day
 
     config = Config.from_args(args)
     with ZChecker(config, savelog=True) as z:
         while start <= stop:
             try:
-                z.update_observations(start=start, stop=start + 1 * u.day)
+                d = start.iso[:10]
+                z.update_observations(d, d)
                 start = start + 1 * u.day
             except Exception as e:
                 z.logger.error(str(e))

@@ -8,7 +8,7 @@ from astropy.time import Time
 from astropy.table import Table
 from sbsearch import SBSearch
 
-from . import ztf
+from . import ztf, schema
 from .config import Config
 
 
@@ -29,67 +29,12 @@ class ZChecker(SBSearch):
 
     """
 
-    # columns to retrieve from IRSA
-    ZTF_COLS = ['pid', 'obsjd', 'exptime', 'ra', 'dec', 'ra1', 'dec1',
-                'ra2', 'dec2', 'ra3', 'dec3', 'ra4', 'dec4',
-                'infobits', 'field', 'ccdid', 'qid', 'rcid', 'fid',
-                'filtercode', 'expid', 'filefracday', 'seeing',
-                'airmass', 'moonillf', 'maglimit', 'crpix1', 'crpix2',
-                'crval1', 'crval2', 'cd11', 'cd12', 'cd21', 'cd22',
-                ]
-    OBS_COLUMNS = [
-        'obsid INTEGER PRIMARY KEY',
-        'jd_start FLOAT',
-        'jd_stop FLOAT',
-        'ra FLOAT',
-        'dec FLOAT',
-        'ra1 FLOAT',
-        'dec1 FLOAT',
-        'ra2 FLOAT',
-        'dec2 FLOAT',
-        'ra3 FLOAT',
-        'dec3 FLOAT',
-        'ra4 FLOAT',
-        'dec4 FLOAT',
-        'infobits INTEGER',
-        'field INTEGER',
-        'ccdid INTEGER',
-        'qid INTEGER',
-        'rcid INTEGER',
-        'fid INTEGER',
-        'filtercode TEXT',
-        'expid INTEGER',
-        'filefracday INTEGER',
-        'seeing FLOAT',
-        'airmass FLOAT',
-        'moonillf FLOAT',
-        'maglimit FLOAT',
-        'crpix1 FLOAT',
-        'crpix2 FLOAT',
-        'crval1 FLOAT',
-        'crval2 FLOAT',
-        'cd11 FLOAT',
-        'cd12 FLOAT',
-        'cd21 FLOAT',
-        'cd22 FLOAT'
-    ]
-
     def __init__(self, config=None, **kwargs):
         kwargs['location'] = 'I41'
         self.config = Config(**kwargs) if config is None else config
-        super().__init__(config=config, obs_table='ztf',
-                         obs_columns=self.OBS_COLUMNS, **kwargs)
+        super().__init__(config=config, **kwargs)
 
-    def __exit__(self, *args):
-        from astropy.time import Time
-        # self.clean_stale_files()
-        self.logger.info('Closing database.')
-        self.db.commit()
-        self.db.execute('PRAGMA optimize')
-        self.db.close()
-        self.logger.info(Time.now().iso + 'Z')
-
-    def observation_summary(self, observations):
+    def observation_summary(self, observations, add_found=False):
         """Summarize observations.
 
         Parameters
@@ -97,28 +42,47 @@ class ZChecker(SBSearch):
         observations : tuple or list of dict-like
             Observations to summarize.
 
+        add_found : bool, optional
+            Add metadata from found table.
+
         Returns
         -------
         summary : Table
             Summary table.
 
         """
-        obsid, date, ra, dec = [], [], [], []
-        field, ccdid, qid, filtercode = [], [], [], []
-        for obs in observations:
-            obsid.append(obs['obsid'])
-            jd = (obs['jd_start'] + obs['jd_stop']) / 2
-            date.append(Time(jd, format='jd').iso)
-            ra.append(np.degrees(obs['ra']))
-            dec.append(np.degrees(obs['dec']))
-            field.append(obs['field'])
-            ccdid.append(obs['ccdid'])
-            qid.append(obs['qid'])
-            filtercode.append(obs['filtercode'])
 
-        return Table((obsid, date, ra, dec, field, ccdid, qid, filtercode),
-                     names=('obsid', 'date', 'ra', 'dec', 'field', 'ccd',
-                            'quad', 'filter'))
+        if add_found:
+            cmd = '''
+            SELECT obsid,(jd_start + jd_stop) / 2 AS jd,
+              found.ra,found.dec,rh,delta,vmag,field,ccdid,qid,filtercode
+            FROM obs
+            INNER JOIN ztf ON ztf.pid=obs.obsid
+            INNER JOIN found ON ztf.pid=found.obsid
+            WHERE obsid IN ?
+            '''
+            names = ('obsid', 'date', 'ra', 'dec', 'rh', 'delta', 'vmag',
+                     'field', 'ccd', 'quad', 'filter')
+        else:
+            cmd = '''
+            SELECT obsid,(jd_start + jd_stop) / 2 AS jd,ra,dec,
+              field,ccdid,qid,filtercode
+            FROM obs
+            INNER JOIN ztf ON ztf.pid=obs.obsid
+            WHERE obsid IN ?
+            '''
+            names = ('obsid', 'date', 'ra', 'dec', 'field', 'ccd',
+                     'quad', 'filter')
+
+        obsids = '[{}]'.format(','.join(obsid for obsid in obsids))
+        c = self.execute(cmd, [obsids])
+
+        rows = []
+        for row in util.iterate_over(c):
+            rows.append([row['obsid'], Time(row['jd'], format='jd').iso[:-4]]
+                        + list([r for r in row[2:]]))
+
+        return Table(rows=rows, names=names)
 
     def update_observations(self, start, stop):
         """Sync observation database with IRSA.
@@ -140,27 +104,42 @@ class ZChecker(SBSearch):
         jd_start = Time(start).jd
         jd_end = Time(stop).jd + 1.0
 
-        q = "obsjd>{} AND obsjd<{}".format(jd_start, jd_end)
-        payload = {'WHERE': q, 'COLUMNS': ','.join(self.ZTF_COLS)}
+        payload = {
+            'WHERE': "obsjd>{} AND obsjd<{}".format(jd_start, jd_end),
+            'COLUMNS': ('pid,obsjd,exptime,ra,dec,'
+                        'ra1,dec1,ra2,dec2,ra3,dec3,ra4,dec4,'
+                        'infobits,field,ccdid,qid,rcid,fid,filtercode,'
+                        'expid,filefracday,seeing,airmass,moonillf,maglimit')
+        }
         tab = ztf.query(payload, self.config.auth, logger=self.logger)
 
-        def row_iterator(tab):
+        def obs_iterator(tab):
             for i in range(len(tab)):
                 row = tuple(tab[i].as_void())
-                stop = row[1] + row[2] / 86400
+                jd_stop = row[1] + row[2] / 86400
                 coords = tuple((np.radians(x) for x in row[3:13]))
-                row = (row[0], row[1], stop) + coords + row[13:]
-                yield row
+                obs = (None, 'ztf', row[0], row[1], jd_stop) + coords
+                yield obs
 
-        self.db.add_observations(rows=row_iterator(tab), logger=self.logger)
+        def ztf_iterator(tab):
+            for i in range(len(tab)):
+                row = tuple(tab[i].as_void())
+                ztf = (Time(row[1], format='jd').iso[:-4],) + row[13:]
+                yield ztf
 
-        if start == stop:
-            d = start.iso[:10]
-        else:
-            d = '-'.join((start.iso[:10], stop.iso[:10]))
+        ztf_insert = '''
+        INSERT OR IGNORE INTO ztf VALUES (
+          last_insert_rowid(),?,?,?,?,?,?,?,?,?,?,?,?,?,?
+        )
+        '''
+        self.db.add_observations(obs_iterator(tab),
+                                 other_cmd=ztf_insert,
+                                 other_rows=ztf_iterator(tab),
+                                 logger=self.logger)
 
+        d = start if start == stop else '-'.join((start, stop))
         self.logger.info(
-            'Updated observation table for {} with {} images.'.format(
+            'Updated observation tables for {} with {} images.'.format(
                 d, len(tab)))
 
     def _download_file(self, irsa, url, filename, clean_failed):
@@ -378,6 +357,13 @@ class ZChecker(SBSearch):
                 self.logger.info('  [{}] {}'.format(
                     count, os.path.basename(fn)))
                 count -= 1
+
+    def verify_database(self):
+        """Verify database tables, triggers, etc."""
+        zchecker_names = ['ztf', 'ztf_cutouts', 'found_ztf', 'ztf_cutouturl',
+                          'stale_files', 'delete_found_from_ztf_cutouts',
+                          'delete_obs_from_ztf']
+        super().verify_database(names=zchecker_names, script=schema.schema)
 
 
 def desg2file(s): return s.replace('/', '').replace(' ', '').lower()
