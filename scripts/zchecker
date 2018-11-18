@@ -354,12 +354,16 @@ def list_objects(args):
     config = Config.from_args(args)
     with ZChecker(config, disable_log=True) as z:
         try:
+            if args.objects:
+                objids = [r[0] for r in z.db.resolve_objects(args.objects)]
+            else:
+                objids = None
+
+            opts = dict(objids=objids, start=args.start, stop=args.stop)
             if args.eph:
-                tab = z.object_coverage('eph', start=args.start,
-                                        stop=args.stop)
+                tab = z.object_coverage('eph', **opts)
             elif args.found:
-                tab = z.object_coverage('found', start=args.start,
-                                        stop=args.stop)
+                tab = z.object_coverage('found', **opts)
             else:
                 tab = z.available_objects()
 
@@ -381,7 +385,11 @@ mutex.add_argument(
     '--eph', action='store_true', help='summarize ephemeris coverage')
 mutex.add_argument(
     '--found', action='store_true',
-    help='summarize found observation coverage')
+    help='summarize objects')
+parser_objects.add_argument(
+    '--objects', type=object_list,
+    help=('summarize these specific objects (comma-separated list or '
+          'file name'))
 parser_objects.add_argument(
     '--start', type=as_time, help='start date to search for coverage, UT')
 parser_objects.add_argument(
