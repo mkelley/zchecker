@@ -27,7 +27,7 @@ class ZChecker(SBSearch):
 
     disable_log : bool, optional
         Set to ``True`` to disable normal logging; also sets
-        ``save_log=True``.
+        ``save_log=False``.
 
     **kwargs
         If ``config`` is ``None``, pass these additional keyword
@@ -173,6 +173,21 @@ class ZChecker(SBSearch):
 
     def download_cutouts(self, desg=None, clean_failed=True,
                          retry_failed=True):
+        """Download missing cutouts around found objects.
+
+        Parameters
+        ----------
+        desg : string, optional
+            Limit download to this object.
+
+        clean_failed : bool, optional
+            Delete empty files after failed download.
+
+        retry_failed : bool, optional
+            Retry previously failed downloads.
+
+        """
+
         path = self.config['cutout path']
         fntemplate = ('{desgfile}/{desgfile}-{datetime}-{prepost}{rh:.3f}'
                       '-{filtercode[1]}-ztf.fits.gz')
@@ -184,10 +199,12 @@ class ZChecker(SBSearch):
         constraints = [('(sciimg IS NULL OR sciimg=0)', None)]
         if desg:
             objid = self.db.resolve_object(desg)[0]
-            constraints.append(('AND objid=?', objid))
+            constraints.append(('objid=?', objid))
 
         if retry_failed:
-            constraints.append(('AND sci_sync_date IS NULL', None))
+            constraints.append(('retrieved IS NULL', None))
+        else:
+            constraints.append(('retrieved NOTNULL', None))
 
         cmd, parameters = util.assemble_sql(cmd, [], constraints)
         count = (self.db.execute(cmd.replace(' * ', ' COUNT() ', 1))
