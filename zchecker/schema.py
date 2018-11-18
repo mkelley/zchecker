@@ -4,6 +4,7 @@
 schema = '''
 CREATE TABLE IF NOT EXISTS ztf(
   obsid INTEGER PRIMARY KEY,
+  pid INTEGER KEY,
   obsdate TEXT,
   infobits INTEGER,
   field INTEGER,

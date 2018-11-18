@@ -118,18 +118,18 @@ class ZChecker(SBSearch):
                 row = tuple(tab[i].as_void())
                 jd_stop = row[1] + row[2] / 86400
                 coords = tuple((np.radians(x) for x in row[3:13]))
-                obs = (None, 'ztf', row[0], row[1], jd_stop) + coords
+                obs = (None, 'ztf', row[1], jd_stop) + coords
                 yield obs
 
         def ztf_iterator(tab):
             for i in range(len(tab)):
                 row = tuple(tab[i].as_void())
-                ztf = (Time(row[1], format='jd').iso[:-4],) + row[13:]
+                ztf = (row[0], Time(row[1], format='jd').iso[:-4]) + row[13:]
                 yield ztf
 
         ztf_insert = '''
         INSERT OR IGNORE INTO ztf VALUES (
-          last_insert_rowid(),?,?,?,?,?,?,?,?,?,?,?,?,?,?
+          last_insert_rowid(),?,?,?,?,?,?,?,?,?,?,?,?,?,?,?
         )
         '''
         self.db.add_observations(obs_iterator(tab),

@@ -29,7 +29,7 @@ class ZData:
     fntemplate : string
         Template file name.  In addition to the metadata keys, the
         following keys may be used:
-            datetime: YYYYMMDD_HHMM
+            datetime: YYYYMMDD_HHMMSS
             prepost: 'pre' or 'post'
             desgfile: designation as a friendly file name
 
@@ -46,7 +46,7 @@ class ZData:
 
         prepost = 'pre' if self.meta['rdot'] < 0 else 'post'
         sync_date = Time(float(self.meta['obsjd']), format='jd').iso
-        datetime = (sync_date[:16]
+        datetime = (sync_date[:18]
                     .replace('-', '')
                     .replace(':', '')
                     .replace(' ', '_'))
