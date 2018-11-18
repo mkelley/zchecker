@@ -200,32 +200,33 @@ parser_eph.add_argument(
     '--clean', action='store_true', help='delete from database')
 parser_eph.set_defaults(func=eph_update)
 
-## CLEAN-EPH ############################################################
-#
-#
-# def clean_eph(args):
-#    test_date(args.start, 'Bad start date.')
-#    test_date(args.stop, 'Bad start date.')
-#
-#    config = Config.from_args(args)
-#    with ZChecker(config, savelog=True) as z:
-#        try:
-#            z.clean_ephemeris(args.objects, start=args.start, stop=args.stop)
-#        except Exception as e:
-#            z.logger.error(str(e))
-#            raise e
-#
-#
-# parser_cleph = subparsers.add_parser(
-#    'clean-eph', help='clean local ephemeris database',
-#    epilog='Date format: YYYY-MM-DD.  Date interval is inclusive.  Default is to remove the entire ephemeris.')
-# parser_cleph.add_argument('objects', type=object_list,
-#                          help='file name listing one object per line, or a comma-separated list of objects, must be resolvable by JPL/HORIZONS')
-# parser_cleph.add_argument(
-#    '--start', help='start date of ephemeris to remove, UT')
-# parser_cleph.add_argument('--stop', help='stop date of ephemeris to remove, UT')
-# parser_cleph.set_defaults(func=clean_eph)
-#
+# CLEAN-EPH ############################################################
+
+
+def clean_eph(args):
+    config = Config.from_args(args)
+    with ZChecker(config, savelog=True) as z:
+        try:
+            z.clean_ephemeris(args.objects, start=args.start, stop=args.stop)
+        except Exception as e:
+            z.logger.error(str(e))
+            raise e
+
+
+parser_cleph = subparsers.add_parser(
+    'clean-eph', help='clean local ephemeris database',
+    epilog=('Date format: YYYY-MM-DD.  Date interval is inclusive.  '
+            'Default is to remove the entire ephemeris.'))
+parser_cleph.add_argument(
+    'objects', type=object_list,
+    help=('file name listing one object per line, or a comma-separated '
+          'list of objects'))
+parser_cleph.add_argument(
+    '--start', type=as_time, help='start date of ephemeris to remove, UT')
+parser_cleph.add_argument(
+    '--stop', type=as_time, help='stop date of ephemeris to remove, UT')
+parser_cleph.set_defaults(func=clean_eph)
+
 # CLEAN-FOUND ############################################################
 
 
