@@ -4,11 +4,13 @@ ZTF moving target checker for short object lists.
 ## Requirements
 * Python 3.5+
 * astropy v2.0+
+* sbpy
 * requests
-* astroquery 0.3.8
+* astroquery 0.3.9
 * sqlite3
 * wget
 * Montage and montage_wrapper, optional, for image reprojection with zproject
+* oorb for PCCP checking
 
 ## Configuration
 
