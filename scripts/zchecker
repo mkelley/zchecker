@@ -137,7 +137,7 @@ def one_shot(args):
     }
 
     config = Config.from_args(args)
-    with ZChecker(config, save_log=True) as z:
+    with ZChecker(config, disable_log=True) as z:
         try:
             eph = z.db.get_ephemeris_exact(
                 args.object, 'I41', epochs, source=args.source)
