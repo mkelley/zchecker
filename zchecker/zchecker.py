@@ -20,10 +20,14 @@ class ZChecker(SBSearch):
     Parameters
     ----------
     config : Config, optional
-      ZChecker configuration class, or ``None`` to load the default.
+        ZChecker configuration class, or ``None`` to load the default.
 
-    savelog : bool, optional
-      Set to ``True`` to log to file.
+    save_log : bool, optional
+        Set to ``True`` to log to file.
+
+    disable_log : bool, optional
+        Set to ``True`` to disable normal logging; also sets
+        ``save_log=True``.
 
     **kwargs
         If ``config`` is ``None``, pass these additional keyword
@@ -31,10 +35,35 @@ class ZChecker(SBSearch):
 
     """
 
-    def __init__(self, config=None, **kwargs):
+    def __init__(self, config=None, save_log=True, disable_log=False,
+                 **kwargs):
         kwargs['location'] = 'I41'
         self.config = Config(**kwargs) if config is None else config
-        super().__init__(config=config, **kwargs)
+        super().__init__(config=config, save_log=save_log,
+                         disable_log=disable_log, **kwargs)
+
+    def available_nights(self, count_exposures=True):
+        """List nights in database.
+
+        Parameters
+        ----------
+        cout_exposures : bool, optional
+            ``True`` to also print the number of exposures per night.
+
+        """
+
+        if count_exposures:
+            cmd = '''
+            SELECT SUBSTR(obsdate, 0, 11) as night,COUNT(DISTINCT expid)
+            FROM ztf GROUP BY night
+            '''
+            names = ('date', 'exposures')
+        else:
+            cmd = 'SELECT DISTINCT SUBSTR(obsdate, 0, 11) FROM ztf'
+            names = ('date',)
+
+        tab = Table(rows=self.db.execute(cmd).fetchall(), names=names)
+        return tab
 
     def observation_summary(self, obsids, add_found=False):
         """Summarize observations.

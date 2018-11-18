@@ -74,7 +74,7 @@ def search(args):
         stop = stop + 1 * u.day  # search limit is end of the day
 
     config = Config.from_args(args)
-    with ZChecker(config, savelog=True) as z:
+    with ZChecker(config, save_log=True) as z:
         if args.objects is None:
             objects = z.available_objects()
         else:
@@ -137,7 +137,7 @@ def one_shot(args):
     }
 
     config = Config.from_args(args)
-    with ZChecker(config, savelog=True) as z:
+    with ZChecker(config, save_log=True) as z:
         try:
             eph = z.db.get_ephemeris_exact(
                 args.object, 'I41', epochs, source=args.source)
@@ -172,7 +172,7 @@ parser_one_shot.set_defaults(func=one_shot)
 def eph_update(args):
     stop = args.stop + 1 * u.day  # place limit at end of day
     config = Config.from_args(args)
-    with ZChecker(config, savelog=True) as z:
+    with ZChecker(config, save_log=True) as z:
         try:
             if args.clean:
                 z.clean_ephemeris(args.objects, args.start, stop)
@@ -205,7 +205,7 @@ parser_eph.set_defaults(func=eph_update)
 
 def clean_eph(args):
     config = Config.from_args(args)
-    with ZChecker(config, savelog=True) as z:
+    with ZChecker(config, save_log=True) as z:
         try:
             z.clean_ephemeris(args.objects, start=args.start, stop=args.stop)
         except Exception as e:
@@ -232,7 +232,7 @@ parser_cleph.set_defaults(func=clean_eph)
 
 def clean_found(args):
     config = Config.from_args(args)
-    with ZChecker(config, savelog=True) as z:
+    with ZChecker(config, save_log=True) as z:
         try:
             z.clean_found(args.objects, start=args.start, stop=args.stop)
         except Exception as e:
@@ -274,7 +274,7 @@ def ztf_update(args):
         raise ValueError('Start date must occur before stop date.')
 
     config = Config.from_args(args)
-    with ZChecker(config, savelog=True) as z:
+    with ZChecker(config, save_log=True) as z:
         while start <= stop:
             try:
                 d = start.iso[:10]
@@ -301,7 +301,7 @@ parser_ztf.set_defaults(func=ztf_update)
 
 def download_cutouts(args):
     config = Config.from_args(args)
-    with ZChecker(config, savelog=True) as z:
+    with ZChecker(config, save_log=True) as z:
         try:
             z.download_cutouts(
                 desg=args.desg, clean_failed=args.clean_failed,
@@ -325,32 +325,34 @@ parser_cutout.add_argument(
     help='Retry previously failed science image syncs.')
 parser_cutout.set_defaults(func=download_cutouts)
 
-## LIST-NIGHTS ############################################################
-#
-#
-# def list_nights(args):
-#    config = Config.from_args(args)
-#    with ZChecker(config, savelog=False) as z:
-#        try:
-#            print('date       exposures')
-#            print('\n'.join(z.available_nights(exposures=args.exposures)))
-#        except Exception as e:
-#            z.logger.error(str(e))
-#            raise e
-#
-#
-# parser_nights = subparsers.add_parser(
-#    'list-nights', help='list all ZTF nights saved to local database', aliases=['nights'])
-# parser_nights.add_argument('--no-exposures', dest='exposures',
-#                           action='store_false', help='do not list number of exposures')
-# parser_nights.set_defaults(func=list_nights)
-#
+# LIST-NIGHTS ############################################################
+
+
+def list_nights(args):
+    config = Config.from_args(args)
+    with ZChecker(config, save_log=False, disable_log=True) as z:
+        try:
+            tab = z.available_nights(count_exposures=args.exposures)
+            tab.pprint(max_lines=-1, max_width=-1)
+        except Exception as e:
+            z.logger.error(str(e))
+            raise e
+
+
+parser_nights = subparsers.add_parser(
+    'list-nights', help='list all ZTF nights saved to local database',
+    aliases=['nights'])
+parser_nights.add_argument(
+    '--no-exposures', dest='exposures',
+    action='store_false', help='do not list number of exposures')
+parser_nights.set_defaults(func=list_nights)
+
 ## LIST-OBJECTS ############################################################
 #
 #
 # def list_objects(args):
 #    config = Config.from_args(args)
-#    with ZChecker(config, savelog=False) as z:
+#    with ZChecker(config, save_log=False) as z:
 #        try:
 #            rows = z.available_objects()
 #        except Exception as e:
