@@ -35,7 +35,7 @@ class ZChecker(SBSearch):
 
     """
 
-    def __init__(self, config=None, save_log=True, disable_log=False,
+    def __init__(self, config=None, save_log=False, disable_log=False,
                  **kwargs):
         kwargs['location'] = 'I41'
         self.config = Config(**kwargs) if config is None else config
