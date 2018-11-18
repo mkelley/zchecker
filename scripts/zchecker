@@ -76,7 +76,7 @@ def search(args):
     config = Config.from_args(args)
     with ZChecker(config, save_log=True) as z:
         if args.objects is None:
-            objects = z.available_objects()
+            objects = z.db.get_objects()[1]
         else:
             objects = args.objects
 
@@ -347,36 +347,48 @@ parser_nights.add_argument(
     action='store_false', help='do not list number of exposures')
 parser_nights.set_defaults(func=list_nights)
 
-## LIST-OBJECTS ############################################################
-#
-#
-# def list_objects(args):
-#    config = Config.from_args(args)
-#    with ZChecker(config, save_log=False) as z:
-#        try:
-#            rows = z.available_objects()
-#        except Exception as e:
-#            z.logger.error(str(e))
-#            raise e
-#
-#    n = max((max([len(row[0]) for row in rows]), 4))
-#    if args.dates:
-#        print('{:{}}  {:10}  {:10}  {}'.format(
-#            'desg', n, 'first', 'last', 'n'))
-#        for row in rows:
-#            print('{:{}}  {}  {}  {}'.format(
-#                row[0], n, Time(row[1], format='jd').iso[:10],
-#                Time(row[2], format='jd').iso[:10], row[3]))
-#    else:
-#        for row in rows:
-#            print('{:{}}'.format(row[0], n))
+# LIST-OBJECTS ############################################################
 
 
-# parser_objects = subparsers.add_parser(
-#    'list-objects', help='list all objects in the local database with their ephemeris ranges', aliases=['objects'])
-# parser_objects.add_argument(
-#    '--no-dates', dest='dates', action='store_false', help='do not list ephemeris date range')
-# parser_objects.set_defaults(func=list_objects)
+def list_objects(args):
+    config = Config.from_args(args)
+    with ZChecker(config, disable_log=True) as z:
+        try:
+            if args.eph:
+                tab = z.object_coverage('eph', start=args.start,
+                                        stop=args.stop)
+            elif args.found:
+                tab = z.object_coverage('found', start=args.start,
+                                        stop=args.stop)
+            else:
+                tab = z.available_objects()
+
+            for k, v in tab.meta.items():
+                print('{}: {}'.format(k, v))
+
+            tab.pprint(max_lines=-1, max_width=-1)
+        except Exception as e:
+            z.logger.error(str(e))
+            raise e
+
+
+parser_objects = subparsers.add_parser(
+    'list-objects', aliases=['objects'],
+    help=('list all objects in the local database with their '
+          'ephemeris ranges'))
+mutex = parser_objects.add_mutually_exclusive_group()
+mutex.add_argument(
+    '--eph', action='store_true', help='summarize ephemeris coverage')
+mutex.add_argument(
+    '--found', action='store_true',
+    help='summarize found observation coverage')
+parser_objects.add_argument(
+    '--start', type=as_time, help='start date to search for coverage, UT')
+parser_objects.add_argument(
+    '--stop', type=as_time, help='stop date to search for coverage, UT')
+parser_objects.set_defaults(func=list_objects)
+
+########################################################################
 
 args = parser.parse_args()
 try:
