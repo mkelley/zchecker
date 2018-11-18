@@ -82,7 +82,8 @@ def search(args):
 
         try:
             tab = z.find_objects(objects, start=start, stop=stop,
-                                 vmax=args.vmax, save=(not args.print))
+                                 vmax=args.vmax, save=(not args.print),
+                                 update=args.update)
         except Exception as e:
             z.logger.error(str(e))
             raise e
@@ -103,6 +104,9 @@ parser_search.add_argument(
 parser_search.add_argument(
     '--print', action='store_true',
     help='print results; do not save to database')
+parser_search.add_argument(
+    '--update', action='store_true',
+    help='update metadata for found objects already found')
 mutex = parser_search.add_mutually_exclusive_group()
 mutex.add_argument(
     '--full', action='store_true', help='search all available nights')
@@ -291,32 +295,35 @@ parser_ztf.add_argument(
 
 parser_ztf.set_defaults(func=ztf_update)
 
-## GET-CUTOUTS ############################################################
-#
-#
-# def download_cutouts(args):
-#    config = Config.from_args(args)
-#    with ZChecker(config, savelog=True) as z:
-#        try:
-#            z.download_cutouts(
-#                desg=args.desg, clean_failed=args.clean_failed,
-#                retry_failed=args.retry_failed)
-#        except Exception as e:
-#            z.logger.error(str(e))
-#            raise e
-#
-#
-# parser_cutout = subparsers.add_parser(
-#    'download-cutouts', help='download cutouts.', aliases=['cutouts'])
-# parser_cutout.add_argument(
-#    '--desg', help='only download cutouts for this target')
-# parser_cutout.add_argument('--path', help='local cutout path')
-# parser_cutout.add_argument('--leave-failed', dest='clean_failed',
-#                           action='store_false', help='Leave empty file after failed download.')
-# parser_cutout.add_argument(
-#    '--retry-failed', action='store_true', help='Retry previously failed science image syncs.')
-# parser_cutout.set_defaults(func=download_cutouts)
-#
+# GET-CUTOUTS ############################################################
+
+
+def download_cutouts(args):
+    config = Config.from_args(args)
+    with ZChecker(config, savelog=True) as z:
+        try:
+            z.download_cutouts(
+                desg=args.desg, clean_failed=args.clean_failed,
+                retry_failed=args.retry_failed)
+        except Exception as e:
+            z.logger.error(str(e))
+            raise e
+
+
+parser_cutout = subparsers.add_parser(
+    'download-cutouts', help='download cutouts.', aliases=['cutouts'])
+parser_cutout.add_argument(
+    '--desg', help='only download cutouts for this target')
+parser_cutout.add_argument(
+    '--path', help='local cutout path')
+parser_cutout.add_argument(
+    '--leave-failed', dest='clean_failed', action='store_false',
+    help='Leave empty file after failed download.')
+parser_cutout.add_argument(
+    '--retry-failed', action='store_true',
+    help='Retry previously failed science image syncs.')
+parser_cutout.set_defaults(func=download_cutouts)
+
 ## LIST-NIGHTS ############################################################
 #
 #

@@ -33,15 +33,13 @@ CREATE TABLE IF NOT EXISTS ztf_cutouts(
   diffpsf INTEGER,
   vangleimg INTEGER,
   sangleimg INTEGER,
-  stackfile TEXT,
-  stacked INTEGER,
   FOREIGN KEY(foundid) REFERENCES found(foundid)
 );
 
 CREATE VIEW IF NOT EXISTS found_ztf AS
 SELECT * FROM found
-INNER JOIN obs ON found.obsid=obs.obsid
-WHERE obs.source='ztf';
+INNER JOIN ztf USING (obsid)
+INNER JOIN obs USING (obsid);
 
 CREATE VIEW IF NOT EXISTS ztf_cutouturl (foundid,url) AS
 SELECT
@@ -57,7 +55,7 @@ SELECT
     qid,
     found.ra,
     found.dec)
-FROM found INNER JOIN ztf ON ztf.obsid=found.obsid;
+FROM found INNER JOIN ztf USING (obsid);
 
 /* file and database clean up */
 CREATE TABLE IF NOT EXISTS stale_files(
@@ -72,10 +70,6 @@ BEGIN
     SELECT 'cutout path',archivefile FROM ztf_cutouts
     WHERE foundid=old.foundid
       AND archivefile IS NOT NULL;
-  INSERT INTO stale_files
-    SELECT 'stack path',stackfile FROM ztf_cutouts
-    WHERE foundid=old.foundid
-      AND stackfile IS NOT NULL;
   DELETE FROM ztf_cutouts WHERE foundid=old.foundid;
 END;
 
