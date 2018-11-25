@@ -146,8 +146,8 @@ class ZChecker(SBSearch):
             for i in range(len(tab)):
                 row = tuple(tab[i].as_void())
                 jd_stop = row[1] + row[2] / 86400
-                coords = tuple((np.radians(x) for x in row[3:13]))
-                obs = (None, 'ztf', row[1], jd_stop) + coords
+                coords = np.radians(row[3:13])
+                obs = (None, 'ztf', row[1], jd_stop, coords)
                 yield obs
 
         def ztf_iterator(tab):
