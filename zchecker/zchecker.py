@@ -86,15 +86,15 @@ class ZChecker(SBSearch):
         inner_join = ()
         if add_found:
             columns = ('obsid,(jd_start + jd_stop) / 2 AS jd,'
-                       'found.ra,found.dec,rh,delta,vmag,field,ccdid,'
+                       'ra,dec,rh,delta,vmag,filefracday,field,ccdid,'
                        'qid,filtercode')
             inner_join += ('found USING (obsid)',)
             names = ('obsid', 'date', 'ra', 'dec', 'rh', 'delta', 'vmag',
-                     'field', 'ccd', 'quad', 'filter')
+                     'filefracday', 'field', 'ccd', 'quad', 'filter')
         else:
-            columns = ('obsid,(jd_start + jd_stop) / 2 AS jd,ra,dec,'
+            columns = ('obsid,(jd_start + jd_stop) / 2 AS jd,filefracday,'
                        'field,ccdid,qid,filtercode')
-            names = ('obsid', 'date', 'ra', 'dec', 'field', 'ccd',
+            names = ('obsid', 'date', 'filefracday', 'field', 'ccd',
                      'quad', 'filter')
 
         inner_join += ('ztf USING (obsid)',)
