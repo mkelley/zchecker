@@ -191,7 +191,8 @@ parser_pccp = subparsers.add_parser(
 parser_pccp.add_argument(
     'start', type=as_time, help='search beginning with this date, UT')
 parser_pccp.add_argument(
-    'stop', type=as_time, help='search ending with this date, UT')
+    '--stop', type=as_time, default=today,
+    help='search ending with this date, UT [default today]')
 parser_pccp.add_argument(
     '--step', default='1d', help='step size for ephemeris generation')
 parser_pccp.set_defaults(func=pccp)

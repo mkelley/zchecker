@@ -103,7 +103,7 @@ class ZChecker(SBSearch):
         obs = self.db.get_observations_by_id(
             obsids, columns=columns, inner_join=inner_join, generator=True)
         for row in obs:
-            rows.append([row['obsid'], Time(row['jd'], format='jd').iso[:-4]]
+            rows.append([row[0], Time(row[1], format='jd').iso[:-4]]
                         + list([r for r in row[2:]]))
 
         if len(rows) == 0:
