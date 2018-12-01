@@ -238,13 +238,13 @@ class ZChecker(SBSearch):
             constraints.append(('objid=?', objid))
 
         if retry_failed:
-            constraints.append(('retrieved IS NULL', None))
-        else:
             constraints.append(('retrieved NOTNULL', None))
+        else:
+            constraints.append(('retrieved IS NULL', None))
 
         cmd, parameters = util.assemble_sql(cmd, [], constraints)
-        count = (self.db.execute(cmd.replace(' * ', ' COUNT() ', 1))
-                 .fetchone())[0]
+        count = self.db.execute(
+            cmd.replace(' * ', ' COUNT() ', 1), parameters).fetchone()[0]
         rows = self.db.execute(cmd, parameters)
 
         if count == 0:

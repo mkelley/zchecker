@@ -295,6 +295,7 @@ parser_found.set_defaults(func=clean_found)
 def list_found(args):
     start, stop = parse_date_range(args.start, args.stop, args.date,
                                    args.full)
+
     config = Config.from_args(args)
     with ZChecker(config, disable_log=True) as z:
         try:
@@ -304,11 +305,14 @@ def list_found(args):
             z.logger.error(str(e))
             raise e
 
-    tab.pprint(max_lines=-1, max_width=-1)
+    if tab:
+        tab.pprint(max_lines=-1, max_width=-1)
+    else:
+        print('None')
 
 
 parser_list_found = subparsers.add_parser(
-    'list-found', help='list found objects',
+    'list-found', help='list found objects', aliases=['found'],
     epilog='Date format: YYYY-MM-DD.  Date interval is inclusive.  '
     'Default is to list all objects from last night.  Files in the '
     'cutouts directory will also be removed.')
