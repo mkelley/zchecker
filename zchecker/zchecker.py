@@ -5,7 +5,8 @@ import os
 import numpy as np
 import astropy.units as u
 from astropy.time import Time
-from astropy.table import Table
+from astropy.table import Table, Column
+from astropy.coordinates import Angle
 from sbsearch import SBSearch, util
 
 from . import ztf, schema
@@ -63,6 +64,39 @@ class ZChecker(SBSearch):
             names = ('date',)
 
         tab = Table(rows=self.db.execute(cmd).fetchall(), names=names)
+        return tab
+
+    def found_summary(self, objects=None, start=None, stop=None):
+        kwargs = {
+            'objects': objects,
+            'start': start,
+            'stop': stop,
+            'columns': ('foundid,desg,obsjd,ra,dec,ra3sig,dec3sig,vmag,'
+                        'filtercode,rh,rdot,delta,phase,selong'),
+            'inner_join': ['ztf USING (obsid)']
+        }
+        tab = super().found_summary(**kwargs)
+
+        if tab is None:
+            return None
+
+        date = [d[:16] for d in Time(tab['obsjd'], format='jd').iso]
+        tab.add_column(Column(date, name='date'), 2)
+        tab['ra'] = Angle(tab['ra'], 'deg').to_string(
+            sep=':', precision=1, pad=True, unit='hourangle')
+        tab['dec'] = Angle(tab['dec'], 'deg').to_string(
+            sep=':', precision=0, pad=True)
+        tab['rh'] = tab['rh'] * np.sign(tab['rdot'])
+        tab['filtercode'].name = 'filt'
+        tab.remove_column('obsjd')
+        tab.remove_column('rdot')
+
+        for col in ('ra3sig', 'dec3sig', 'phase', 'selong'):
+            tab[col].format = '{:.0f}'
+        tab['vmag'].format = '{:.1f}'
+        for col in ('rh', 'delta'):
+            tab[col].format = '{:.2f}'
+
         return tab
 
     def observation_summary(self, obsids, add_found=False):

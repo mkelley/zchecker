@@ -35,6 +35,25 @@ def as_time(a):
     return Time(a)
 
 
+def parse_date_range(start, stop, date, full=None):
+    all_dates_none = all([x is None for x in
+                          [args.date, args.start, args.stop]])
+    if full:
+        start = None
+        stop = None
+    elif all_dates_none:
+        start = today
+        stop = today
+    elif date is not None:
+        start = args.date
+        stop = args.date
+
+    if stop is not None:
+        stop = stop + 1 * u.day  # search limit is end of the day
+
+    return start, stop
+
+
 # create the top-level parser
 # Configuration file format should match the description in zchecker.config.
 parser = argparse.ArgumentParser(prog='zchecker', description='ZTF small-body search tool.', epilog='''
@@ -56,22 +75,8 @@ today = Time(Time.now().iso[:10])
 
 
 def search(args):
-    start = args.start
-    stop = args.stop
-    all_dates_none = all([x is None for x in
-                          [args.date, args.start, args.stop]])
-    if args.full:
-        start = None
-        stop = None
-    elif all_dates_none:
-        start = today
-        stop = today
-    elif args.date is not None:
-        start = args.date
-        stop = args.date
-
-    if stop is not None:
-        stop = stop + 1 * u.day  # search limit is end of the day
+    start, stop = parse_date_range(args.start, args.stop, args.date,
+                                   args.full)
 
     config = Config.from_args(args)
     with ZChecker(config, save_log=True) as z:
@@ -283,6 +288,46 @@ parser_found.add_argument(
 parser_found.add_argument(
     '--stop', type=as_time, help='stop date to remove, UT')
 parser_found.set_defaults(func=clean_found)
+
+# LIST-FOUND ############################################################
+
+
+def list_found(args):
+    start, stop = parse_date_range(args.start, args.stop, args.date,
+                                   args.full)
+    config = Config.from_args(args)
+    with ZChecker(config, disable_log=True) as z:
+        try:
+            tab = z.found_summary(objects=args.objects, start=start,
+                                  stop=stop)
+        except Exception as e:
+            z.logger.error(str(e))
+            raise e
+
+    tab.pprint(max_lines=-1, max_width=-1)
+
+
+parser_list_found = subparsers.add_parser(
+    'list-found', help='list found objects',
+    epilog='Date format: YYYY-MM-DD.  Date interval is inclusive.  '
+    'Default is to list all objects from last night.  Files in the '
+    'cutouts directory will also be removed.')
+parser_list_found.add_argument(
+    'objects', type=object_list, nargs='?',
+    help='file name listing one object per line, or a comma-separated'
+    ' list of objects, must be resolvable by JPL/Horizons')
+mutex = parser_list_found.add_mutually_exclusive_group()
+mutex.add_argument(
+    '--full', action='store_true', help='list for available nights')
+mutex.add_argument(
+    '--date', type=as_time,
+    help='list for a single date, UT (default today)')
+mutex.add_argument(
+    '--start', type=as_time,
+    help='list a range of dates, beginning with this date, UT')
+parser_list_found.add_argument(
+    '--stop', type=as_time, help='ending with this date, UT')
+parser_list_found.set_defaults(func=list_found)
 
 # ZTF-UPDATE ############################################################
 
