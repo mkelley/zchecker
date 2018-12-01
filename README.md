@@ -1,16 +1,19 @@
-# ZChecker v1.3.0
+# ZChecker v2.0.0
 ZTF moving target checker for short object lists.
 
 ## Requirements
 * Python 3.5+
 * astropy v2.0+
-* sbpy
+* [sbsearch](https://github.com/Small-Bodies-Node/sbsearch)
+* [sbpy](https://github.com/NASA-Planetary-Science/sbpy) current dev version
 * requests
 * astroquery 0.3.9
-* sqlite3
+* sqlite
 * wget
+
+### Optional packages
 * Montage and montage_wrapper, optional, for image reprojection with zproject
-* oorb for PCCP checking
+* [oorb](https://github.com/oorb/oorb) and its Python wrapper for Minor Planet Center Possible Comet Confirmation Page (PCCP) checking
 
 ## Configuration
 
@@ -40,30 +43,25 @@ $ zchecker --help
 1. Update local database with ephemerides, specifying objects through
    the list or on the command line::
 
-     `zchecker eph-update objects.list --start=YYYY-MM-DD --end=YYYY-MM-DD` 
+     `zchecker eph-update objects.list --start=YYYY-MM-DD --stop=YYYY-MM-DD` 
 
-     `zchecker eph-update "C/2017 Y1, C/2017 Y2" --start=YYYY-MM-DD --end=YYYY-MM-DD`
+     `zchecker eph-update "C/2017 Y1, C/2017 Y2" --start=YYYY-MM-DD --stop=YYYY-MM-DD`
 
    Broad date ranges are best.  Ephemerides can be updated as the
    orbital elements are refined.
-	 
-1. Alternatively, add ephemerides, but only if none are found in the
-   time period, using the `--add` option::
-
-     `zchecker eph-update "C/2017 Y1" --add --start=YYYY-MM-DD --end=YYYY-MM-DD`
 
 1. Delete ephemerides from the database::
 
-     `zchecker clean-eph objects.list`
+     `zchecker eph-update --clean objects.list`
      
-     `zchecker clean-eph objects.list --start=YYYY-MM-DD --end=YYYY-MM-DD` 
+     `zchecker eph-update --clean objects.list --start=YYYY-MM-DD --stop=YYYY-MM-DD` 
      
-     `zchecker clean-eph "C/2017 Y1, C/2017 Y2" --start=YYYY-MM-DD --end=YYYY-MM-DD`
+     `zchecker eph-update --clean "C/2017 Y1, C/2017 Y2" --start=YYYY-MM-DD --stop=YYYY-MM-DD`
 
 
 ## Usage
 
-1. Update local database with ZTF observations from a date::
+1. Update local database with ZTF observations from a single night::
 
      `zchecker ztf-update --date=YYYY-MM-DD`
 
@@ -85,7 +83,7 @@ $ zchecker --help
 	
    Over a range of dates::
 	
-     `zchecker search --start=YYYY-MM-DD --end=YYYY-MM-DD`
+     `zchecker search --start=YYYY-MM-DD --stop=YYYY-MM-DD`
 
    For all dates in the local database::
 
@@ -103,13 +101,23 @@ $ zchecker --help
 
    Using a different V magnitude limit::
 
-     `zchecker search "C/2017 Y1,C/2017 Y2" --full --vlim=18`
+     `zchecker search "C/2017 Y1,C/2017 Y2" --full --vmax=18`
+
+1. Report previously found objects::
+
+     `zchecker list-found "C/2017 Y1,C/2017 Y2"`
+	 
+   For a specific date / date range::
+   
+     `zchecker list-found --date=2018-11-01`
+	 
+     `zchecker list-found --start=2018-11-01 --stop=2018-11-12`
 
 1. Clean the found object database and associated cutout files, if they exist::
 
      `zchecker clean-found "C/2017 AB5"`
      
-     `zchecker clean-found "C/2017 AB5" --start=YYYY-MM-DD --end=YYYY-MM-DD`
+     `zchecker clean-found "C/2017 AB5" --start=YYYY-MM-DD --stop=YYYY-MM-DD`
 
 1. Download cutouts around each found target::
 
@@ -118,23 +126,96 @@ $ zchecker --help
 1. Reproject downloaded cutouts to align projected velocity vectors and comet-Sun vectors along the +x axis::
 
      `zproject`
+	 
+1. Make nightly and bi-weekly stacks by object.
+
+     `zstack`
 
 ## Database
 
-### `nights`
+### `obj`
 
-| Column  | Type    | Source   | Description                                                                     |
-|---------|---------|----------|---------------------------------------------------------------------------------|
-| nightid | integer | zchecker | Unique ID for each night                                                        |
-| date    | text    | ZTF      | YYYY-MM-DD, UT, unique                                                          |
-| nframes | integer | ZTF      | number of frames (quads) returned by IRSA, divide by 64 for number of exposures |
+Objects.
+
+| Column | Type    | Source   | Description              |
+|--------|---------|----------|--------------------------|
+| objid  | integer | zchecker | unique object identifier |
+| desg   | text    | user     | target designation       |
+
+### `eph`
+
+Object ephemerides.  The default time step is 1/day, with smaller time
+steps for objects closer to the Earth.
+
+| Column    | Type    | Source   | Description                                                   |
+|-----------|---------|----------|---------------------------------------------------------------|
+| ephid     | integer | zchecker | unique ephemeris identifier                                   |
+| objid     | integer | zchecker | unique object identifier from `obj` table                     |
+| jd        | float   | zchecker | ephemeris epoch (Julian date)                                 |
+| rh        | float   | JPL/MPC  | heliocentric distance (au)                                    |
+| delta     | float   | JPL/MPC  | observer-target distance (au)                                 |
+| ra        | float   | JPL/MPC  | Right Ascension (radians)                                     |
+| dec       | float   | JPL/MPC  | Declination (radians)                                         |
+| dra       | float   | JPL/MPC  | Right Ascension * cos(Declination) rate of change (arcsec/hr) |
+| ddec      | float   | JPL/MPC  | Declination rate of change (arcsec/hr)                        |
+| vmag      | float   | JPL/MPC  | brightness estimate (magnitude)                               |
+| retrieved | text    | zchecker | date of ephemeris retrieval                                   |
+
+
+### `eph_tree`
+
+R-tree of object ephemerides.
+
+| Column | Type    | Source   | Description                                                      |
+|--------|---------|----------|------------------------------------------------------------------|
+| ephid  | integer | zchecker | unique ephemeris identifier from `eph` table                     |
+| mjd0   | float   | zchecker | time bounding box (modified Julian date)                         |
+| mjd1   | float   | zchecker |                                                                  |
+| x0     | float   | zchecker | spatial bounding box in Cartesian coordinates on the unit sphere |
+| x1     | float   | zchecker |                                                                  |
+| y0     | float   | zchecker |                                                                  |
+| y1     | float   | zchecker |                                                                  |
+| z0     | float   | zchecker |                                                                  |
+| z1     | float   | zchecker |                                                                  |
 
 ### `obs`
 
+Basic observation parameters.
+
+| Column   | Type    | Source   | Description                             |
+|----------|---------|----------|-----------------------------------------|
+| obsid    | integer | zchecker | unique observation identifier           |
+| source   | text    | zchecker | data source (ztf)                       |
+| jd_start | float   | IRSA     | exposure start time                     |
+| jd_stop  | float   | zchecker | exposure stop time (jd_start + exptime) |
+| fov      | blob    | IRSA     | ra, dec of center and four corners      |
+
+### `obs_tree`
+
+R-tree of observations.
+
+| Column | Type    | Source   | Description                                                      |
+|--------|---------|----------|------------------------------------------------------------------|
+| obsid  | integer | zchecker | unique observation identifier from `obs` table                   |
+| mjd0   | float   | zchecker | time bounding box (modified Julian date)                         |
+| mjd1   | float   | zchecker |                                                                  |
+| x0     | float   | zchecker | spatial bounding box in Cartesian coordinates on the unit sphere |
+| x1     | float   | zchecker |                                                                  |
+| y0     | float   | zchecker |                                                                  |
+| y1     | float   | zchecker |                                                                  |
+| z0     | float   | zchecker |                                                                  |
+| z1     | float   | zchecker |                                                                  |
+
+
+### `ztf`
+
+ZTF observation metadata.
+
 | Column      | Type    | Source   | Description                                                              |
 |-------------|---------|----------|--------------------------------------------------------------------------|
-| desg        | text    | user     | target designation                                                       |
-| nightid     | integer | zchecker | corresponding `nightid` of `nights` table                                |
+| obsid       | integer | zchecker | unique observation identifier from `obs` table                           |
+| pid         | integer | ZTF      | science product ID, unique                                               |
+| obsdate     | text    | zchecker | observation mid-time (UT)                                                |
 | infobits    | integer | ZTF      | info bit flags, see Section 10.4 of the [ZTF Science Data System][1]     |
 | field       | integer | ZTF      | ZTF field number                                                         |
 | ccdid       | integer | ZTF      | detector chip ID (1, ...16), see Fig. 1 of [ZTF Science Data System][1]  |
@@ -142,95 +223,58 @@ $ zchecker --help
 | rcid        | integer | ZTF      | readout channel ID (0, ...63)                                            |
 | fid         | integer | ZTF      | filter ID                                                                |
 | filtercode  | text    | ZTF      | abbreviated filter name: zr, zg, zi                                      |
-| pid         | integer | ZTF      | science product ID, unique                                               |
 | expid       | integer | ZTF      | exposure ID                                                              |
-| obsdate     | text    | ZTF      | observation date and time, formatted as local time + offset              |
-| obsjd       | float   | ZTF      | observation Julian date                                                  |
-| filefracday | integer | ZTF      | fractional time of day of exposure, UT                                   |
-| seeing      | float   | ZTF      | seeing FWHM, arcsec                                                      |
+| filefracday | integer | ZTF      | fractional time of day of exposure (UT)                                  |
+| seeing      | float   | ZTF      | seeing FWHM (arcsec)                                                     |
 | airmass     | float   | ZTF      | telescope airmass                                                        |
 | moonillf    | float   | ZTF      | Moon illuminated fraction                                                |
 | maglimit    | float   | ZTF      | magnitude limit                                                          |
-| crpix1      | float   | ZTF      | WCS reference pixel for axis 1                                           |
-| crpix2      | float   | ZTF      | WCS reference pixel for axis 2                                           |
-| crval1      | float   | ZTF      | WCS reference position for right ascension, deg                          |
-| crval2      | float   | ZTF      | WCS reference position for declination, deg                              |
-| cd11        | float   | ZTF      | WCS CD matrix element 1, 1                                               |
-| cd12        | float   | ZTF      | WCS CD matrix element 1, 2                                               |
-| cd21        | float   | ZTF      | WCS CD matrix element 2, 1                                               |
-| cd22        | float   | ZTF      | WCS CD matrix element 2, 2                                               |
-| ra          | float   | ZTF      | right ascension of image center, deg                                     |
-| dec         | float   | ZTF      | declination of image center, deg                                         |
-| ra1         | float   | ZTF      | right ascension of first image corner, deg                               |
-| dec1        | float   | ZTF      | declination of first image corner, deg                                   |
-| ra2         | float   | ZTF      | right ascension of second image corner, deg                              |
-| dec2        | float   | ZTF      | declination of second image corner, deg                                  |
-| ra3         | float   | ZTF      | right ascension of third image corner, deg                               |
-| dec3        | float   | ZTF      | declination of third image corner, deg                                   |
-| ra4         | float   | ZTF      | right ascension of fourth image corner, deg                              |
-| dec4        | float   | ZTF      | declination of fourth image corner, deg                                  |
 
-[1]: http://noir.caltech.edu/twiki_ptf/pub/ZTF/ZTFcommissioningaccess/ztf_pipelines_deliverables.pdf
-
-### `obsnight`
-
-The `obs` and `nights` tables joined by `nightid`.
-
-### `eph`
-
-Coarse ephemerides for objects of interest.
-
-| Column    | Type  | Source   | Description                                   |
-|-----------|-------|----------|-----------------------------------------------|
-| desg      | text  | user     | target designation                            |
-| jd        | float | user     | Julian date                                   |
-| ra        | float | HORIZONS | ephemeris RA, degrees                         |
-| dec       | float | HORIZONS | ephemeris Dec, degrees                        |
-| dra       | float | HORIZONS | ephemers RA*cos(Dec) rate of change, arcsec/s |
-| ddec      | float | HORIZONS | ephemeris Dec rate of change, arcsec/s        |
-| retrieved | text  | zchecker | date ephemeris retrieved from HORIZONS        |
-
-The combination of `desg` and `jd` is unique in the table.
+[1]: http://web.ipac.caltech.edu/staff/fmasci/ztf/ztf_pipelines_deliverables.pdf
 
 ### `found`
 
-Objects with ephemeris positions covered by ZTF.
+Found objects and observation geometry at image mid-time.
 
-| Column        | Type    | Source   | Description                                                                 |
-| ------------- | ------- | -------- | --------------------------------------------------------------------------- |
-| desg          | text    | user     | target designation                                                          |
-| obsjd         | text    | HORIZONS | observation Julian date, probably start time, UT                            |
-| ra            | float   | HORIZONS | ephemeris RA, degrees                                                       |
-| dec           | float   | HORIZONS | ephemeris Dec, degrees                                                      |
-| dra           | float   | HORIZONS | ephemeris RA*cos(Dec) rate of change, arcsec/s                              |
-| ddec          | float   | HORIZONS | ephemeris Dec rate of change, arcsec/s                                      |
-| ra3sig        | float   | HORIZONS | ephemeris 3-sigma uncertainty in RA                                         |
-| dec3sig       | float   | HORIZONS | ephemeris 3-sigma uncertainty in Dec                                        |
-| vmag          | float   | HORIZONS | estimated visual magnitude                                                  |
-| rh            | float   | HORIZONS | heliocentric distance, au                                                   |
-| rdot          | float   | HORIZONS | heliocentric radial velocity, km/s                                          |
-| delta         | float   | HORIZONS | observer-target distance, au                                                |
-| phase         | float   | HORIZONS | Sun-target-observer angle, deg                                              |
-| selong        | float   | HORIZONS | solar elongation, deg                                                       |
-| sangle        | float   | HORIZONS | projected target->Sun vector, HORIZONS's PsAng + 180, deg                   |
-| vangle        | float   | HORIZONS | projected velocity, HORIZONS's PsAMV + 180, deg                             |
-| trueanomaly   | float   | HORIZONS | true anomaly based on osculating elements, deg                              |
-| tmtp          | float   | HORIZONS | T-Tp, time from perihelion, based on osculating elements, days              |
-| pid           | integer | ZTF      | corresponding ZTF product ID                                                |
-| x             | integer | zchecker | approximate x-axis coordinate of ephemeris position in cutout image, pixels |
-| y             | integer | zchecker | approximate y-axis coordinate of ephemeris position in cutout image, pixels |
-| retrieved     | text    | zchecker | date the ephemeris was retrieved from HORIZONS                              |
-| archivefile   | text    | zchecker | cutout file name in the local archive                                       |
-| sci_sync_date | text    | zchecker | date the science image was downloaded from IRSA                             |
-| sciimg        | integer | zchecker | 0 if the science image has not been downloaded                              |
-| mskimg        | integer | zchecker | 0 if the science mask image has not been downloaded                         |
-| scipsf        | integer | zchecker | 0 if the science PSF image has not been downloaded                          |
-| diffimg       | integer | zchecker | 0 if the difference image has not been downloaded                           |
-| diffpsf       | integer | zchecker | 0 if the difference PSF image has not been downloaded                       |
+| Column      | Type    | Source   | Description                                                     |
+|-------------|---------|----------|-----------------------------------------------------------------|
+| foundid     | integer | zchecker | unique identifier                                               |
+| objid       | integer | zchecker | unique object identifier from `obj` table                       |
+| obsid       | integer | zchecker | unique observation identifier from `obs` table                  |
+| obsjd       | float   | zchecker | mid-point of the observation and epoch for ephemeris            |
+| ra          | float   | JPL      | Right Ascension (degrees)                                       |
+| dec         | float   | JPL      | Declination (degrees)                                           |
+| dra         | float   | JPL      | Right Ascension * cos(Declination) rate of change (arcsec/hr)   |
+| ddec        | float   | JPL      | Declination rate of change (arcsec/hr)                          |
+| ra3sig      | float   | JPL      | Right Ascension 3σ uncertainty (arcsec)                         |
+| dec3sig     | float   | JPL      | Declination 3σ uncertainty (arcsec)                             |
+| vmag        | float   | JPL      | brightness estimate (magnitude)                                 |
+| rh          | float   | JPL      | heliocentric distance (au)                                      |
+| rdot        | float   | JPL      | heliocentric distance rate of change (km/s)                     |
+| delta       | float   | JPL      | observer-target distance (au)                                   |
+| phase       | float   | JPL      | phase angle (degrees)                                           |
+| selong      | float   | JPL      | solar elongation (degrees)                                      |
+| sangle      | float   | JPL      | projected comet-sun vector position angle (degrees E of N)      |
+| vangle      | float   | JPL      | projected comet velocity vector position angle (degrees E of N) |
+| trueanomaly | float   | HORIZONS | true anomaly based on osculating elements (degrees)             |
+| tmtp        | float   | HORIZONS | T-Tp, time from perihelion, based on osculating elements (days) |
 
-The combination of `desg` and `pid` is unique in the table.
+### `ztf_cutouts`
 
-### `foundobs`
+| Column      | Type    | Source   | Description                                          |
+|-------------|---------|----------|------------------------------------------------------|
+| foundid     | integer | zchecker | unique identifier from `found` table                 |
+| retrieved   | text    | zchecker | date cutout was downloaded                           |
+| archivefile | text    | zchecker | file name                                            |
+| sciimg      | integer | zchecker | flag for science image presence                      |
+| mskimg      | integer | zchecker | flag for mask image                                  |
+| refimg      | integer | zchecker | flag for reference image                             |
+| scipsf      | integer | zchecker | flag for science image PSF                           |
+| diffimg     | integer | zchecker | flag for difference image                            |
+| diffpsf     | integer | zchecker | flag for difference image PSF                        |
+| vangleimg   | integer | zchecker | flag for projected image aligned with velocity angle |
+| sangleimg   | integer | zchecker | flag for projected image aligned with sun angle      |
 
-The `found` and `obs` tables joined together by product ID, with the addition of `url` for a URL to a cutout centered on the ephemeris position.  Append '&size=5arcmin` or similar to specify the cutout size.
+### Schema summary
 
+![schema](db-schema.png)
