@@ -187,7 +187,9 @@ class ZChecker(SBSearch):
         def ztf_iterator(tab):
             for i in range(len(tab)):
                 row = tuple(tab[i].as_void())
-                ztf = (row[0], Time(row[1], format='jd').iso[:-4]) + row[13:]
+                jd_mid = float(row[1]) + row[2] / 86400 / 2
+                obsdate = Time(jd_mid, format='jd').iso[:-4]
+                ztf = (row[0], date) + row[13:]
                 yield ztf
 
         ztf_insert = '''
