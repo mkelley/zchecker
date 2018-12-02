@@ -8,11 +8,8 @@
 
 ### Enhancements
 * Use ``sbsearch`` library.
-
 * Consistent use of ``--stop`` for date ranges.
-
 * ``zchecker clean-eph`` replaced with ``zchecker eph-update --clean``.
-
 * ``zchecker search --vlim`` replaced with the more precise ``--vmax``.
 
 ### Other changes

@@ -2,6 +2,14 @@
 
 
 schema = '''
+CREATE TABLE IF NOT EXISTS nights(
+  nightid INTEGER PRIMARY KEY,
+  date TEXT UNIQUE,
+  exposures INTEGER,
+  quads INTEGER,
+  retrieved TEXT
+);
+
 CREATE TABLE IF NOT EXISTS ztf(
   obsid INTEGER PRIMARY KEY,
   pid INTEGER KEY,

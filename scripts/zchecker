@@ -79,9 +79,10 @@ def search(args):
                                    args.full)
 
     config = Config.from_args(args)
-    with ZChecker(config, save_log=True) as z:
+    save_log = not args.print
+    with ZChecker(config, save_log=save_log) as z:
         if args.objects is None:
-            objects = z.db.get_objects()[1]
+            objects = z.list_objects()['desg'].data
         else:
             objects = args.objects
 
@@ -93,7 +94,7 @@ def search(args):
             z.logger.error(str(e))
             raise e
 
-        if args.print:
+        if args.print and tab is not None:
             tab.pprint(max_lines=-1, max_width=-1)
 
 
@@ -182,7 +183,7 @@ def pccp(args):
     config = Config.from_args(args)
     with ZChecker(config, save_log=False) as z:
         try:
-            tab = z.pccp_check(start=args.start, stop=args.stop)
+            tab = z.check_pccp(start=args.start, stop=args.stop)
         except Exception as e:
             z.logger.error(str(e))
             raise e
@@ -299,8 +300,8 @@ def list_found(args):
     config = Config.from_args(args)
     with ZChecker(config, disable_log=True) as z:
         try:
-            tab = z.found_summary(objects=args.objects, start=start,
-                                  stop=stop)
+            tab = z.summarize_found(objects=args.objects, start=start,
+                                    stop=stop)
         except Exception as e:
             z.logger.error(str(e))
             raise e
@@ -358,7 +359,7 @@ def ztf_update(args):
         while start <= stop:
             try:
                 d = start.iso[:10]
-                z.update_observations(d, d)
+                z.update_observations(d)
                 start = start + 1 * u.day
             except Exception as e:
                 z.logger.error(str(e))
@@ -410,21 +411,22 @@ parser_cutout.set_defaults(func=download_cutouts)
 
 def list_nights(args):
     config = Config.from_args(args)
-    with ZChecker(config, save_log=False, disable_log=True) as z:
+    with ZChecker(config, disable_log=True) as z:
         try:
-            tab = z.available_nights(count_exposures=args.exposures)
-            tab.pprint(max_lines=-1, max_width=-1)
+            tab = z.summarize_nights()
         except Exception as e:
             z.logger.error(str(e))
             raise e
 
+    if tab is None:
+        print(None)
+    else:
+        tab.pprint(max_lines=-1, max_width=-1)
+
 
 parser_nights = subparsers.add_parser(
-    'list-nights', help='list all ZTF nights saved to local database',
+    'list-nights', help='summarize all ZTF nights saved to local database',
     aliases=['nights'])
-parser_nights.add_argument(
-    '--no-exposures', dest='exposures',
-    action='store_false', help='do not list number of exposures')
 parser_nights.set_defaults(func=list_nights)
 
 # LIST-OBJECTS ############################################################
@@ -436,11 +438,11 @@ def list_objects(args):
         try:
             opts = dict(objects=args.objects, start=args.start, stop=args.stop)
             if args.eph:
-                tab = z.object_coverage('eph', **opts)
+                tab = z.summarize_object_coverage('eph', **opts)
             elif args.found:
-                tab = z.object_coverage('found', **opts)
+                tab = z.summarize_object_coverage('found', **opts)
             else:
-                tab = z.available_objects()
+                tab = z.list_objects()
 
             for k, v in tab.meta.items():
                 print('{}: {}'.format(k, v))

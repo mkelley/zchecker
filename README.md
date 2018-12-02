@@ -12,7 +12,7 @@ ZTF moving target checker for short object lists.
 * wget
 
 ### Optional packages
-* Montage and montage_wrapper, optional, for image reprojection with zproject
+* Montage and montage_wrapper, optional, for image reprojection with ``zproject``
 * [oorb](https://github.com/oorb/oorb) and its Python wrapper for Minor Planet Center Possible Comet Confirmation Page (PCCP) checking
 
 ## Configuration
@@ -69,7 +69,7 @@ $ zchecker --help
 	
      `zchecker ztf-update`
 
-1. List which nights are in local database::
+1. Summarize nights in the local database::
 
      `zchecker list-nights`
 
@@ -132,6 +132,18 @@ $ zchecker --help
      `zstack`
 
 ## Database
+
+### `nights`
+
+Summary of ZTF observations by night, as downloaded from IRSA.
+
+| Column    | Type    | Source   | Description               |
+|-----------|---------|----------|---------------------------|
+| nightid   | integer | zchecker | unique night identifier   |
+| date      | text    | user     | UT date                   |
+| exposures | integer | IRSA     | number of exposures       |
+| quads     | integer | IRSA     | number of image quadrants |
+
 
 ### `obj`
 

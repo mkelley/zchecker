@@ -43,170 +43,6 @@ class ZChecker(SBSearch):
         super().__init__(config=config, save_log=save_log,
                          disable_log=disable_log, **kwargs)
 
-    def available_nights(self, count_exposures=True):
-        """List nights in database.
-
-        Parameters
-        ----------
-        cout_exposures : bool, optional
-            ``True`` to also print the number of exposures per night.
-
-        """
-
-        if count_exposures:
-            cmd = '''
-            SELECT SUBSTR(obsdate, 0, 11) as night,COUNT(DISTINCT expid)
-            FROM ztf GROUP BY night
-            '''
-            names = ('date', 'exposures')
-        else:
-            cmd = 'SELECT DISTINCT SUBSTR(obsdate, 0, 11) FROM ztf'
-            names = ('date',)
-
-        tab = Table(rows=self.db.execute(cmd).fetchall(), names=names)
-        return tab
-
-    def found_summary(self, objects=None, start=None, stop=None):
-        kwargs = {
-            'objects': objects,
-            'start': start,
-            'stop': stop,
-            'columns': ('foundid,desg,obsjd,ra,dec,ra3sig,dec3sig,vmag,'
-                        'filtercode,rh,rdot,delta,phase,selong'),
-            'inner_join': ['ztf USING (obsid)']
-        }
-        tab = super().found_summary(**kwargs)
-
-        if tab is None:
-            return None
-
-        date = [d[:16] for d in Time(tab['obsjd'], format='jd').iso]
-        tab.add_column(Column(date, name='date'), 2)
-        tab['ra'] = Angle(tab['ra'], 'deg').to_string(
-            sep=':', precision=1, pad=True, unit='hourangle')
-        tab['dec'] = Angle(tab['dec'], 'deg').to_string(
-            sep=':', precision=0, pad=True)
-        tab['rh'] = tab['rh'] * np.sign(tab['rdot'])
-        tab['filtercode'].name = 'filt'
-        tab.remove_column('obsjd')
-        tab.remove_column('rdot')
-
-        for col in ('ra3sig', 'dec3sig', 'phase', 'selong'):
-            tab[col].format = '{:.0f}'
-        tab['vmag'].format = '{:.1f}'
-        for col in ('rh', 'delta'):
-            tab[col].format = '{:.2f}'
-
-        return tab
-
-    def observation_summary(self, obsids, add_found=False):
-        """Summarize observations.
-
-        Parameters
-        ----------
-        obsids : tuple or list
-            Observations to summarize.
-
-        add_found : bool, optional
-            Add metadata from found table.
-
-        Returns
-        -------
-        summary : Table
-            Summary table.
-
-        """
-
-        inner_join = ()
-        if add_found:
-            columns = ('obsid,(jd_start + jd_stop) / 2 AS jd,'
-                       'ra,dec,rh,delta,vmag,filefracday,field,ccdid,'
-                       'qid,filtercode')
-            inner_join += ('found USING (obsid)',)
-            names = ('obsid', 'date', 'ra', 'dec', 'rh', 'delta', 'vmag',
-                     'filefracday', 'field', 'ccd', 'quad', 'filter')
-        else:
-            columns = ('obsid,(jd_start + jd_stop) / 2 AS jd,filefracday,'
-                       'field,ccdid,qid,filtercode')
-            names = ('obsid', 'date', 'filefracday', 'field', 'ccd',
-                     'quad', 'filter')
-
-        inner_join += ('ztf USING (obsid)',)
-
-        rows = []
-        obs = self.db.get_observations_by_id(
-            obsids, columns=columns, inner_join=inner_join, generator=True)
-        for row in obs:
-            rows.append([row[0], Time(row[1], format='jd').iso[:-4]]
-                        + list([r for r in row[2:]]))
-
-        if len(rows) == 0:
-            tab = Table(names=names)
-        else:
-            tab = Table(rows=rows, names=names)
-
-        return tab
-
-    def update_observations(self, start, stop):
-        """Sync observation database with IRSA.
-
-        Parameters
-        ----------
-        start, stop : string
-            Start and stop dates as 'YYYY-MM-DD', inclusive.
-
-        """
-
-        if not re.match('20[12][0-9]-[01][0-9]-[0123][0-9]', start):
-            raise ValueError('date format is YYYY-MM-DD')
-
-        if not re.match('20[12][0-9]-[01][0-9]-[0123][0-9]', stop):
-            raise ValueError('date format is YYYY-MM-DD')
-
-        # update_obs takes UT days as input
-        jd_start = Time(start).jd
-        jd_end = Time(stop).jd + 1.0
-
-        payload = {
-            'WHERE': "obsjd>{} AND obsjd<{}".format(jd_start, jd_end),
-            'COLUMNS': ('pid,obsjd,exptime,ra,dec,'
-                        'ra1,dec1,ra2,dec2,ra3,dec3,ra4,dec4,'
-                        'infobits,field,ccdid,qid,rcid,fid,filtercode,'
-                        'expid,filefracday,seeing,airmass,moonillf,maglimit')
-        }
-        tab = ztf.query(payload, self.config.auth, logger=self.logger)
-
-        def obs_iterator(tab):
-            for i in range(len(tab)):
-                row = tuple(tab[i].as_void())
-                jd_stop = row[1] + row[2] / 86400
-                coords = np.radians(row[3:13])
-                obs = (None, 'ztf', row[1], jd_stop, coords)
-                yield obs
-
-        def ztf_iterator(tab):
-            for i in range(len(tab)):
-                row = tuple(tab[i].as_void())
-                jd_mid = float(row[1]) + row[2] / 86400 / 2
-                obsdate = Time(jd_mid, format='jd').iso[:-4]
-                ztf = (row[0], date) + row[13:]
-                yield ztf
-
-        ztf_insert = '''
-        INSERT OR IGNORE INTO ztf VALUES (
-          last_insert_rowid(),?,?,?,?,?,?,?,?,?,?,?,?,?,?,?
-        )
-        '''
-        self.db.add_observations(obs_iterator(tab),
-                                 other_cmd=ztf_insert,
-                                 other_rows=ztf_iterator(tab),
-                                 logger=self.logger)
-
-        d = start if start == stop else '-'.join((start, stop))
-        self.logger.info(
-            'Updated observation tables for {} with {} images.'.format(
-                d, len(tab)))
-
     def download_cutouts(self, desg=None, clean_failed=True,
                          retry_failed=True):
         """Download missing cutouts around found objects.
@@ -274,9 +110,161 @@ class ZChecker(SBSearch):
                 self.logger.info('  [{}] {}'.format(count, cutout.fn))
                 count -= 1
 
+    def summarize_found(self, objects=None, start=None, stop=None):
+        kwargs = {
+            'objects': objects,
+            'start': start,
+            'stop': stop,
+            'columns': ('foundid,desg,obsjd,ra,dec,ra3sig,dec3sig,vmag,'
+                        'filtercode,rh,rdot,delta,phase,selong'),
+            'inner_join': ['ztf USING (obsid)']
+        }
+        tab = super().summarize_found(**kwargs)
+
+        if tab is None:
+            return None
+
+        date = [d[:16] for d in Time(tab['obsjd'], format='jd').iso]
+        tab.add_column(Column(date, name='date'), 2)
+        tab['ra'] = Angle(tab['ra'], 'deg').to_string(
+            sep=':', precision=1, pad=True, unit='hourangle')
+        tab['dec'] = Angle(tab['dec'], 'deg').to_string(
+            sep=':', precision=0, pad=True)
+        tab['rh'] = tab['rh'] * np.sign(tab['rdot'])
+        tab['filtercode'].name = 'filt'
+        tab.remove_column('obsjd')
+        tab.remove_column('rdot')
+
+        for col in ('ra3sig', 'dec3sig', 'phase', 'selong'):
+            tab[col].format = '{:.0f}'
+        tab['vmag'].format = '{:.1f}'
+        for col in ('rh', 'delta'):
+            tab[col].format = '{:.2f}'
+
+        return tab
+
+    def summarize_nights(self):
+        """Summarize nights in database."""
+
+        cmd = 'SELECT date,quads,exposures FROM nights'
+        names = ('date', 'quads', 'exposures')
+        tab = Table(rows=self.db.execute(cmd).fetchall(), names=names)
+        return tab
+
+    def summarize_observations(self, obsids, add_found=False):
+        """Summarize observations.
+
+        Parameters
+        ----------
+        obsids : tuple or list
+            Observations to summarize.
+
+        add_found : bool, optional
+            Add metadata from found table.
+
+        Returns
+        -------
+        summary : Table
+            Summary table.
+
+        """
+
+        inner_join = ()
+        if add_found:
+            columns = ('obsid,(jd_start + jd_stop) / 2 AS jd,'
+                       'ra,dec,rh,delta,vmag,filefracday,field,ccdid,'
+                       'qid,filtercode')
+            inner_join += ('found USING (obsid)',)
+            names = ('obsid', 'date', 'ra', 'dec', 'rh', 'delta', 'vmag',
+                     'filefracday', 'field', 'ccd', 'quad', 'filter')
+        else:
+            columns = ('obsid,(jd_start + jd_stop) / 2 AS jd,filefracday,'
+                       'field,ccdid,qid,filtercode')
+            names = ('obsid', 'date', 'filefracday', 'field', 'ccd',
+                     'quad', 'filter')
+
+        inner_join += ('ztf USING (obsid)',)
+
+        rows = []
+        obs = self.db.get_observations_by_id(
+            obsids, columns=columns, inner_join=inner_join, generator=True)
+        for row in obs:
+            rows.append([row[0], Time(row[1], format='jd').iso[:-4]]
+                        + list([r for r in row[2:]]))
+
+        if len(rows) == 0:
+            tab = Table(names=names)
+        else:
+            tab = Table(rows=rows, names=names)
+
+        return tab
+
+    def update_observations(self, date):
+        """Sync observation database with IRSA.
+
+        Parameters
+        ----------
+        date : string
+            UT date to sync: 'YYYY-MM-DD'.
+
+        """
+
+        if not re.match('20[12][0-9]-[01][0-9]-[0123][0-9]', date):
+            raise ValueError('date format is YYYY-MM-DD')
+
+        jd_start = Time(date).jd
+        jd_end = Time(date).jd + 1.0
+
+        payload = {
+            'WHERE': "obsjd>{} AND obsjd<{}".format(jd_start, jd_end),
+            'COLUMNS': ('pid,obsjd,exptime,ra,dec,'
+                        'ra1,dec1,ra2,dec2,ra3,dec3,ra4,dec4,'
+                        'infobits,field,ccdid,qid,rcid,fid,filtercode,'
+                        'expid,filefracday,seeing,airmass,moonillf,maglimit')
+        }
+        tab = ztf.query(payload, self.config.auth, logger=self.logger)
+        retrieved = Time.now().iso[:-4]
+
+        def obs_iterator(tab):
+            for i in range(len(tab)):
+                row = tuple(tab[i].as_void())
+                jd_stop = row[1] + row[2] / 86400
+                coords = np.radians(row[3:13])
+                obs = (None, 'ztf', row[1], jd_stop, coords)
+                yield obs
+
+        def ztf_iterator(tab):
+            for i in range(len(tab)):
+                row = tuple(tab[i].as_void())
+                jd_mid = float(row[1]) + row[2] / 86400 / 2
+                obsdate = Time(jd_mid, format='jd').iso[:-4]
+                ztf = (row[0], date) + row[13:]
+                yield ztf
+
+        ztf_insert = '''
+        INSERT OR IGNORE INTO ztf VALUES (
+          last_insert_rowid(),?,?,?,?,?,?,?,?,?,?,?,?,?,?,?
+        )
+        '''
+        self.db.add_observations(obs_iterator(tab),
+                                 other_cmd=ztf_insert,
+                                 other_rows=ztf_iterator(tab),
+                                 logger=self.logger)
+
+        exposures = len(np.unique(tab['expid']))
+        quads = len(tab)
+        self.db.execute('''
+        INSERT OR REPLACE INTO nights VALUES (NULL,?,?,?,?)
+        ''', (date, exposures, quads, retrieved))
+
+        self.logger.info(
+            'Updated observation tables for {} with {} images.'.format(
+                date, quads))
+
     def verify_database(self):
         """Verify database tables, triggers, etc."""
-        zchecker_names = ['ztf', 'ztf_cutouts', 'found_ztf', 'ztf_cutouturl',
-                          'stale_files', 'delete_found_from_ztf_cutouts',
+        zchecker_names = ['nights', 'ztf', 'ztf_cutouts', 'found_ztf',
+                          'ztf_cutouturl', 'stale_files',
+                          'delete_found_from_ztf_cutouts',
                           'delete_obs_from_ztf']
         super().verify_database(names=zchecker_names, script=schema.schema)
