@@ -1,233 +1,30 @@
 #!/usr/bin/env python3
+# Licensed under a 3-clause BSD style license - see LICENSE.rst
 import os
 import argparse
-from multiprocessing import Pool
-from astropy.io import fits
-import montage_wrapper as m
-from zchecker import ZChecker, Config
-from zchecker.logging import ProgressBar
+from zchecker import ZProject, Config
+from zchecker.helpers import object_list
 
-parser = argparse.ArgumentParser(prog='zproject', description='ZTF image projection tool for the ZChecker archive.')
 
-parser.add_argument('--desg', help='only project images of this target')
-parser.add_argument('-f', action='store_true', help='force projection, even if previously calculated')
+parser = argparse.ArgumentParser(
+    prog='zproject',
+    description='ZTF image projection tool for the ZChecker archive.')
+
+parser.add_argument('objects', type=object_list, nargs='?',
+                    help='project images of these targets')
+parser.add_argument('--force', '-f', action='store_true',
+                    help='force projection, even if previously calculated')
+parser.add_argument('--alignment', default='sangle',
+                    choices=['sangle', 'vangle'],
+                    help='alignment vector: sun or velocity vector')
 parser.add_argument('--db', help='database file')
 parser.add_argument('--log', help='log file')
 parser.add_argument('--path', help='local cutout path')
-parser.add_argument('--config', default=os.path.expanduser('~/.config/zchecker.config'), help='configuration file')
+parser.add_argument('--config', default=os.path.expanduser(
+    '~/.config/zchecker.config'), help='configuration file')
 parser.add_argument('-v', action='store_true', help='increase verbosity')
 args = parser.parse_args()
 
-def update_background(fn):
-    import numpy as np
-    from numpy import ma
-    from astropy.stats import sigma_clip
-
-    with fits.open(fn, mode='update') as hdu:
-        im = hdu[0].data.copy()
-        mask = ~np.isfinite(im)
-        if 'MASK' in hdu:
-            mask += hdu['MASK'].data > 0
-        im = ma.MaskedArray(im, mask=mask, copy=True)
-
-        scim = sigma_clip(im)
-
-        mean = ma.mean(scim)
-        mean = mean if mean is not ma.masked else 0
-
-        median = ma.median(scim)
-        median = median if median is not ma.masked else 0
-
-        stdev = ma.std(scim)
-        stdev = stdev if stdev is not ma.masked else 0
-
-        hdu['SCI'].header['bgmean'] = mean, 'background sigma-clipped mean'
-        hdu['SCI'].header['bgmedian'] = median, 'background sigma-clipped median'
-        hdu['SCI'].header['bgstdev'] = stdev, 'background sigma-clipped standard dev.'
-        hdu['SCI'].header['nbg'] = ma.sum(~scim.mask), 'area considered in background stats.'
-
-def mkheader(radec, angle):
-    """Write a Montage template header to a file.
-
-    WCS centered on `radec` (deg).
-    Position angle `angle` at top (E of N, deg).
-
-    """
-
-    from tempfile import NamedTemporaryFile
-    import numpy as np
-
-    c = np.cos(np.radians(-angle))
-    s = np.sin(np.radians(-angle))
-    pc = np.matrix([[c, s], [-s, c]])
-
-    with NamedTemporaryFile(mode='w', delete=False) as h:
-        h.write('''SIMPLE  = T
-BITPIX  = -64
-NAXIS   = 2
-NAXIS1  = 300
-NAXIS2  = 300
-CTYPE1  = 'RA---TAN'
-CTYPE2  = 'DEC--TAN'
-EQUINOX = 2000
-CRVAL1  =  {:13.9}
-CRVAL2  =  {:13.9}
-CRPIX1  =       150.0000
-CRPIX2  =       150.0000
-CDELT1  =   -0.000281156
-CDELT2  =    0.000281156
-PC1_1   =  {:13.9}
-PC1_2   =  {:13.9}
-PC2_1   =  {:13.9}
-PC2_2   =  {:13.9}
-END
-'''.format(radec[0], radec[1], pc[0, 0], pc[0, 1], pc[1, 0], pc[1, 1]))
-
-    return h.name
-
-def project_one(fn, ext, alignment):
-    """Project extension `extname` in file `fn`.
-
-    alignment: 
-      'vangle': Projected velocity will be placed along the +x-axis.
-      'sangle': Projected comet-Sun vector will be placed along the +x-axis.
-
-    Image distortions should be removed.
-
-    """
-    from tempfile import mkstemp
-
-    assert alignment in ['vangle', 'sangle'], 'Alignment must be vangle or sangle'
-    
-    h0 = fits.getheader(fn)
-    assert alignment in h0, 'Alignment vector not in FITS header'
-    
-    radec = (h0['tgtra'], h0['tgtdec'])
-    temp_header = mkheader(radec, 90 + h0[alignment])
-
-    bitpix = fits.getheader(fn, ext=ext)['BITPIX']
-    if bitpix == 16:
-        # convert to float
-        fd_in, inf = mkstemp()
-        with fits.open(fn) as original:
-            newhdu = fits.PrimaryHDU(original[ext].data.astype(float),
-                                     original[ext].header)
-            newhdu.writeto(inf)
-        ext = 0
-    else:
-        fd_in = None
-        inf = fn
-    
-    fd_out, outf = mkstemp()
-    try:
-        m.reproject(inf, outf, hdu=ext, header=temp_header, exact_size=True,
-                    silent_cleanup=True)
-        im, h = fits.getdata(outf, header=True)
-        if bitpix == 16:
-            im = im.round().astype(int)
-            im[im < 0] = 0
-        projected = fits.ImageHDU(im, h)
-    except m.MontageError:
-        raise
-    finally:
-        # temp file clean up
-        if fd_in is not None:
-            os.fdopen(fd_in).close()
-            os.unlink(inf)
-        os.fdopen(fd_out).close()
-        os.unlink(outf)
-        os.unlink(temp_header)
-
-    return projected
-
-def append_image_to(hdu, newhdu, extname):
-    newhdu.name = extname
-    if extname in hdu:
-        hdu[extname] = newhdu
-    else:
-        hdu.append(newhdu)
-        
-def project(fn):
-    import numpy as np
-    
-    with fits.open(fn) as hdu:
-        if 'MASK' in hdu:
-            mask_ext = hdu.index_of('MASK')
-        else:
-            mask_ext = None
-
-    for alignment in ['sangle']:
-        try:
-            newsci = project_one(fn, 0, alignment)
-        except (m.MontageError, AssertionError) as e:
-            return str(e)
-
-        if mask_ext is not None:
-            try:
-                newmask = project_one(fn, mask_ext, alignment)
-            except (m.MontageError, AssertionError) as e:
-                return str(e)
-
-        with fits.open(fn, mode='update') as hdu:
-            append_image_to(hdu, newsci, alignment.upper())
-            if mask_ext is not None:
-                append_image_to(hdu, newmask, alignment.upper() + 'MASK')
-
-    # background estimate
-    update_background(fn)
-
-    return True
-
-with ZChecker(Config.from_args(args), log=True) as z:
-    z.logger.info('ZProject')
-
-    path = z.config['cutout path'] + os.path.sep
-
-    cmd = '''
-    SELECT found.foundid,archivefile FROM found
-    LEFT JOIN projections ON found.foundid=projections.foundid
-    WHERE sciimg!=0
-    '''
-
-    bindings = []
-    if not args.f:  # not forced execution
-        cmd += ' AND sangleimg IS NULL'
-    if args.desg is not None:
-        z.logger.info('Selecting files with target {}.'.format(args.desg))
-        cmd += ' AND desg=?'
-        bindings.append(args.desg)
-    cmd += ' ORDER BY desg + 0,desg LIMIT 100'
-
-    count = z.db.execute(
-        cmd.replace('found.foundid,archivefile', 'count()'), bindings
-    ).fetchone()[0]
-
-    z.logger.info('{} files to process.'.format(count))
-
-    error_count = 0
-    with ProgressBar(count, z.logger) as bar:
-        while True:
-            rows = z.db.execute(cmd, bindings).fetchall()
-            if len(rows) == 0:
-                break
-
-            with Pool() as pool:
-                foundids, archivefiles = list(zip(*rows))
-                status = pool.map(project, [path + f for f in archivefiles])
-
-                for i in range(len(foundids)):
-                    if status[i] is True:
-                        z.db.execute('''
-                        INSERT OR REPLACE INTO projections
-                        (foundid,vangleimg,sangleimg) VALUES (?,0,1)
-                        ''', [foundids[i]])
-                        z.db.commit()
-                        bar.update()
-                    else:
-                        z.logger.error('    Error projecting {}: {}'.format(
-                            archivefiles[i], status[i]))
-                        bar.update()
-
-                z.db.commit()
-
-    z.logger.info('{} errors.'.format(error_count))
+with ZProject(Config.from_args(args), save_log=True) as z:
+    z.project(objects=args.objects, force=args.force,
+              alignment=args.alignment)

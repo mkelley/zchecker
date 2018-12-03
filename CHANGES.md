@@ -11,6 +11,7 @@
 * Consistent use of ``--stop`` for date ranges.
 * ``zchecker clean-eph`` replaced with ``zchecker eph-update --clean``.
 * ``zchecker search --vlim`` replaced with the more precise ``--vmax``.
+* ``zchecker download-cutouts`` now includes sky reference images.
 
 ### Other changes
 * All new database format.

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Licensed under a 3-clause BSD style license - see LICENSE.rst
 import os
 import re
 import sys
@@ -10,29 +11,7 @@ from astropy.time import Time
 
 from zchecker import ZChecker, Config
 from zchecker.config import _config_example
-
-
-def object_list(olist):
-    import os
-    if os.path.exists(olist):
-        with open(olist) as f:
-            objects = [s.strip() for s in f.readlines()]
-            objects = [s for s in objects if not s.startswith('#')]
-    else:
-        objects = [s.strip() for s in olist.split(',')]
-    return objects
-
-
-def test_date(date):
-    if date is not None:
-        if not re.match('^20[12][0-9]-[01][0-9]-[0-3][0-9]$', date):
-            raise ValueError(
-                'Bad date: {}; date format is YYYY-MM-DD.'.format(date))
-
-
-def as_time(a):
-    test_date(a)
-    return Time(a)
+from zchecker.helpers import object_list, as_time
 
 
 def parse_date_range(start, stop, date, full=None):
