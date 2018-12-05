@@ -3,7 +3,7 @@
 import os
 import argparse
 from zchecker import ZProject, Config
-from zchecker.helpers import object_list
+from zchecker.cli_helpers import object_list
 
 
 parser = argparse.ArgumentParser(

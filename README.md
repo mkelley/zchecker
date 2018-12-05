@@ -276,6 +276,7 @@ Found objects and observation geometry at image mid-time.
 | Column      | Type    | Source   | Description                                          |
 |-------------|---------|----------|------------------------------------------------------|
 | foundid     | integer | zchecker | unique identifier from `found` table                 |
+| stackid     | integer | zchecker | unique identifier from `ztf_stacks` table            |
 | retrieved   | text    | zchecker | date cutout was downloaded                           |
 | archivefile | text    | zchecker | file name                                            |
 | sciimg      | integer | zchecker | flag for science image presence                      |
@@ -286,6 +287,17 @@ Found objects and observation geometry at image mid-time.
 | diffpsf     | integer | zchecker | flag for difference image PSF                        |
 | vangleimg   | integer | zchecker | flag for projected image aligned with velocity angle |
 | sangleimg   | integer | zchecker | flag for projected image aligned with sun angle      |
+
+### `ztf_stacks`
+
+| Column    | Type    | Source   | Description           |
+|-----------|---------|----------|-----------------------|
+| stackid   | integer | zchecker | unique indentifier    |
+| stackfile | text    | zchecker | file name             |
+| stackdate | text    | zchecker | date data was stacked |
+
+There is a one-to-many mapping of stackid to foundid that should be
+preserved upon multiple runs of ``zstack``.
 
 ### Schema summary
 

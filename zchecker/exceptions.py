@@ -2,11 +2,22 @@
 class ZCheckerError(Exception):
     pass
 
+
 class DownloadError(ZCheckerError):
     pass
+
 
 class DateRangeError(ZCheckerError):
     pass
 
+
 class EphemerisError(ZCheckerError):
+    pass
+
+
+class BadStackSet(ZCheckerError):
+    pass
+
+
+class StackIDError(ZCheckerError):
     pass

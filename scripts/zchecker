@@ -11,7 +11,7 @@ from astropy.time import Time
 
 from zchecker import ZChecker, Config
 from zchecker.config import _config_example
-from zchecker.helpers import object_list, as_time
+from zchecker.cli_helpers import object_list, as_time
 
 
 def parse_date_range(start, stop, date, full=None):
@@ -61,7 +61,7 @@ def search(args):
     save_log = not args.print
     with ZChecker(config, save_log=save_log) as z:
         if args.objects is None:
-            objects = z.list_objects()['desg'].data
+            objects = z.list_objects()['designation'].data
         else:
             objects = args.objects
 
@@ -102,7 +102,7 @@ mutex.add_argument(
     '--start', type=as_time,
     help='search a range of dates, beginning with this date, UT')
 parser_search.add_argument(
-    '--stop', type=as_time,
+    '--stop', '--end', type=as_time,
     help='search a range of dates, ending with this date, UT')
 parser_search.add_argument(
     '--vmax', type=float, default=25,
@@ -176,7 +176,7 @@ parser_pccp = subparsers.add_parser(
 parser_pccp.add_argument(
     'start', type=as_time, help='search beginning with this date, UT')
 parser_pccp.add_argument(
-    '--stop', type=as_time, default=today,
+    '--stop', '--end', type=as_time, default=today,
     help='search ending with this date, UT [default today]')
 parser_pccp.add_argument(
     '--step', default='1d', help='step size for ephemeris generation')
@@ -210,7 +210,7 @@ parser_eph.add_argument(
     '--start', default=as_time('2017-10-13'), type=as_time,
     help='start date of ephemeris, UT')
 parser_eph.add_argument(
-    '--stop', default=as_time('2019-01-01'), type=as_time,
+    '--stop', '--end', default=as_time('2019-01-01'), type=as_time,
     help='stop date of ephemeris, UT')
 parser_eph.add_argument(
     '--clean', action='store_true', help='delete from database')
@@ -240,7 +240,7 @@ parser_cleph.add_argument(
 parser_cleph.add_argument(
     '--start', type=as_time, help='start date of ephemeris to remove, UT')
 parser_cleph.add_argument(
-    '--stop', type=as_time, help='stop date of ephemeris to remove, UT')
+    '--stop', '--end', type=as_time, help='stop date of ephemeris to remove, UT')
 parser_cleph.set_defaults(func=clean_eph)
 
 # CLEAN-FOUND ############################################################
@@ -266,7 +266,7 @@ parser_found.add_argument(
 parser_found.add_argument(
     '--start', type=as_time, help='start date to remove, UT')
 parser_found.add_argument(
-    '--stop', type=as_time, help='stop date to remove, UT')
+    '--stop', '--end', type=as_time, help='stop date to remove, UT')
 parser_found.set_defaults(func=clean_found)
 
 # LIST-FOUND ############################################################
@@ -310,7 +310,7 @@ mutex.add_argument(
     '--start', type=as_time,
     help='list a range of dates, beginning with this date, UT')
 parser_list_found.add_argument(
-    '--stop', type=as_time, help='ending with this date, UT')
+    '--stop', '--end', type=as_time, help='ending with this date, UT')
 parser_list_found.set_defaults(func=list_found)
 
 # ZTF-UPDATE ############################################################
@@ -352,7 +352,7 @@ parser_ztf.add_argument(
 parser_ztf.add_argument(
     '--start', type=as_time, help='start date to retrieve, UT')
 parser_ztf.add_argument(
-    '--stop', type=as_time, help='stop date to retrieve, UT')
+    '--stop', '--end', type=as_time, help='stop date to retrieve, UT')
 
 parser_ztf.set_defaults(func=ztf_update)
 
@@ -449,8 +449,23 @@ parser_objects.add_argument(
 parser_objects.add_argument(
     '--start', type=as_time, help='start date to search for coverage, UT')
 parser_objects.add_argument(
-    '--stop', type=as_time, help='stop date to search for coverage, UT')
+    '--stop', '--end', type=as_time,
+    help='stop date to search for coverage, UT')
 parser_objects.set_defaults(func=list_objects)
+
+
+# CLEAN_FILES ############################################################
+def clean_files(args):
+    config = Config.from_args(args)
+    with ZChecker(config, save_log=True) as z:
+        z.clean_stale_files()
+
+
+parser_clean_files = subparsers.add_parser(
+    'clean-files',
+    help='clean stale files from local archive',
+    epilog='best to run after database manulation outside of zchecker')
+parser_clean_files.set_defaults(func=clean_files)
 
 ########################################################################
 

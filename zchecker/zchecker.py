@@ -43,6 +43,73 @@ class ZChecker(SBSearch):
         super().__init__(config=config, save_log=save_log,
                          disable_log=disable_log, **kwargs)
 
+    def clean_cutouts(self, stackids):
+        """Remove cutouts from table and archive.
+
+        Parameters
+        ----------
+        foundids : array-like of int
+            Found IDs of cutouts to remove.
+
+        Returns
+        -------
+        n_rows, n_files : int
+            Number of rows and files removed.  `n_files` may be larger
+            than `n_rows` if any cutouts were used in a stack.
+
+        """
+
+        n_rows = self.executemany('DELETE FROM ztf_cutouts WHERE foundid=?',
+                                  [[i] for i in foundids])
+        n_files = self.clean_stale_files()
+        return n_rows, n_files
+
+    def clean_stacks(self, stackids):
+        """Remove stacks from table and archive.
+
+        Parameters
+        ----------
+        stackids : array-like of int
+            Stack IDs to remove.
+
+        Returns
+        -------
+        n_rows, n_files : int
+            Number of rows and files removed.
+
+        """
+
+        n_rows = self.executemany('DELETE FROM ztf_stacks WHERE stackid=?',
+                                  [[i] for i in stackids])
+        n_files = self.clean_stale_files()
+        return n_rows, n_files
+
+    def clean_stale_files(self):
+        """Examine database for stale files and remove them.
+
+        Returns
+        -------
+        count : int
+            Number of files removed.
+
+        """
+
+        count = 0
+        rows = self.db.execute('SELECT rowid,path,file FROM ztf_stale_files')
+        rowids = []
+        for row in rows:
+            f = os.path.join(self.config[row[1]], row[2])
+            if os.path.exists(f):
+                os.unlink(f)
+                count += 1
+            rowids.append([row[0]])
+
+        if len(rowids) > 0:
+            self.db.executemany(
+                'DELETE FROM ztf_stale_files WHERE rowid=?', rowids)
+            self.logger.info('{} stale archive files removed.'.format(count))
+        return count
+
     def download_cutouts(self, desg=None, clean_failed=True,
                          retry_failed=True):
         """Download missing cutouts around found objects.
@@ -64,7 +131,7 @@ class ZChecker(SBSearch):
         fntemplate = ('{desgfile}/{desgfile}-{datetime}-{prepost}{rh:.3f}'
                       '-{filtercode[1]}-ztf.fits.gz')
 
-        cmd = '''SELECT * FROM found_ztf
+        cmd = '''SELECT * FROM ztf_found
         INNER JOIN obj USING (objid)
         LEFT JOIN ztf_cutouts USING (foundid)
         '''
@@ -93,6 +160,7 @@ class ZChecker(SBSearch):
             with ztf.IRSA(path, self.config.auth) as irsa:
                 with ZData(irsa, path, fntemplate, self.logger,
                            **row) as cutout:
+                    count -= 1
                     try:
                         cutout.append('sci')
                     except ZCheckerError:
@@ -107,8 +175,7 @@ class ZChecker(SBSearch):
 
                 cutout.update_db(self.db)
 
-                self.logger.info('  [{}] {}'.format(count, cutout.fn))
-                count -= 1
+                self.logger.info('  [{}] {}'.format(count + 1, cutout.fn))
 
     def summarize_found(self, objects=None, start=None, stop=None):
         kwargs = {
@@ -224,6 +291,12 @@ class ZChecker(SBSearch):
         }
         tab = ztf.query(payload, self.config.auth, logger=self.logger)
         retrieved = Time.now().iso[:-4]
+        exposures = len(np.unique(tab['expid']))
+        quads = len(tab)
+        c = self.db.execute('''
+        INSERT OR REPLACE INTO ztf_nights VALUES (NULL,?,?,?,?)
+        ''', (date, exposures, quads, retrieved))
+        nightid = c.lastrowid
 
         def obs_iterator(tab):
             for i in range(len(tab)):
@@ -233,29 +306,23 @@ class ZChecker(SBSearch):
                 obs = (None, 'ztf', row[1], jd_stop, coords)
                 yield obs
 
-        def ztf_iterator(tab):
+        def ztf_iterator(tab, nightid):
             for i in range(len(tab)):
                 row = tuple(tab[i].as_void())
                 jd_mid = float(row[1]) + row[2] / 86400 / 2
                 obsdate = Time(jd_mid, format='jd').iso[:-4]
-                ztf = (row[0], date) + row[13:]
+                ztf = (row[0], nightid, obsdate) + row[13:]
                 yield ztf
 
         ztf_insert = '''
         INSERT OR IGNORE INTO ztf VALUES (
-          last_insert_rowid(),?,?,?,?,?,?,?,?,?,?,?,?,?,?,?
+          last_insert_rowid(),?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?
         )
         '''
         self.db.add_observations(obs_iterator(tab),
                                  other_cmd=ztf_insert,
-                                 other_rows=ztf_iterator(tab),
+                                 other_rows=ztf_iterator(tab, nightid),
                                  logger=self.logger)
-
-        exposures = len(np.unique(tab['expid']))
-        quads = len(tab)
-        self.db.execute('''
-        INSERT OR REPLACE INTO nights VALUES (NULL,?,?,?,?)
-        ''', (date, exposures, quads, retrieved))
 
         self.logger.info(
             'Updated observation tables for {} with {} images.'.format(
@@ -263,8 +330,12 @@ class ZChecker(SBSearch):
 
     def verify_database(self):
         """Verify database tables, triggers, etc."""
-        zchecker_names = ['nights', 'ztf', 'ztf_cutouts', 'found_ztf',
-                          'ztf_cutouturl', 'stale_files',
+        zchecker_names = ['ztf_nights', 'ztf', 'ztf_cutouts', 'ztf_found',
+                          'ztf_cutouturl', 'ztf_stacks', 'ztf_stale_files',
                           'delete_found_from_ztf_cutouts',
-                          'delete_obs_from_ztf']
+                          'delete_ztf_cutouts_from_ztf_stacks',
+                          'delete_ztf_nights_from_obs',
+                          'delete_obs_from_ztf',
+                          'add_ztf_cutouts_to_ztf_stale_files',
+                          'add_ztf_stacks_to_ztf_stale_files']
         super().verify_database(names=zchecker_names, script=schema.schema)

@@ -4,7 +4,7 @@ import argparse
 import logging
 import multiprocessing as mp
 from tempfile import NamedTemporaryFile, mkstemp
-from itertools import cycle
+from itertools import repeat
 
 import numpy as np
 from numpy import ma
@@ -76,7 +76,7 @@ class ZProject(ZChecker):
 
     def queue(self, foundids, archivefiles, alignment, bar):
         error_count = 0
-        args = list(zip(archivefiles, cycle([[alignment]])))
+        args = list(zip(archivefiles, repeat([alignment])))
         with mp.Pool() as pool:
             errors = pool.starmap(project_file, args)
             for i in range(len(errors)):

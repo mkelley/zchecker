@@ -8,10 +8,11 @@
 
 ### Enhancements
 * Use ``sbsearch`` library.
-* Consistent use of ``--stop`` for date ranges.
+* Optional use of ``--stop`` for date ranges.
 * ``zchecker clean-eph`` replaced with ``zchecker eph-update --clean``.
 * ``zchecker search --vlim`` replaced with the more precise ``--vmax``.
 * ``zchecker download-cutouts`` now includes sky reference images.
+* ``zproject`` and ``zstack`` now can consider lists of targets.
 
 ### Other changes
 * All new database format.
