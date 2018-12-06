@@ -55,10 +55,25 @@ CREATE TABLE IF NOT EXISTS ztf_stacks(
   stackdate TEXT
 );
 
+CREATE TABLE IF NOT EXISTS ztf_phot(
+  foundid INTEGER PRIMARY KEY,
+  dx FLOAT,
+  dy FLOAT,
+  bgap INTEGER,
+  bg FLOAT,
+  bg_area INTEGER,
+  bg_stdev FLOAT,
+  nap INTEGER,
+  rap BLOB,
+  flux BLOB,
+  m BLOB,
+  merr BLOB,
+  flag INTEGER
+);
+
 CREATE VIEW IF NOT EXISTS ztf_found AS
 SELECT * FROM found
-INNER JOIN ztf USING (obsid)
-INNER JOIN obs USING (obsid);
+INNER JOIN ztf USING (obsid);
 
 CREATE VIEW IF NOT EXISTS ztf_cutouturl (foundid,url) AS
 SELECT

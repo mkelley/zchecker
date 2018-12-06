@@ -134,6 +134,10 @@ $ zchecker --help
 1. Make nightly and bi-weekly stacks by object::
 
      `zstack`
+	 
+1. Experimental: measure object photometry::
+
+	 `zphot`
 
 ## Database
 
@@ -296,12 +300,43 @@ Found objects and observation geometry at image mid-time.
 
 | Column    | Type    | Source   | Description           |
 |-----------|---------|----------|-----------------------|
-| stackid   | integer | zchecker | unique indentifier    |
+| stackid   | integer | zchecker | unique identifier     |
 | stackfile | text    | zchecker | file name             |
 | stackdate | text    | zchecker | date data was stacked |
 
 There is a one-to-many mapping of stackid to foundid that should be
 preserved upon multiple runs of ``zstack``.
+
+### `ztf_phot`
+
+| Column   | Type    | Source   | Description                                                   |
+|----------|---------|----------|---------------------------------------------------------------|
+| foundid  | integer | zchecker | unique identifier from `found` table                          |
+| dx       | float   | zchecker | centroid x offset from ephemeris position (pixel)             |
+| dy       | float   | zchecker | centroid y offset from ephemeris position (pixel)             |
+| bgap     | integer | zchecker | presently unused                                              |
+| bg       | float   | zchecker | estimated background (ADU/pixel)                              |
+| bg_area  | integer | zchecker | number of pixels used to estimate background                  |
+| bg_stdev | float   | zchecker | standard deviation of background values (ADU)                 |
+| nap      | integer | zchecker | number of apertures                                           |
+| rap      | blob    | zchecker | source aperture radii (pixels)                                |
+| flux     | blob    | zchecker | background subtracted source flux in circular apertures (ADU) |
+| m        | blob    | zchecker | calibrated magnitude for each aperture                        |
+| merr     | blob    | zchecker | estimated uncertainty on m                                    |
+| flag     | integer | zchecker | quality and error flags                                       |
+
+rap is an array of short integers, flux, m, and merr are arrays of
+single-precision floats.
+
+Photometry flags:
+
+| Bit | Description                         |
+|-----|-------------------------------------|
+| 0   | Centroid failure                    |
+| 1   | Large centroid offset               |
+| 2   | Large estimated background aperture |
+| 4   | Not background subtracted           |
+
 
 ### Schema summary
 

@@ -1,0 +1,30 @@
+#!/usr/bin/env python3
+# Licensed under a 3-clause BSD style license - see LICENSE.rst
+import os
+import argparse
+from zchecker import ZPhot, Config
+from zchecker.cli_helpers import object_list
+
+parser = argparse.ArgumentParser(
+    description='Photometry for ZChecker data.')
+parser.add_argument(
+    'objects', type=object_list, nargs='?',
+    help=('measure these targets, or those listed in this file'))
+parser.add_argument(
+    '--force', '-f', action='store_true',
+    help='remeasure previous photometry')
+parser.add_argument(
+    '--unc-limit', default=2,
+    help='ephemeris uncertainty limit')
+parser.add_argument('--db', help='database file')
+parser.add_argument('--log', help='log file')
+parser.add_argument('--config', default=os.path.expanduser(
+    '~/.config/zchecker.config'), help='configuration file')
+parser.add_argument('-v', action='store_true', help='increase verbosity')
+
+args = parser.parse_args()
+
+config = Config.from_args(args)
+with ZPhot(config, save_log=True) as z:
+    z.photometry(objects=args.objects, update=args.force,
+                 unc_limit=args.unc_limit)

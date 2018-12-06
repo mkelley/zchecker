@@ -356,7 +356,7 @@ parser_ztf.add_argument(
 
 parser_ztf.set_defaults(func=ztf_update)
 
-# GET-CUTOUTS ############################################################
+# DOWNLOAD-CUTOUTS ######################################################
 
 
 def download_cutouts(args):
@@ -364,7 +364,7 @@ def download_cutouts(args):
     with ZChecker(config, save_log=True) as z:
         try:
             z.download_cutouts(
-                desg=args.desg, clean_failed=args.clean_failed,
+                objects=args.objects, clean_failed=args.clean_failed,
                 retry_failed=args.retry_failed)
         except Exception as e:
             z.logger.error(str(e))
@@ -374,7 +374,8 @@ def download_cutouts(args):
 parser_cutout = subparsers.add_parser(
     'download-cutouts', help='download cutouts.', aliases=['cutouts'])
 parser_cutout.add_argument(
-    '--desg', help='only download cutouts for this target')
+    'objects', nargs='?', type=object_list,
+    help='download cutouts for these targets, or those in this file')
 parser_cutout.add_argument(
     '--path', help='local cutout path')
 parser_cutout.add_argument(
