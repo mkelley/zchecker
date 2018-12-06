@@ -12,7 +12,7 @@
 * ``zchecker clean-eph`` replaced with ``zchecker eph-update --clean``.
 * ``zchecker search --vlim`` replaced with the more precise ``--vmax``.
 * ``zchecker download-cutouts`` now includes sky reference images.
-* ``zproject`` and ``zstack`` now can consider lists of targets.
+* Most scripts can now consider lists of targets.
 
 ### Other changes
 * All new database format.

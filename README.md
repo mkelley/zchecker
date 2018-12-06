@@ -122,12 +122,16 @@ $ zchecker --help
 1. Download cutouts around each found target::
 
      `zchecker download-cutouts`
+	 
+   For specific targets::
+   
+     `zchecker download-cutouts "C/2017 Y1,C/2017 Y2"`
 
 1. Reproject downloaded cutouts to align projected velocity vectors and comet-Sun vectors along the +x axis::
 
      `zproject`
 	 
-1. Make nightly and bi-weekly stacks by object.
+1. Make nightly and bi-weekly stacks by object::
 
      `zstack`
 

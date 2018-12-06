@@ -110,14 +110,14 @@ class ZChecker(SBSearch):
             self.logger.info('{} stale archive files removed.'.format(count))
         return count
 
-    def download_cutouts(self, desg=None, clean_failed=True,
+    def download_cutouts(self, objects=None, clean_failed=True,
                          retry_failed=True):
         """Download missing cutouts around found objects.
 
         Parameters
         ----------
-        desg : string, optional
-            Limit download to this object.
+        objects : list, optional
+            Limit downloads to these objects.
 
         clean_failed : bool, optional
             Delete empty files after failed download.
@@ -136,9 +136,10 @@ class ZChecker(SBSearch):
         LEFT JOIN ztf_cutouts USING (foundid)
         '''
         constraints = [('(sciimg IS NULL OR sciimg=0)', None)]
-        if desg:
-            objid = self.db.resolve_object(desg)[0]
-            constraints.append(('objid=?', objid))
+        if objects:
+            objids = [obj[0] for obj in self.db.resolve_objects(objects)]
+            q = ','.join('?' * len(objids))
+            constraints.append(('objid IN ({})'.format(q), objids))
 
         if retry_failed:
             constraints.append(('retrieved NOTNULL', None))
@@ -178,6 +179,7 @@ class ZChecker(SBSearch):
                 self.logger.info('  [{}] {}'.format(count + 1, cutout.fn))
 
     def summarize_found(self, objects=None, start=None, stop=None):
+        """Summarize found object database."""
         kwargs = {
             'objects': objects,
             'start': start,
@@ -213,7 +215,7 @@ class ZChecker(SBSearch):
     def summarize_nights(self):
         """Summarize nights in database."""
 
-        cmd = 'SELECT date,quads,exposures FROM nights'
+        cmd = 'SELECT date,quads,exposures FROM ztf_nights'
         names = ('date', 'quads', 'exposures')
         tab = Table(rows=self.db.execute(cmd).fetchall(), names=names)
         return tab
@@ -332,7 +334,7 @@ class ZChecker(SBSearch):
         """Verify database tables, triggers, etc."""
         zchecker_names = ['ztf_nights', 'ztf', 'ztf_cutouts', 'ztf_found',
                           'ztf_cutouturl', 'ztf_stacks', 'ztf_stale_files',
-                          'delete_found_from_ztf_cutouts',
+                          'ztf_phot', 'delete_found_from_ztf_cutouts',
                           'delete_ztf_cutouts_from_ztf_stacks',
                           'delete_ztf_nights_from_obs',
                           'delete_obs_from_ztf',
