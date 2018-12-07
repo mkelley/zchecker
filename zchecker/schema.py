@@ -68,7 +68,8 @@ CREATE TABLE IF NOT EXISTS ztf_phot(
   flux BLOB,
   m BLOB,
   merr BLOB,
-  flag INTEGER
+  flag INTEGER,
+  FOREIGN KEY(foundid) REFERENCES found(foundid)
 );
 
 CREATE VIEW IF NOT EXISTS ztf_found AS
