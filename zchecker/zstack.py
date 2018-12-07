@@ -97,9 +97,6 @@ class ZStack(ZChecker):
                 self.db.executemany('''
                 UPDATE ztf_cutouts SET stackid=? WHERE foundid=?
                 ''', zip(repeat(stackid), nightlyids))
-                print('updated stackid to {} for'.format(stackid))
-                for i in range(len(nightlyids)):
-                    print(nightlyids[i], nightly[i])
             else:
                 # images were skipped
                 if stackid:
