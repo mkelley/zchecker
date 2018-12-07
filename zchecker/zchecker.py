@@ -129,7 +129,7 @@ class ZChecker(SBSearch):
 
         path = self.config['cutout path']
         fntemplate = ('{desgfile}/{desgfile}-{datetime}-{prepost}{rh:.3f}'
-                      '-{filtercode[1]}-ztf.fits.gz')
+                      '-{filtercode[1]}-ztf.fits')
 
         cmd = '''SELECT * FROM ztf_found
         INNER JOIN obj USING (objid)
@@ -176,7 +176,7 @@ class ZChecker(SBSearch):
 
                 cutout.update_db(self.db)
 
-                self.logger.info('  [{}] {}'.format(count + 1, cutout.fn))
+                self.logger.debug('  [{}] {}'.format(count + 1, cutout.fn))
 
     def summarize_found(self, objects=None, start=None, stop=None):
         """Summarize found object database."""
