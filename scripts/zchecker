@@ -105,7 +105,7 @@ parser_search.add_argument(
     '--stop', '--end', type=as_time,
     help='search a range of dates, ending with this date, UT')
 parser_search.add_argument(
-    '--vmax', type=float, default=25,
+    '--vmax', type=float, default=23,
     help='skip epochs when object is fainter than vmax, mag')
 parser_search.set_defaults(func=search)
 
