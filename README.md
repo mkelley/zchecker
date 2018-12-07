@@ -14,6 +14,7 @@ ZTF moving target checker for short object lists.
 ### Optional packages
 * Montage and montage_wrapper, optional, for image reprojection with ``zproject``
 * [oorb](https://github.com/oorb/oorb) and its Python wrapper for Minor Planet Center Possible Comet Confirmation Page (PCCP) checking
+* photutils 0.5+ for measuring photometry with ``zphot``
 
 ## Configuration
 
