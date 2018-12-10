@@ -203,7 +203,7 @@ class ZStack(ZChecker):
                 raise StackIDError(msg)
 
             fn = ('{desg}/{desg}-{date}-{prepost}{rh:.3f}-{filt}'
-                  '-ztf-stack.fits.gz').format(
+                  '-ztf-stack.fits').format(
                       desg=desg2file(desg),
                       date=night.replace('-', ''),
                       prepost='pre' if rdot[i].mean() < 0 else 'post',

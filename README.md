@@ -140,6 +140,51 @@ $ zchecker --help
 
 	 `zphot`
 
+
+## Image data
+
+### Cutouts
+
+Cutouts around each object are downloaded to the cutouts directory
+specified in the configuration.  Files are sorted into sub-directories
+by object name.  Cutout file names are lower-case with the format:
+`desg-yyyymmdd_hhmmss-rh-ztf.fits`, where rh is the heliocentric
+distance with the prefix 'pre' or 'post' depending on which side of
+perihelion it is on (based on heliocentric radial velocity).
+
+The FITS file format for cutouts:
+
+| Extension name | HDU type | Source   | Description                                       |
+|----------------|----------|----------|---------------------------------------------------|
+| SCI            | Primary  | IRSA     | Original science data cutout                      |
+| MASK           | Image    | IRSA     | Source mask                                       |
+| PSF            | Image    | IRSA     | Science image point source function               |
+| REF            | Image    | IRSA     | Reference image cutout                            |
+| SANGLE         | Image    | zproject | Science image aligned with projected Sun vector   |
+| SANGLEMASK     | Image    | zproject | Source mask for SANGLE                            |
+| SANGLEREF      | Image    | zproject | Reference image aligned with projected Sun vector |
+
+### Stacks
+
+Stack files are downloaded to the stacks directory specified in the
+configuration, organized by object name.  File names are lower-case
+with the format: `desg-yyyymmdd-rh-ztf-stack.fits`:
+
+| Extension name | HDU type | Source | Description                                            |
+|----------------|----------|--------|--------------------------------------------------------|
+| PRIMARY        | Primary  | IRSA   | Original science data header                           |
+| COMA           | Image    | zstack | Nightly stack of SANGLE data using coma model          |
+| COMA REF       | Image    | zstack | Nightly stack of SANGLEREF data using coma model       |
+| COMA BL        | Image    | zstack | Baseline image from SANGLE data using coma model       |
+| COMA REF BL    | Image    | zstack | Baseline image from SANGLEREF data using coma model    |
+| SURF           | Image    | zstack | Nightly stack of SANGLE data using surface model       |
+| SURF REF       | Image    | zstack | Nightly stack of SANGLEREF data using surface model    |
+| SURF BL        | Image    | zstack | Baseline image from SANGLE data using surface model    |
+| SURF REF BL    | Image    | zstack | Baseline image from SANGLEREF data using surface model |
+
+The coma model is $r_h^{-4} \Delta^{-1}$ and the surface model
+$r_h^{-2} \Delta^{-2}$.
+
 ## Database
 
 ### `nights`
