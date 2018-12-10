@@ -332,12 +332,5 @@ class ZChecker(SBSearch):
 
     def verify_database(self):
         """Verify database tables, triggers, etc."""
-        zchecker_names = ['ztf_nights', 'ztf', 'ztf_cutouts', 'ztf_found',
-                          'ztf_cutouturl', 'ztf_stacks', 'ztf_stale_files',
-                          'ztf_phot', 'delete_found_from_ztf_cutouts',
-                          'delete_ztf_cutouts_from_ztf_stacks',
-                          'delete_ztf_nights_from_obs',
-                          'delete_obs_from_ztf',
-                          'add_ztf_cutouts_to_ztf_stale_files',
-                          'add_ztf_stacks_to_ztf_stale_files']
-        super().verify_database(names=zchecker_names, script=schema.schema)
+        super().verify_database(names=schema.zchecker_names,
+                                script=schema.schema)

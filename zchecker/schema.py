@@ -1,5 +1,13 @@
 # Licensed under a 3-clause BSD style license - see LICENSE.rst
 
+zchecker_names = ['ztf_nights', 'ztf', 'ztf_cutouts', 'ztf_found',
+                  'ztf_cutouturl', 'ztf_stacks', 'ztf_stale_files',
+                  'ztf_phot', 'delete_found_from_ztf_cutouts',
+                  'delete_ztf_cutouts_from_ztf_stacks',
+                  'delete_ztf_nights_from_obs',
+                  'delete_obs_from_ztf',
+                  'add_ztf_cutouts_to_ztf_stale_files',
+                  'add_ztf_stacks_to_ztf_stale_files']
 
 schema = '''
 CREATE TABLE IF NOT EXISTS ztf_nights(
