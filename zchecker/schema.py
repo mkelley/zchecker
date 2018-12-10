@@ -1,7 +1,7 @@
 # Licensed under a 3-clause BSD style license - see LICENSE.rst
 
 zchecker_names = ['ztf_nights', 'ztf', 'ztf_cutouts', 'ztf_found',
-                  'ztf_cutouturl', 'ztf_stacks', 'ztf_stale_files',
+                  'ztf_stacks', 'ztf_stale_files',
                   'ztf_phot', 'delete_found_from_ztf_cutouts',
                   'delete_ztf_cutouts_from_ztf_stacks',
                   'delete_ztf_nights_from_obs',
@@ -83,22 +83,6 @@ CREATE TABLE IF NOT EXISTS ztf_phot(
 CREATE VIEW IF NOT EXISTS ztf_found AS
 SELECT * FROM found
 INNER JOIN ztf USING (obsid);
-
-CREATE VIEW IF NOT EXISTS ztf_cutouturl (foundid,url) AS
-SELECT
-  foundid,
-  printf("https://irsa.ipac.caltech.edu/ibe/data/ztf/products/sci/%s/%s/%s/ztf_%s_%06d_%s_c%02d_o_q%1d_sciimg.fits?center=%f,%fdeg",
-    substr(filefracday,1,4),
-    substr(filefracday,5,4),
-    substr(filefracday,9),
-    filefracday,
-    field,
-    filtercode,
-    ccdid,
-    qid,
-    found.ra,
-    found.dec)
-FROM found INNER JOIN ztf USING (obsid);
 
 /* file and database clean up; 'path' must be a configuration key */
 CREATE TABLE IF NOT EXISTS ztf_stale_files(
