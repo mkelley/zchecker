@@ -8,6 +8,7 @@ import astropy.units as u
 from astropy.io import fits
 from astropy.time import Time
 from astropy.wcs import WCS
+from astropy.stats import sigma_clipped_stats
 
 from . import ZChecker
 from sbsearch import util
@@ -317,11 +318,11 @@ class ZStack(ZChecker):
 
     def _combine(self, files, scale_by, path):
         if scale_by == 'coma':
-            # coma: delta**1
-            k = 1
+            # coma: delta**1 rh**4
+            k = 1, 4
         else:
-            # surface: delta**2
-            k = 2
+            # surface: delta**2 rh**2
+            k = 2, 2
 
         stack = []
         stack_ref = []
@@ -350,17 +351,22 @@ class ZStack(ZChecker):
                 # get data, subtract background, convert to e-/s
                 im = np.ma.MaskedArray(hdu['SANGLE'].data, mask=mask)
                 im -= h['BGMEDIAN']
-                im *= h['GAIN'] / h['EXPOSURE']
 
                 # scale by image zero point, scale to rh=delta=1 au
-                im *= 10**(-0.4 * (h['MAGZP'] - 25.0))
-                im *= h['DELTA']**k * h['RH']**2
+                im *= (10**(-0.4 * (h['MAGZP'] - 25.0))
+                       * h['DELTA']**k[0] * h['RH']**k[1])
 
                 # use reference image, if possible
                 if 'SANGLEREF' in hdu:
                     # update mask with nans
                     mask = obj_mask + ~np.isfinite(hdu['SANGLEREf'].data)
                     ref = np.ma.MaskedArray(hdu['SANGLEREF'].data, mask=mask)
+                    mms = sigma_clipped_stats(ref)
+                    ref -= mms[1]
+
+                    mzp = hdu['REF'].header['MAGZP']
+                    ref *= (10**(-0.4 * (mzp - 25.0))
+                            * h['DELTA']**k[0] * h['RH']**k[1])
                 else:
                     ref = None
 
