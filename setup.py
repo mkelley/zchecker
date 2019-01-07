@@ -3,7 +3,7 @@ from setuptools import setup, find_packages
 
 if __name__ == "__main__":
     setup(name='zchecker',
-          version='2.0.0',
+          version='2.0.1',
           description='ZTF moving target checker for short object lists',
           author="Michael S. P. Kelley",
           author_email="msk@astro.umd.edu",

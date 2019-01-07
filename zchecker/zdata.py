@@ -162,8 +162,12 @@ class ZData:
             wcs = WCS(self.hdu[0].header)
             x, y = wcs.all_world2pix(self.meta['ra'] * u.deg,
                                      self.meta['dec'] * u.deg, 0)
-            updates['tgtx'] = int(x), 'Target x coordinate, 0-based'
-            updates['tgty'] = int(y), 'Target y coordinate, 0-based'
+            if not all(np.isfinite((x, y))):
+                self.logger.error(
+                    'Target RA, Dec -> pix returned bad values.')
+            else:
+                updates['tgtx'] = int(x), 'Target x coordinate, 0-based'
+                updates['tgty'] = int(y), 'Target y coordinate, 0-based'
 
             try:
                 self.hdu[0].header.update(**updates)
