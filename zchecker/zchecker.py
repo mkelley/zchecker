@@ -42,6 +42,102 @@ class ZChecker(SBSearch):
         self.config = Config(**kwargs) if config is None else config
         super().__init__(config=config, save_log=save_log,
                          disable_log=disable_log, **kwargs)
+        
+    def check_pccp(self, start=None, stop=None, cutouts=False):
+        """Search for today's objects on the MPC's PCCP.
+
+        Possible Comet Confirmation Page:
+        https://minorplanetcenter.net/iau/NEO/pccp_tabular.html
+
+        Parameters
+        ----------
+        start : float or `~astropy.time.Time`, optional
+            Search after this epoch, inclusive.
+
+        stop : float or `~astropy.time.Time`, optional
+            Search before this epoch, inclusive.
+
+        cutouts : bool, optional
+            Download cutouts.
+
+        Returns
+        -------
+        tab : `~astropy.table.Table` or ``None``
+
+        """
+
+        summary = super().check_pccp(start=start, stop=stop)
+
+        if not cutouts:
+            return summary
+
+        if summary is None:
+            self.logger.info('Nothing to download.')
+            return None
+
+        rows = summary.copy()
+
+        # add ZData required meta data
+        undef = ['undef'] * len(rows)
+        na = ['N/A'] * len(rows)
+        rows['objid'] = na
+        rows['obsjd'] = Time(rows['date']).jd
+        rows['phase'] = undef
+        rows['rdot'] = np.zeros(len(rows))
+        rows['sangle'] = undef
+        rows['vangle'] = undef
+        rows['trueanomaly'] = undef
+        rows['tmtp'] = undef
+        rows['ra'] = rows['RA']
+        rows['dec'] = rows['Dec']
+        rows['dra'] = undef
+        rows['ddec'] = undef
+        rows['ra3sig'] = undef
+        rows['dec3sig'] = undef
+        rows['foundid'] = na
+        rows['ccdid'] = rows['ccd']
+        rows['qid'] = rows['quad']
+        rows['filtercode'] = rows['filter']
+
+        path = self.config['cutout path']
+        fntemplate = ('pccp/{desgfile}/{desgfile}-{datetime}-{rh:.3f}'
+                      '-{filtercode[1]}-ztf.fits')
+
+        count = len(rows)
+        exists = 0
+        self.logger.info('Checking for {} cutouts.'.format(count))
+        
+        for i in range(len(rows)):
+            row = {}
+            for col in rows.colnames:
+                row[col] = rows[col][i]
+
+            with ztf.IRSA(path, self.config.auth) as irsa:
+                with ZData(irsa, path, fntemplate, self.logger,
+                           **row) as cutout:
+                    count -= 1
+
+                    if os.path.exists(cutout.fn):
+                        exists += 1
+                        continue
+
+                    try:
+                        cutout.append('sci')
+                    except ZCheckerError:
+                        continue
+
+                    for img in ['mask', 'psf', 'ref']:
+                        try:
+                            cutout.append(img)
+                        except ZCheckerError:
+                            pass
+
+                self.logger.debug('  [{}] {}'.format(count + 1, cutout.fn))
+
+        self.logger.info('{} downloaded, {} already exist{}.'.format(
+            len(rows) - exists, exists, 's' if exists == 1 else ''))
+
+        return summary
 
     def clean_cutouts(self, stackids):
         """Remove cutouts from table and archive.

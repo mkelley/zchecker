@@ -162,7 +162,8 @@ def pccp(args):
     config = Config.from_args(args)
     with ZChecker(config, save_log=False) as z:
         try:
-            tab = z.check_pccp(start=args.start, stop=args.stop)
+            tab = z.check_pccp(start=args.start, stop=args.stop,
+                               cutouts=args.cutouts)
         except Exception as e:
             z.logger.error(str(e))
             raise e
@@ -180,6 +181,9 @@ parser_pccp.add_argument(
     help='search ending with this date, UT [default today]')
 parser_pccp.add_argument(
     '--step', default='1d', help='step size for ephemeris generation')
+parser_pccp.add_argument(
+    '--cutouts', action='store_true', help='Download cutouts.')
+
 parser_pccp.set_defaults(func=pccp)
 
 # EPH-UPDATE ############################################################
@@ -365,7 +369,7 @@ def download_cutouts(args):
         try:
             z.download_cutouts(
                 objects=args.objects, clean_failed=args.clean_failed,
-                retry_failed=args.retry_failed)
+                retry_failed=args.retry_failed, pccp=args.pccp)
         except Exception as e:
             z.logger.error(str(e))
             raise e

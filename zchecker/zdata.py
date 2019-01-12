@@ -45,8 +45,8 @@ class ZData:
         self.meta = meta
 
         prepost = 'pre' if self.meta['rdot'] < 0 else 'post'
-        sync_date = Time(float(self.meta['obsjd']), format='jd').iso
-        datetime = (sync_date[:18]
+        date = Time(float(self.meta['obsjd']), format='jd').iso
+        datetime = (date[:18]
                     .replace('-', '')
                     .replace(':', '')
                     .replace(' ', '_'))
