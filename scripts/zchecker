@@ -369,7 +369,7 @@ def download_cutouts(args):
         try:
             z.download_cutouts(
                 objects=args.objects, clean_failed=args.clean_failed,
-                retry_failed=args.retry_failed, pccp=args.pccp)
+                retry_failed=args.retry_failed)
         except Exception as e:
             z.logger.error(str(e))
             raise e
