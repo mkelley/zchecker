@@ -65,6 +65,10 @@ $ zchecker --help
 1. Update local database with ZTF observations from a single night::
 
      `zchecker ztf-update --date=YYYY-MM-DD`
+   
+   Over a range of nights:
+   
+     `zchecker ztf-update --start=YYYY-MM-DD --stop=YYYY-MM-DD`
 
    Or to simply check the last night::
 	
