@@ -222,8 +222,8 @@ CTYPE2  = 'DEC--TAN'
 EQUINOX = 2000
 CRVAL1  =  {:13.9}
 CRVAL2  =  {:13.9}
-CRPIX1  =       150.0000
-CRPIX2  =       150.0000
+CRPIX1  =       {:.4f}
+CRPIX2  =       {:.4f}
 CDELT1  =   -0.000281156
 CDELT2  =    0.000281156
 PC1_1   =  {:13.9}
@@ -231,7 +231,8 @@ PC1_2   =  {:13.9}
 PC2_1   =  {:13.9}
 PC2_2   =  {:13.9}
 END
-'''.format(size, size, radec[0], radec[1], pc[0, 0], pc[0, 1], pc[1, 0], pc[1, 1]))
+'''.format(size, size, radec[0], radec[1], size / 2, size / 2,
+           pc[0, 0], pc[0, 1], pc[1, 0], pc[1, 1]))
 
     return h.name
 

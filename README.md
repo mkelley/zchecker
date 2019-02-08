@@ -1,4 +1,4 @@
-# ZChecker v2.1.1
+# ZChecker v2.2.0
 ZTF moving target checker for short object lists.
 
 ## Requirements
@@ -32,6 +32,7 @@ $ zchecker --help
   "user": "IRSA account user name",
   "password": "IRSA account password",
   "cutout path": "/path/to/cutout/directory",
+  "cutout size": "5arcmin",
   "stack path": "/path/to/stack/directory"
 }
 
@@ -127,10 +128,18 @@ $ zchecker --help
    For specific targets::
    
      `zchecker download-cutouts "C/2017 Y1,C/2017 Y2"`
+	 
+   Use a different size::
+   
+     `zchecker download-cutouts 6478 --size=20arcmin`
 
 1. Reproject downloaded cutouts to align projected velocity vectors and comet-Sun vectors along the +x axis::
 
      `zproject`
+	 
+   Use a different size::
+   
+     `zproject --size=20arcmin`
 	 
 1. Make nightly and bi-weekly stacks by object::
 
