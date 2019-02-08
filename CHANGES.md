@@ -1,5 +1,17 @@
 # Changes
 
+## v2.2.0
+* Cutout sizes can be specified in configuration file and at run time.
+
+## v2.1.1
+* Fix download cutouts crash.
+
+## v2.1.0
+* Add PCCP cutout downloads.
+
+## v2.0.1
+* Catch WCS transformation errors in early commissioning data.
+
 ## v2.0.0
 
 ### New features:

@@ -21,6 +21,8 @@ parser.add_argument(
     help='overwrite previous stacks')
 parser.add_argument('--db', help='database file')
 parser.add_argument('--log', help='log file')
+parser.add_argument('--cutout-path', help='path to cutout directory')
+parser.add_argument('--stack-path', help='path to stack directory')
 parser.add_argument('--config', default=os.path.expanduser(
     '~/.config/zchecker.config'), help='configuration file')
 parser.add_argument('-v', action='store_true', help='increase verbosity')
@@ -33,7 +35,13 @@ if args.scale == 'both':
 else:
     scale_by = [args.scale]
 
-config = Config.from_args(args)
+c = {}
+if args.cutout_path:
+    c['cutout path'] = args.cutout_path
+if args.stack_path:
+    c['stack path'] = args.stack_path
+config = Config.from_args(args, **c)
 with ZStack(config, save_log=True) as z:
+
     z.stack(scale_by, args.baseline, objects=args.objects,
             restack=args.force)

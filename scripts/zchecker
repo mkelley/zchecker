@@ -364,7 +364,12 @@ parser_ztf.set_defaults(func=ztf_update)
 
 
 def download_cutouts(args):
-    config = Config.from_args(args)
+    c = {}
+    if args.size:
+        c['cutout size'] = args.size
+    if args.path:
+        c['cutout path'] = args.path
+    config = Config.from_args(args, **c)
     with ZChecker(config, save_log=True) as z:
         try:
             z.download_cutouts(
@@ -384,10 +389,13 @@ parser_cutout.add_argument(
     '--path', help='local cutout path')
 parser_cutout.add_argument(
     '--leave-failed', dest='clean_failed', action='store_false',
-    help='Leave empty file after failed download.')
+    help='leave empty file after failed download')
 parser_cutout.add_argument(
     '--retry-failed', action='store_true',
-    help='Retry previously failed science image syncs.')
+    help='retry previously failed science image syncs')
+parser_cutout.add_argument(
+    '--size',
+    help='cutout size')
 parser_cutout.set_defaults(func=download_cutouts)
 
 # LIST-NIGHTS ############################################################

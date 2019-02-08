@@ -6,6 +6,7 @@ The configuration is a JSON-formatted file.  See ``_config_example``.
 
 """
 import os
+import json
 import sbsearch.config
 
 __all__ = ['Config']
@@ -17,6 +18,7 @@ _config_example = '''
   "user": "IRSA account user name",
   "password": "IRSA account password",
   "cutout path": "/path/to/cutout/directory",
+  "cutout size": "5arcmin",
   "stack path": "/path/to/stack/directory"
 }
 '''
@@ -26,9 +28,10 @@ class Config(sbsearch.config.Config):
     """ZChecker configuration.
 
     Controls database location, log file location, IRSA user
-    credentials, and object cutout locations.  Parameters are stored
-    as object keys: `Config['user']`, `Config['log']`, etc., except
-    the IRSA credentials, which are retrieved via `Config.auth`.
+    credentials, object cutout locations, and cutout download size.
+    Parameters are stored as object keys: `Config['user']`,
+    `Config['log']`, etc., except the IRSA credentials, which are
+    retrieved via `Config.auth`.
 
     Parameters
     ----------
@@ -43,7 +46,6 @@ class Config(sbsearch.config.Config):
     DEFAULT_FILE = os.path.expanduser('~/.config/zchecker.config')
 
     def __init__(self, **kwargs):
-        import json
         config = json.loads(_config_example)
         config.update(**kwargs)
         super().__init__(**config)

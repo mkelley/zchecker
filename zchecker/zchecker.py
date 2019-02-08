@@ -122,13 +122,13 @@ class ZChecker(SBSearch):
                         continue
 
                     try:
-                        cutout.append('sci')
+                        cutout.append('sci', size=self.config['cutout size'])
                     except ZCheckerError:
                         continue
 
                     for img in ['mask', 'psf', 'ref']:
                         try:
-                            cutout.append(img)
+                            cutout.append(img, size=self.config['cutout size'])
                         except ZCheckerError:
                             pass
 
@@ -231,7 +231,9 @@ class ZChecker(SBSearch):
         INNER JOIN obj USING (objid)
         LEFT JOIN ztf_cutouts USING (foundid)
         '''
+
         constraints = [('(sciimg IS NULL OR sciimg=0)', None)]
+
         if objects:
             objids = [obj[0] for obj in self.db.resolve_objects(objects)]
             q = ','.join('?' * len(objids))
@@ -259,14 +261,14 @@ class ZChecker(SBSearch):
                            **row) as cutout:
                     count -= 1
                     try:
-                        cutout.append('sci')
+                        cutout.append('sci', size=self.config['cutout size'])
                     except ZCheckerError:
                         cutout.update_db(self.db)
                         continue
 
                     for img in ['mask', 'psf', 'ref']:
                         try:
-                            cutout.append(img)
+                            cutout.append(img, size=self.config['cutout size'])
                         except ZCheckerError:
                             pass
 

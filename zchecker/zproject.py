@@ -22,7 +22,7 @@ class ZProject(ZChecker):
         super().__init__(*args, **kwargs)
         self.logger.info('ZProject')
 
-    def project(self, alignment='sangle', objects=None, force=False):
+    def project(self, alignment='sangle', objects=None, force=False, size=300):
         path = self.config['cutout path'] + os.path.sep
 
         if alignment not in ['vangle', 'sangle']:
@@ -65,18 +65,18 @@ class ZProject(ZChecker):
                 queued += 1
 
                 if queued == mp.cpu_count() * 2:
-                    self.queue(foundids, archivefiles, alignment, bar)
+                    self.queue(foundids, archivefiles, alignment, bar, size)
                     foundids, archivefiles, args = [], [], []
                     queued = 0
 
             if queued:
                 error_count += self.queue(foundids, archivefiles,
-                                          alignment, bar)
+                                          alignment, bar, size)
         self.logger.info('{} errors.'.format(error_count))
 
-    def queue(self, foundids, archivefiles, alignment, bar):
+    def queue(self, foundids, archivefiles, alignment, bar, size):
         error_count = 0
-        args = list(zip(archivefiles, repeat([alignment])))
+        args = list(zip(archivefiles, repeat([alignment]), repeat(size)))
         with mp.Pool() as pool:
             errors = pool.starmap(project_file, args)
             for i in range(len(errors)):
@@ -97,26 +97,26 @@ class ZProject(ZChecker):
         return error_count
 
 
-def project_file(fn, alignments):
+def project_file(fn, alignments, size):
     with fits.open(fn) as hdu:
         mask_ext = hdu.index_of('MASK') if 'MASK' in hdu else None
         ref_ext = hdu.index_of('REF') if 'REF' in hdu else None
 
     for alignment in alignments:
         try:
-            newsci = project_extension(fn, 0, alignment)
+            newsci = project_extension(fn, 0, alignment, size)
         except (m.MontageError, ValueError) as e:
             return str(e)
 
         if mask_ext is not None:
             try:
-                newmask = project_extension(fn, mask_ext, alignment)
+                newmask = project_extension(fn, mask_ext, alignment, size)
             except (m.MontageError, ValueError) as e:
                 return str(e)
 
         if ref_ext is not None:
             try:
-                newref = project_extension(fn, ref_ext, alignment)
+                newref = project_extension(fn, ref_ext, alignment, size)
             except (m.MontageError, ValueError) as e:
                 return str(e)
 
@@ -133,7 +133,7 @@ def project_file(fn, alignments):
     return False  # no error
 
 
-def project_extension(fn, ext, alignment):
+def project_extension(fn, ext, alignment, size):
     """Project extension `extname` in file `fn`.
 
     alignment:
@@ -153,7 +153,7 @@ def project_extension(fn, ext, alignment):
         raise ValueError('Alignment vector not in FITS header')
 
     radec = (h0['tgtra'], h0['tgtdec'])
-    temp_header = make_header(radec, 90 + h0[alignment])
+    temp_header = make_header(radec, 90 + h0[alignment], size)
 
     bitpix = fits.getheader(fn, ext=ext)['BITPIX']
     if bitpix == 16:
@@ -199,7 +199,7 @@ def append_image_to(hdu, newhdu, extname):
         hdu.append(newhdu)
 
 
-def make_header(radec, angle):
+def make_header(radec, angle, size):
     """Write a Montage template header to a file.
 
     WCS centered on `radec` (deg).
@@ -215,15 +215,15 @@ def make_header(radec, angle):
         h.write('''SIMPLE  = T
 BITPIX  = -64
 NAXIS   = 2
-NAXIS1  = 300
-NAXIS2  = 300
+NAXIS1  = {}
+NAXIS2  = {}
 CTYPE1  = 'RA---TAN'
 CTYPE2  = 'DEC--TAN'
 EQUINOX = 2000
 CRVAL1  =  {:13.9}
 CRVAL2  =  {:13.9}
-CRPIX1  =       150.0000
-CRPIX2  =       150.0000
+CRPIX1  =       {:.4f}
+CRPIX2  =       {:.4f}
 CDELT1  =   -0.000281156
 CDELT2  =    0.000281156
 PC1_1   =  {:13.9}
@@ -231,7 +231,8 @@ PC1_2   =  {:13.9}
 PC2_1   =  {:13.9}
 PC2_2   =  {:13.9}
 END
-'''.format(radec[0], radec[1], pc[0, 0], pc[0, 1], pc[1, 0], pc[1, 1]))
+'''.format(size, size, radec[0], radec[1], size / 2, size / 2,
+           pc[0, 0], pc[0, 1], pc[1, 0], pc[1, 1]))
 
     return h.name
 
