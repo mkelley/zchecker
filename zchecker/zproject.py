@@ -76,7 +76,7 @@ class ZProject(ZChecker):
 
     def queue(self, foundids, archivefiles, alignment, bar, size):
         error_count = 0
-        args = list(zip(archivefiles, repeat([alignment]), repeat([size])))
+        args = list(zip(archivefiles, repeat([alignment]), repeat(size)))
         with mp.Pool() as pool:
             errors = pool.starmap(project_file, args)
             for i in range(len(errors)):
