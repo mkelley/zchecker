@@ -199,7 +199,7 @@ def append_image_to(hdu, newhdu, extname):
         hdu.append(newhdu)
 
 
-def make_header(radec, angle):
+def make_header(radec, angle, size):
     """Write a Montage template header to a file.
 
     WCS centered on `radec` (deg).
