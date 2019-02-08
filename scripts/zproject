@@ -19,12 +19,18 @@ parser.add_argument('--alignment', default='sangle',
                     help='alignment vector: sun or velocity vector')
 parser.add_argument('--db', help='database file')
 parser.add_argument('--log', help='log file')
-parser.add_argument('--path', help='local cutout path')
+parser.add_argument('--path', '--cutout-path', help='local cutout path')
+parser.add_argument('--size', default='5arcmin', help='angular size of projected images')
 parser.add_argument('--config', default=os.path.expanduser(
     '~/.config/zchecker.config'), help='configuration file')
 parser.add_argument('-v', action='store_true', help='increase verbosity')
 args = parser.parse_args()
 
-with ZProject(Config.from_args(args), save_log=True) as z:
+c = {}
+if args.path:
+    c['cutout path'] = args.path
+with ZProject(Config.from_args(args, **c), save_log=True) as z:
+    size = int(u.Quantity(args.size).to(u.arcsec).value)
+
     z.project(objects=args.objects, force=args.force,
-              alignment=args.alignment)
+              alignment=args.alignment, size=size)
