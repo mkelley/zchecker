@@ -8,7 +8,7 @@ ZTF moving target checker for short object lists.
 * [sbpy](https://github.com/NASA-Planetary-Science/sbpy) current dev version
 * requests
 * astroquery 0.3.9
-* sqlite
+* sqlite v0.1
 * wget
 
 ### Optional packages
