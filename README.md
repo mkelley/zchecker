@@ -4,11 +4,11 @@ ZTF moving target checker for short object lists.
 ## Requirements
 * Python 3.5+
 * astropy v2.0+
-* [sbsearch](https://github.com/Small-Bodies-Node/sbsearch)
+* [sbsearch v0.1](https://github.com/Small-Bodies-Node/sbsearch/tree/v0.1)
 * [sbpy](https://github.com/NASA-Planetary-Science/sbpy) current dev version
 * requests
 * astroquery 0.3.9
-* sqlite v0.1
+* sqlite
 * wget
 
 ### Optional packages
