@@ -44,17 +44,8 @@ class ZData:
         self.logger = logger
         self.meta = meta
 
-        prepost = 'pre' if self.meta['rdot'] < 0 else 'post'
-        date = Time(float(self.meta['obsjd']), format='jd').iso
-        datetime = (date[:18]
-                    .replace('-', '')
-                    .replace(':', '')
-                    .replace(' ', '_'))
-
         self.path = path
-        self.fn = fntemplate.format(
-            datetime=datetime, prepost=prepost,
-            desgfile=desg2file(self.meta['desg']), **meta)
+        self.fn = self.filename(fntemplate, meta)
 
     def __enter__(self):
         fn = '/'.join((self.path, self.fn))
@@ -234,22 +225,46 @@ class ZData:
             self.hdu.append(f[0].copy())
         os.unlink(fn)
 
-    def update_db(self, db):
-        """Update found table in database."""
-        retrieved = Time.now().iso[:-4]
-        db.execute('''
-        INSERT OR REPLACE INTO ztf_cutouts (
-          foundid,archivefile,retrieved,sciimg,mskimg,scipsf,diffimg,
-          diffpsf,refimg,vangleimg,sangleimg)
-        VALUES (?,?,?,?,?,?,?,?,?,0,0)
-        ''', (self.meta['foundid'],
-              self.fn,
-              retrieved,
-              int('sci' in self.hdu),
-              int('mask' in self.hdu),
-              int('psf' in self.hdu),
-              int('diff' in self.hdu),
-              int('diffpsf' in self.hdu),
-              int('ref' in self.hdu))
-        )
+    @staticmethod
+    def filename(fntemplate, meta):
+        """Apply metadata to file name template."""
+
+        prepost = 'pre' if meta['rdot'] < 0 else 'post'
+        date = Time(float(meta['obsjd']), format='jd').iso
+        datetime = (date[:18]
+                    .replace('-', '')
+                    .replace(':', '')
+                    .replace(' ', '_'))
+
+        return fntemplate.format(
+            datetime=datetime, prepost=prepost,
+            desgfile=desg2file(meta['desg']), **meta)
+
+    def add_to_db(self, db, update=False):
+        """Insert or update to found table."""
+        values = (self.fn,
+                  Time.now().iso[:-4],
+                  int('sci' in self.hdu),
+                  int('mask' in self.hdu),
+                  int('psf' in self.hdu),
+                  int('diff' in self.hdu),
+                  int('diffpsf' in self.hdu),
+                  int('ref' in self.hdu))
+
+        if update:
+            db.execute('''
+            UPDATE ztf_cutouts SET (
+              archivefile,retrieved,sciimg,mskimg,scipsf,diffimg,
+              diffpsf,refimg,vangleimg,sangleimg
+            ) = (?,?,?,?,?,?,?,?,0,0)
+            WHERE foundid=?
+            ''', values + (self.meta['foundid'],))
+        else:
+            db.execute('''
+            INSERT OR REPLACE INTO ztf_cutouts (
+              foundid,archivefile,retrieved,sciimg,mskimg,scipsf,diffimg,
+              diffpsf,refimg,vangleimg,sangleimg)
+            VALUES (?,?,?,?,?,?,?,?,?,0,0)
+            ''', (self.meta['foundid'],) + values)
+
         db.commit()

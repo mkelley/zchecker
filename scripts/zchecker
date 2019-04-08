@@ -374,7 +374,7 @@ def download_cutouts(args):
         try:
             z.download_cutouts(
                 objects=args.objects, clean_failed=args.clean_failed,
-                retry_failed=args.retry_failed)
+                retry_failed=args.retry_failed, missing_files=args.missing)
         except Exception as e:
             z.logger.error(str(e))
             raise e
@@ -390,9 +390,13 @@ parser_cutout.add_argument(
 parser_cutout.add_argument(
     '--leave-failed', dest='clean_failed', action='store_false',
     help='leave empty file after failed download')
-parser_cutout.add_argument(
+mutex = parser_cutout.add_mutually_exclusive_group()
+mutex.add_argument(
     '--retry-failed', action='store_true',
     help='retry previously failed science image syncs')
+mutex.add_argument(
+    '--missing', action='store_true',
+    help='test integretiy of local file repository, download missing files')
 parser_cutout.add_argument(
     '--size',
     help='cutout size')
