@@ -1,4 +1,4 @@
-# ZChecker v2.2.0
+# ZChecker v2.3.0
 ZTF moving target checker for short object lists.
 
 ## Requirements
@@ -136,6 +136,10 @@ $ zchecker --help
    Use a different size::
    
      `zchecker download-cutouts 6478 --size=20arcmin`
+
+1. ZChecker's database tracks files that have been downloaded, but accidents (and bugs) can happen.  If so, verify and fix the downloaded file repository with::
+
+     `zchecker download-cutouts 'P/2011 S1' --missing`
 
 1. Reproject downloaded cutouts to align projected velocity vectors and comet-Sun vectors along the +x axis::
 

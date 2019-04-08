@@ -1,5 +1,8 @@
 # Changes
 
+## v2.3.0
+* `zchecker cutout --missing` to verify local cutout file repository.
+
 ## v2.2.0
 * Cutout sizes can be specified in configuration file and at run time.
 
