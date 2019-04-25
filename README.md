@@ -1,6 +1,13 @@
 # ZChecker v2.3.0
 ZTF moving target checker for short object lists.
 
+## Attribution and license
+Written by Michael S. P. Kelley (University of Maryland), with contributions from Quan-Zhi Ye (IPAC/Caltech).  Thanks to James Bauer, Dennis Bodewits, Tony Farnham, and Matthew Knight for some design comments.
+
+If `ZChecker` is useful to you, please cite Kelley, M. S. P., Bodewits, D., Ye, Q. et al. 2019.  ADASS XXVIII, ed. P. Teuben, M. Pound, B. Thomas, andE. Warner, ASP Conf. Ser., in press.
+
+ZChecker is licensed with the BSD 3-clause license.  See LICENSE for details.
+
 ## Requirements
 * Python 3.5+
 * astropy v2.0+
