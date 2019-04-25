@@ -152,10 +152,14 @@ $ zchecker --help
 1. Make nightly and bi-weekly stacks by object::
 
      `zstack`
+
+   Check integrity of stack archive and fix errors::
+
+     `zstack --clean-missing`
 	 
 1. Experimental: measure object photometry::
 
-	 `zphot`
+     `zphot`
 
 
 ## Image data

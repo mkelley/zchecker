@@ -107,30 +107,32 @@ class ZChecker(SBSearch):
         exists = 0
         self.logger.info('Checking for {} cutouts.'.format(count))
         
-        for i in range(len(rows)):
-            row = {}
-            for col in rows.colnames:
-                row[col] = rows[col][i]
+        with ztf.IRSA(path, self.config.auth) as irsa:
+            for i in range(len(rows)):
+                row = {}
+                for col in rows.colnames:
+                    row[col] = rows[col][i]
 
-            with ztf.IRSA(path, self.config.auth) as irsa:
-                with ZData(irsa, path, fntemplate, self.logger,
-                           **row) as cutout:
-                    count -= 1
+                try:
+                    with ZData(irsa, path, fntemplate, self.logger,
+                               **row) as cutout:
+                        count -= 1
 
-                    if os.path.exists(cutout.fn):
-                        exists += 1
-                        continue
+                        if os.path.exists(cutout.fn):
+                            exists += 1
+                            continue
 
-                    try:
-                        cutout.append('sci', size=self.config['cutout size'])
-                    except ZCheckerError:
-                        continue
+                        cutout.append(
+                            'sci', size=self.config['cutout size'])
 
-                    for img in ['mask', 'psf', 'ref']:
-                        try:
-                            cutout.append(img, size=self.config['cutout size'])
-                        except ZCheckerError:
-                            pass
+                        for img in ['mask', 'psf', 'ref']:
+                            try:
+                                cutout.append(
+                                    img, size=self.config['cutout size'])
+                            except ZCheckerError:
+                                pass
+                except ZCheckerError as e:
+                    self.logger.error('{} - {}'.format(cutout.fn, str(e)))
 
                 self.logger.debug('  [{}] {}'.format(count + 1, cutout.fn))
 
@@ -285,22 +287,21 @@ class ZChecker(SBSearch):
                         continue
                     missing += 1
 
-                with ZData(irsa, path, fntemplate, self.logger,
-                           **row) as cutout:
-                    try:
+                try:
+                    with ZData(irsa, path, fntemplate, self.logger,
+                               **row) as cutout:
                         cutout.append('sci', size=self.config['cutout size'])
                         downloaded += 1
-                    except ZCheckerError:
-                        cutout.add_to_db(self.db, update=missing_files)
-                        continue
 
-                    for img in ['mask', 'psf', 'ref']:
-                        try:
-                            cutout.append(img, size=self.config['cutout size'])
-                        except ZCheckerError:
-                            pass
-
-                cutout.add_to_db(self.db, update=missing_files)
+                        for img in ['mask', 'psf', 'ref']:
+                            try:
+                                cutout.append(img, size=self.config['cutout size'])
+                            except ZCheckerError:
+                                pass
+                except ZCheckerError as e:
+                    self.logger.error(str(e))
+                finally:
+                    cutout.add_to_db(self.db, update=missing_files)
 
                 self.logger.debug('  [{}] {}'.format(count + 1, cutout.fn))
 

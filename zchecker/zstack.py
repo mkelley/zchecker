@@ -25,6 +25,32 @@ class ZStack(ZChecker):
         if not os.path.exists(self.config['stack path']):
             os.mkdir(self.config['stack path'])
 
+    def clean_missing(self):
+        count = self.db.execute('''
+        SELECT count() FROM ztf_stacks
+        WHERE stackfile IS NOT NULL
+        ''').fetchone()[0]
+        self.logger.info('Checking {} files.'.format(count))
+
+        rows = self.db.execute('''
+        SELECT stackid,stackfile FROM ztf_stacks
+        WHERE stackfile IS NOT NULL
+        ''')
+        exists = 0
+        for stackid, fn in util.iterate_over(rows):
+            if os.path.exists(os.path.join(self.config['stack path'], fn)):
+                exists += 1
+                continue
+
+            self.logger.error('{} was expected, but does not exist.'
+                              .format(fn))
+            self.db.execute('UPDATE ztf_cutouts SET stackid=NULL WHERE stackid={}'
+                            .format(stackid))
+            self.db.execute('DELETE FROM ztf_stacks WHERE stackid={}'
+                            .format(stackid))
+        self.logger.info('{} files verified, {} database rows removed'
+                         .format(exists, count - exists))
+
     def stack(self, scale_by, n_baseline, objects=None, restack=False):
         data = self._data_iterator(n_baseline, objects, restack)
         for n, stackid, fn, nightlyids, nightly, baseline in data:

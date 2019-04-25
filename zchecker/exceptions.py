@@ -7,6 +7,10 @@ class DownloadError(ZCheckerError):
     pass
 
 
+class FITSHeaderError(ZCheckerError):
+    pass
+
+
 class DateRangeError(ZCheckerError):
     pass
 
