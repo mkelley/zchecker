@@ -1,5 +1,9 @@
 # Changes
 
+## v2.3.1
+* Fix missing science image download bug.
+* `zstack --clean-missing` to verify and fix local stack file repository.
+
 ## v2.3.0
 * `zchecker cutout --missing` to verify local cutout file repository.
 
