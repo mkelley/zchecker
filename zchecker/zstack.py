@@ -376,7 +376,7 @@ class ZStack(ZChecker):
 
                 # get data, subtract background if not a diff image, convert to e-/s
                 im = np.ma.MaskedArray(hdu['SANGLE'].data, mask=mask)
-                if not hdu['SANGLE']['DIFFIMG']:
+                if not hdu['SANGLE'].header.get('DIFFIMG', False):
                     im -= h['BGMEDIAN']
 
                 # scale by image zero point, scale to rh=delta=1 au
