@@ -18,6 +18,8 @@ parser.add_argument('--force', '-f', action='store_true',
 parser.add_argument('--alignment', default='sangle',
                     choices=['sangle', 'vangle'],
                     help='alignment vector: sun or velocity vector')
+parser.add_argument('--single', action='store_true',
+                    help='run in single threaded mode')
 parser.add_argument('--db', help='database file')
 parser.add_argument('--log', help='log file')
 parser.add_argument('--path', '--cutout-path', help='local cutout path')
@@ -34,4 +36,4 @@ if args.path:
 with ZProject(Config.from_args(args, **c), save_log=True) as z:
     size = int(u.Quantity(args.size).to(u.arcsec).value)
     z.project(objects=args.objects, force=args.force,
-              alignment=args.alignment, size=size)
+              alignment=args.alignment, size=size, single=args.single)
