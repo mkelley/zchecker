@@ -264,7 +264,7 @@ parser_found = subparsers.add_parser(
     'clean-found', help='clean found object database and data archive',
     epilog='Date format: YYYY-MM-DD.  Date interval is inclusive.  Default is to remove all findings.  Files in the cutouts directory will also be removed.')
 parser_found.add_argument(
-    'objects', type=object_list,
+    'objects', type=object_list, nargs='?',
     help='file name listing one object per line, or a comma-separated'
     ' list of objects, must be resolvable by JPL/Horizons')
 parser_found.add_argument(
