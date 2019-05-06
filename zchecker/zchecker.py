@@ -125,7 +125,7 @@ class ZChecker(SBSearch):
                         cutout.append(
                             'sci', size=self.config['cutout size'])
 
-                        for img in ['mask', 'psf', 'ref']:
+                        for img in ['mask', 'psf', 'diff', 'ref']:
                             try:
                                 cutout.append(
                                     img, size=self.config['cutout size'])
@@ -293,7 +293,7 @@ class ZChecker(SBSearch):
                         cutout.append('sci', size=self.config['cutout size'])
                         downloaded += 1
 
-                        for img in ['mask', 'psf', 'ref']:
+                        for img in ['mask', 'psf', 'diff', 'ref']:
                             try:
                                 cutout.append(img, size=self.config['cutout size'])
                             except ZCheckerError:

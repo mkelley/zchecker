@@ -223,9 +223,13 @@ class ZData:
         fn = mktemp(dir='/tmp')
         self.irsa.download(url, fn, clean_failed=True, logger=self.logger)
         with fits.open(fn, lazy_load_hdus=False) as f:
+            if img_name == 'diff':
+                ext = 1
+            else:
+                ext = 0
             # in case img_name with extensions
-            f[0].name = img_name.split('.')[0]
-            self.hdu.append(f[0].copy())
+            f[ext].name = img_name.split('.')[0]
+            self.hdu.append(f[ext].copy())
         os.unlink(fn)
 
     @staticmethod

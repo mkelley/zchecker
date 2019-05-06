@@ -1,4 +1,4 @@
-# ZChecker v2.3.1
+# ZChecker v2.3.2
 ZTF moving target checker for short object lists.
 
 ## Attribution and license
@@ -182,15 +182,19 @@ perihelion it is on (based on heliocentric radial velocity).
 
 The FITS file format for cutouts:
 
-| Extension name | HDU type | Source   | Description                                       |
-|----------------|----------|----------|---------------------------------------------------|
-| SCI            | Primary  | IRSA     | Original science data cutout                      |
-| MASK           | Image    | IRSA     | Source mask                                       |
-| PSF            | Image    | IRSA     | Science image point source function               |
-| REF            | Image    | IRSA     | Reference image cutout                            |
-| SANGLE         | Image    | zproject | Science image aligned with projected Sun vector   |
-| SANGLEMASK     | Image    | zproject | Source mask for SANGLE                            |
-| SANGLEREF      | Image    | zproject | Reference image aligned with projected Sun vector |
+| Extension name | HDU type | Source   | Description                                               |
+|----------------|----------|----------|-----------------------------------------------------------|
+| SCI            | Primary  | IRSA     | Original science data cutout                              |
+| MASK           | Image    | IRSA     | Source mask                                               |
+| PSF            | Image    | IRSA     | Science image point source function                       |
+| DIFF           | Image    | IRSA     | Reference subtracted image cutout                         |
+| REF            | Image    | IRSA     | Reference image cutout                                    |
+| SANGLE         | Image    | zproject | Science or diff image aligned with projected Sun vector   |
+| SANGLEMASK     | Image    | zproject | Source mask for SANGLE                                    |
+| SANGLEREF      | Image    | zproject | Reference image aligned with projected Sun vector         |
+
+If the SANGLE image is based on DIFF, the SANGLE extension header
+keyword DIFFIMG will be True.
 
 ### Stacks
 

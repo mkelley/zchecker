@@ -29,7 +29,7 @@ class ZProject(ZChecker):
             raise ValueError('alignment must be vangle or sangle')
 
         cmd = 'SELECT foundid,archivefile FROM ztf_cutouts'
-        constraints = [('sciimg != 0', None)]
+        constraints = [('sciimg+diffimg != 0', None)]
         if not force:
             constraints.append(('({a}img=0 OR {a}img IS NULL)'.format(
                 a=alignment), None))
@@ -99,12 +99,14 @@ class ZProject(ZChecker):
 
 def project_file(fn, alignments, size):
     with fits.open(fn) as hdu:
+        # difference image preferred
+        sci_ext = hdu.index_of('DIFF') if 'DIFF' in hdu else 0
         mask_ext = hdu.index_of('MASK') if 'MASK' in hdu else None
         ref_ext = hdu.index_of('REF') if 'REF' in hdu else None
 
     for alignment in alignments:
         try:
-            newsci = project_extension(fn, 0, alignment, size)
+            newsci = project_extension(fn, sci_ext, alignment, size)
         except (m.MontageError, ValueError) as e:
             return str(e)
 
@@ -122,6 +124,7 @@ def project_file(fn, alignments, size):
 
         with fits.open(fn, mode='update') as hdu:
             append_image_to(hdu, newsci, alignment.upper())
+            hdu[alignment.upper()].header['DIFFIMG'] = not sci_ext, 'True if based on DIFF, else SCI'
             if mask_ext is not None:
                 append_image_to(hdu, newmask, alignment.upper() + 'MASK')
             if ref_ext is not None:

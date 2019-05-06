@@ -1,5 +1,8 @@
 # Changes
 
+## v2.3.2
+* Download difference images and use for sun-angle image, if available.
+
 ## v2.3.1
 * Fix missing science image download bug.
 * `zstack --clean-missing` to verify and fix local stack file repository.

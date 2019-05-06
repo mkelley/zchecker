@@ -61,14 +61,15 @@ class ZPhot(ZChecker):
             fn = self.config['cutout path'] + '/' + obs['archivefile']
             self.logger.debug('  ' + fn)
             with fits.open(fn) as hdu:
-                mask = self._mask(hdu['sci'], hdu['mask'])
-                im = np.ma.MaskedArray(hdu['sci'].data, mask=mask)
+                ext = 'DIFF' if 'DIFF' in hdu else 'SCI'
+                mask = self._mask(hdu[ext], hdu['mask'])
+                im = np.ma.MaskedArray(hdu[ext].data, mask=mask)
 
                 # first cut at background
-                if 'bgmedian' in hdu['sci'].header:
-                    im -= hdu['sci'].header['bgmedian']
+                if 'bgmedian' in hdu[ext].header:
+                    im -= hdu[ext].header['bgmedian']
 
-                wcs = WCS(hdu['sci'])
+                wcs = WCS(hdu[ext])
                 xy, dxy, flag = self._centroid(
                     im, wcs, obs['ra'], obs['dec'], unc_limit)
 
@@ -103,18 +104,18 @@ class ZPhot(ZChecker):
             if not (flag & NOBACKGROUND):
                 flux -= bg * area
 
-            zp = hdu['sci'].header['MAGZP']
-            zp_rms = hdu['sci'].header['MAGZPRMS']
-            C = hdu['sci'].header['CLRCOEFF']
+            zp = hdu[ext].header['MAGZP']
+            zp_rms = hdu[ext].header['MAGZPRMS']
+            C = hdu[ext].header['CLRCOEFF']
             sun = {  # PS1 system solar colors
                 'R - i': 0.09,
                 'g - R': 0.39
-            }[hdu['sci'].header['PCOLOR'].strip()]
+            }[hdu[ext].header['PCOLOR'].strip()]
 
             m_inst = -2.5 * np.log10(flux)
             m = m_inst + zp + C * sun
 
-            gain = hdu['sci'].header['gain']
+            gain = hdu[ext].header['gain']
             var = flux / gain
             if not (flag & NOBACKGROUND):
                 var += area * bgsig**2 * (1 + area / nbg)

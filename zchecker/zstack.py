@@ -374,9 +374,10 @@ class ZStack(ZChecker):
                 # update mask with nans
                 mask = obj_mask + ~np.isfinite(hdu['SANGLE'].data)
 
-                # get data, subtract background, convert to e-/s
+                # get data, subtract background if not a diff image, convert to e-/s
                 im = np.ma.MaskedArray(hdu['SANGLE'].data, mask=mask)
-                im -= h['BGMEDIAN']
+                if not hdu['SANGLE']['DIFFIMG']:
+                    im -= h['BGMEDIAN']
 
                 # scale by image zero point, scale to rh=delta=1 au
                 im *= (10**(-0.4 * (h['MAGZP'] - 25.0))
