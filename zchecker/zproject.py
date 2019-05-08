@@ -16,6 +16,10 @@ from zchecker import ZChecker
 from sbsearch import util
 from sbsearch.logging import ProgressBar
 
+# no data below this value is useful; used to test if reference
+# subtracted image is bad
+DATA_FLOOR = -100
+
 
 class ZProject(ZChecker):
     def __init__(self, *args, **kwargs):
@@ -107,8 +111,22 @@ class ZProject(ZChecker):
 
 def project_file(fn, alignments, size):
     with fits.open(fn) as hdu:
-        # difference image preferred
-        sci_ext = hdu.index_of('DIFF') if 'DIFF' in hdu else 0
+        # Difference image preferred, but not if there are too many
+        # artifacts due to being close to the edge.
+        sci_ext = 0
+        if 'DIFF' in hdu:
+            d = hdu['DIFF'].data
+            bad_rows = np.sum(d < DATA_FLOOR, 0) == d.shape[0]
+            bad_cols = np.sum(d < DATA_FLOOR, 1) == d.shape[1]
+
+            # any near the target?  don't use it.
+            x = hdu['SCI'].header['TGTX']
+            y = hdu['SCI'].header['TGTY']
+            bady = np.any(bad_rows[max(y-50, 0):min(y+51, d.shape[0])])
+            badx = np.any(bad_cols[max(x-50, 0):min(x+51, d.shape[1])])
+            if not (bady or badx):
+                sci_ext = hdu.index_of('DIFF')
+
         mask_ext = hdu.index_of('MASK') if 'MASK' in hdu else None
         ref_ext = hdu.index_of('REF') if 'REF' in hdu else None
 
@@ -247,7 +265,7 @@ END
 def update_background(fn):
     with fits.open(fn, mode='update') as hdu:
         im = hdu[0].data.copy()
-        mask = ~np.isfinite(im)
+        mask = ~np.isfinite(im) + (im < DATA_FLOOR)
         if 'MASK' in hdu:
             mask += hdu['MASK'].data > 0
         im = ma.MaskedArray(im, mask=mask, copy=True)
