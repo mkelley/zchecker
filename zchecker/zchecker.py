@@ -42,7 +42,7 @@ class ZChecker(SBSearch):
         self.config = Config(**kwargs) if config is None else config
         super().__init__(config=config, save_log=save_log,
                          disable_log=disable_log, **kwargs)
-        
+
     def check_pccp(self, start=None, stop=None, cutouts=False):
         """Search for today's objects on the MPC's PCCP.
 
@@ -106,7 +106,7 @@ class ZChecker(SBSearch):
         count = len(rows)
         exists = 0
         self.logger.info('Checking for {} cutouts.'.format(count))
-        
+
         with ztf.IRSA(path, self.config.auth) as irsa:
             for i in range(len(rows)):
                 row = {}
@@ -251,7 +251,7 @@ class ZChecker(SBSearch):
         if missing_files and retry_failed:
             raise ValueError('missing_files and retry_failed options are '
                              'incompatible.')
-            
+
         if retry_failed:
             constraints.append(('retrieved NOTNULL', None))
         elif missing_files:
@@ -295,7 +295,8 @@ class ZChecker(SBSearch):
 
                         for img in ['mask', 'psf', 'diff', 'ref']:
                             try:
-                                cutout.append(img, size=self.config['cutout size'])
+                                cutout.append(
+                                    img, size=self.config['cutout size'])
                             except ZCheckerError:
                                 pass
                 except ZCheckerError as e:
@@ -434,16 +435,17 @@ class ZChecker(SBSearch):
         retrieved = Time.now().iso[:-4]
         exposures = len(np.unique(tab['expid']))
         quads = len(tab)
+
         if nightid is None:
             c = self.db.execute('''
             INSERT INTO ztf_nights VALUES (NULL,?,?,?,?)
             ''', (date, exposures, quads, retrieved))
+            nightid = c.lastrowid
         else:
             c = self.db.execute('''
-            UPDATE ztf_nights SET date=?,exposures=?,quads=?,retrieved=?
+            UPDATE OR FAIL ztf_nights SET exposures=?,quads=?,retrieved=?
             WHERE nightid=?
-            ''', (date, exposures, quads, retrieved, nightid))
-        nightid = c.lastrowid
+            ''', (exposures, quads, retrieved, nightid))
 
         def obs_iterator(tab):
             for i in range(len(tab)):
