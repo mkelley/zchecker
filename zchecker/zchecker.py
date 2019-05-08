@@ -414,6 +414,12 @@ class ZChecker(SBSearch):
         if not re.match('20[12][0-9]-[01][0-9]-[0123][0-9]', date):
             raise ValueError('date format is YYYY-MM-DD')
 
+        # if date already defined, update
+        row = self.db.execute('''
+        SELECT nightid FROM ztf_nights WHERE date=?
+        ''', (date,)).fetchone()
+        nightid = None if row is None else row[0]
+
         jd_start = Time(date).jd
         jd_end = Time(date).jd + 1.0
 
@@ -428,9 +434,15 @@ class ZChecker(SBSearch):
         retrieved = Time.now().iso[:-4]
         exposures = len(np.unique(tab['expid']))
         quads = len(tab)
-        c = self.db.execute('''
-        INSERT OR REPLACE INTO ztf_nights VALUES (NULL,?,?,?,?)
-        ''', (date, exposures, quads, retrieved))
+        if nightid is None:
+            c = self.db.execute('''
+            INSERT INTO ztf_nights VALUES (NULL,?,?,?,?)
+            ''', (date, exposures, quads, retrieved))
+        else:
+            c = self.db.execute('''
+            UPDATE ztf_nights SET date=?,exposures=?,quads=?,retrieved=?
+            WHERE nightid=?
+            ''', (date, exposures, quads, retrieved, nightid))
         nightid = c.lastrowid
 
         def obs_iterator(tab):
