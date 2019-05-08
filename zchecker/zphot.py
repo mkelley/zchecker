@@ -16,10 +16,14 @@ from . import ZChecker
 from sbsearch import util
 
 # photometry flags
-CENFAIL = 1
-CENOFF = 2
-LARGEBGAP = 4
-NOBACKGROUND = 8
+
+
+class ZPhotFlag:
+    CENFAIL = 2**0
+    CENOFF = 2**1
+    LARGEBGAP = 2**2
+    NOBACKGROUND = 2**3
+    BACKGROUNDSTAR = 2**4
 
 
 class ZPhot(ZChecker):
@@ -53,6 +57,8 @@ class ZPhot(ZChecker):
         | 0   | centroiding failed                              |
         | 1   | large centroid offset                           |
         | 2   | estimated bg aperture too large                 |
+        | 3   | not background subtracted                       |
+        | 4   | possible star in aperture                       |
 
         """
 
