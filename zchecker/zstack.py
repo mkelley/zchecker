@@ -17,6 +17,10 @@ from .exceptions import BadStackSet, StackIDError
 
 def desg2file(s): return s.replace('/', '').replace(' ', '').lower()
 
+# no data below this value is useful; used to test if reference
+# subtracted image is bad
+DATA_FLOOR = -100
+
 
 class ZStack(ZChecker):
     def __init__(self, *args, **kwargs):
@@ -24,6 +28,32 @@ class ZStack(ZChecker):
         self.logger.info('ZStack')
         if not os.path.exists(self.config['stack path']):
             os.mkdir(self.config['stack path'])
+
+    def clean_missing(self):
+        count = self.db.execute('''
+        SELECT count() FROM ztf_stacks
+        WHERE stackfile IS NOT NULL
+        ''').fetchone()[0]
+        self.logger.info('Checking {} files.'.format(count))
+
+        rows = self.db.execute('''
+        SELECT stackid,stackfile FROM ztf_stacks
+        WHERE stackfile IS NOT NULL
+        ''')
+        exists = 0
+        for stackid, fn in util.iterate_over(rows):
+            if os.path.exists(os.path.join(self.config['stack path'], fn)):
+                exists += 1
+                continue
+
+            self.logger.error('{} was expected, but does not exist.'
+                              .format(fn))
+            self.db.execute('UPDATE ztf_cutouts SET stackid=NULL WHERE stackid={}'
+                            .format(stackid))
+            self.db.execute('DELETE FROM ztf_stacks WHERE stackid={}'
+                            .format(stackid))
+        self.logger.info('{} files verified, {} database rows removed'
+                         .format(exists, count - exists))
 
     def stack(self, scale_by, n_baseline, objects=None, restack=False):
         data = self._data_iterator(n_baseline, objects, restack)
@@ -340,17 +370,25 @@ class ZStack(ZChecker):
                 else:
                     obj_mask = np.zeros_like(hdu['SANGLE'].data, bool)
 
+                obj_mask += hdu['SANGLE'].data < DATA_FLOOR
+
                 # unmask objects within ~5" of target position
+                x = int(hdu['SANGLE'].header['CRPIX1']) - 1
+                y = int(hdu['SANGLE'].header['CRPIX2']) - 1
                 lbl, n = nd.label(obj_mask.astype(int))
-                for m in np.unique(lbl[145:156, 145:156]):
+                for m in np.unique(lbl[y-5:y+6, x-5:x+6]):
                     obj_mask[lbl == m] = False
 
-                # update mask with nans
-                mask = obj_mask + ~np.isfinite(hdu['SANGLE'].data)
+                # get data, if not a diff image, subtract background
+                # and use the object mask
+                im = np.ma.MaskedArray(
+                    hdu['SANGLE'].data,
+                    mask=~np.isfinite(hdu['SANGLE'].data))
 
-                # get data, subtract background, convert to e-/s
-                im = np.ma.MaskedArray(hdu['SANGLE'].data, mask=mask)
-                im -= h['BGMEDIAN']
+                usediff = hdu['SANGLE'].header.get('DIFFIMG', False)
+                if not usediff:
+                    im -= h['BGMEDIAN']
+                    im.mask += obj_mask
 
                 # scale by image zero point, scale to rh=delta=1 au
                 im *= (10**(-0.4 * (h['MAGZP'] - 25.0))

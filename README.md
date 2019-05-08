@@ -1,5 +1,12 @@
-# ZChecker v2.2.0
+# ZChecker v2.3.2
 ZTF moving target checker for short object lists.
+
+## Attribution and license
+Written by Michael S. P. Kelley (University of Maryland), with contributions from Quan-Zhi Ye (IPAC/Caltech).  Thanks to James Bauer, Dennis Bodewits, Tony Farnham, and Matthew Knight for some design comments.
+
+If `ZChecker` is useful to you, please cite Kelley, M. S. P., Bodewits, D., Ye, Q. et al. 2019.  ADASS XXVIII, ed. P. Teuben, M. Pound, B. Thomas, andE. Warner, ASP Conf. Ser., in press.
+
+ZChecker is licensed with the BSD 3-clause license.  See LICENSE for details.
 
 ## Requirements
 * Python 3.5+
@@ -137,6 +144,10 @@ $ zchecker --help
    
      `zchecker download-cutouts 6478 --size=20arcmin`
 
+1. ZChecker's database tracks files that have been downloaded, but accidents (and bugs) can happen.  If so, verify and fix the downloaded file repository with::
+
+     `zchecker download-cutouts 'P/2011 S1' --missing`
+
 1. Reproject downloaded cutouts to align projected velocity vectors and comet-Sun vectors along the +x axis::
 
      `zproject`
@@ -148,10 +159,14 @@ $ zchecker --help
 1. Make nightly and bi-weekly stacks by object::
 
      `zstack`
+
+   Check integrity of stack archive and fix errors::
+
+     `zstack --clean-missing`
 	 
 1. Experimental: measure object photometry::
 
-	 `zphot`
+     `zphot`
 
 
 ## Image data
@@ -167,15 +182,19 @@ perihelion it is on (based on heliocentric radial velocity).
 
 The FITS file format for cutouts:
 
-| Extension name | HDU type | Source   | Description                                       |
-|----------------|----------|----------|---------------------------------------------------|
-| SCI            | Primary  | IRSA     | Original science data cutout                      |
-| MASK           | Image    | IRSA     | Source mask                                       |
-| PSF            | Image    | IRSA     | Science image point source function               |
-| REF            | Image    | IRSA     | Reference image cutout                            |
-| SANGLE         | Image    | zproject | Science image aligned with projected Sun vector   |
-| SANGLEMASK     | Image    | zproject | Source mask for SANGLE                            |
-| SANGLEREF      | Image    | zproject | Reference image aligned with projected Sun vector |
+| Extension name | HDU type | Source   | Description                                               |
+|----------------|----------|----------|-----------------------------------------------------------|
+| SCI            | Primary  | IRSA     | Original science data cutout                              |
+| MASK           | Image    | IRSA     | Source mask                                               |
+| PSF            | Image    | IRSA     | Science image point source function                       |
+| DIFF           | Image    | IRSA     | Reference subtracted image cutout                         |
+| REF            | Image    | IRSA     | Reference image cutout                                    |
+| SANGLE         | Image    | zproject | Science or diff image aligned with projected Sun vector   |
+| SANGLEMASK     | Image    | zproject | Source mask for SANGLE                                    |
+| SANGLEREF      | Image    | zproject | Reference image aligned with projected Sun vector         |
+
+If the SANGLE image is based on DIFF, the SANGLE extension header
+keyword DIFFIMG will be True.
 
 ### Stacks
 

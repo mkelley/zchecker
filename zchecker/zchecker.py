@@ -107,30 +107,32 @@ class ZChecker(SBSearch):
         exists = 0
         self.logger.info('Checking for {} cutouts.'.format(count))
         
-        for i in range(len(rows)):
-            row = {}
-            for col in rows.colnames:
-                row[col] = rows[col][i]
+        with ztf.IRSA(path, self.config.auth) as irsa:
+            for i in range(len(rows)):
+                row = {}
+                for col in rows.colnames:
+                    row[col] = rows[col][i]
 
-            with ztf.IRSA(path, self.config.auth) as irsa:
-                with ZData(irsa, path, fntemplate, self.logger,
-                           **row) as cutout:
-                    count -= 1
+                try:
+                    with ZData(irsa, path, fntemplate, self.logger,
+                               **row) as cutout:
+                        count -= 1
 
-                    if os.path.exists(cutout.fn):
-                        exists += 1
-                        continue
+                        if os.path.exists(cutout.fn):
+                            exists += 1
+                            continue
 
-                    try:
-                        cutout.append('sci', size=self.config['cutout size'])
-                    except ZCheckerError:
-                        continue
+                        cutout.append(
+                            'sci', size=self.config['cutout size'])
 
-                    for img in ['mask', 'psf', 'ref']:
-                        try:
-                            cutout.append(img, size=self.config['cutout size'])
-                        except ZCheckerError:
-                            pass
+                        for img in ['mask', 'psf', 'diff', 'ref']:
+                            try:
+                                cutout.append(
+                                    img, size=self.config['cutout size'])
+                            except ZCheckerError:
+                                pass
+                except ZCheckerError as e:
+                    self.logger.error('{} - {}'.format(cutout.fn, str(e)))
 
                 self.logger.debug('  [{}] {}'.format(count + 1, cutout.fn))
 
@@ -207,8 +209,8 @@ class ZChecker(SBSearch):
         return count
 
     def download_cutouts(self, objects=None, clean_failed=True,
-                         retry_failed=True):
-        """Download missing cutouts around found objects.
+                         retry_failed=True, missing_files=False):
+        """Download cutouts around found objects.
 
         Parameters
         ----------
@@ -221,6 +223,10 @@ class ZChecker(SBSearch):
         retry_failed : bool, optional
             Retry previously failed downloads.
 
+        missing_files : bool, optional
+            Test the cutout directory for file, and only download
+            those that are missing.
+
         """
 
         path = self.config['cutout path']
@@ -232,15 +238,24 @@ class ZChecker(SBSearch):
         LEFT JOIN ztf_cutouts USING (foundid)
         '''
 
-        constraints = [('(sciimg IS NULL OR sciimg=0)', None)]
+        constraints = []
+
+        if not missing_files:
+            constraints.append(('(sciimg IS NULL OR sciimg=0)', None))
 
         if objects:
             objids = [obj[0] for obj in self.db.resolve_objects(objects)]
             q = ','.join('?' * len(objids))
             constraints.append(('objid IN ({})'.format(q), objids))
 
+        if missing_files and retry_failed:
+            raise ValueError('missing_files and retry_failed options are '
+                             'incompatible.')
+            
         if retry_failed:
             constraints.append(('retrieved NOTNULL', None))
+        elif missing_files:
+            pass
         else:
             constraints.append(('retrieved IS NULL', None))
 
@@ -252,29 +267,49 @@ class ZChecker(SBSearch):
         if count == 0:
             self.logger.info('No cutouts to download.')
             return
+
+        if missing_files:
+            verb = 'Testing for'
         else:
-            self.logger.info('Downloading {} cutouts.'.format(count))
+            verb = 'Downloading'
 
-        for row in util.iterate_over(rows):
-            with ztf.IRSA(path, self.config.auth) as irsa:
-                with ZData(irsa, path, fntemplate, self.logger,
-                           **row) as cutout:
-                    count -= 1
-                    try:
-                        cutout.append('sci', size=self.config['cutout size'])
-                    except ZCheckerError:
-                        cutout.update_db(self.db)
+        self.logger.info('{} {} cutouts.'.format(verb, count))
+
+        missing = 0
+        downloaded = 0
+        with ztf.IRSA(path, self.config.auth) as irsa:
+            for row in util.iterate_over(rows):
+                count -= 1
+
+                if missing_files:
+                    fn = ZData.filename(fntemplate, row)
+                    if os.path.exists(os.path.join(path, fn)):
                         continue
+                    missing += 1
 
-                    for img in ['mask', 'psf', 'ref']:
-                        try:
-                            cutout.append(img, size=self.config['cutout size'])
-                        except ZCheckerError:
-                            pass
+                try:
+                    with ZData(irsa, path, fntemplate, self.logger,
+                               **row) as cutout:
+                        cutout.append('sci', size=self.config['cutout size'])
+                        downloaded += 1
 
-                cutout.update_db(self.db)
+                        for img in ['mask', 'psf', 'diff', 'ref']:
+                            try:
+                                cutout.append(img, size=self.config['cutout size'])
+                            except ZCheckerError:
+                                pass
+                except ZCheckerError as e:
+                    self.logger.error(str(e))
+                finally:
+                    cutout.add_to_db(self.db, update=missing_files)
 
                 self.logger.debug('  [{}] {}'.format(count + 1, cutout.fn))
+
+        if missing_files:
+            self.logger.info('{} files were missing'.format(missing))
+
+        self.logger.info('{} files successfully downloaded.'
+                         .format(downloaded))
 
     def summarize_found(self, objects=None, start=None, stop=None):
         """Summarize found object database."""
@@ -379,6 +414,12 @@ class ZChecker(SBSearch):
         if not re.match('20[12][0-9]-[01][0-9]-[0123][0-9]', date):
             raise ValueError('date format is YYYY-MM-DD')
 
+        # if date already defined, update
+        row = self.db.execute('''
+        SELECT nightid FROM ztf_nights WHERE date=?
+        ''', (date,)).fetchone()
+        nightid = None if row is None else row[0]
+
         jd_start = Time(date).jd
         jd_end = Time(date).jd + 1.0
 
@@ -393,9 +434,15 @@ class ZChecker(SBSearch):
         retrieved = Time.now().iso[:-4]
         exposures = len(np.unique(tab['expid']))
         quads = len(tab)
-        c = self.db.execute('''
-        INSERT OR REPLACE INTO ztf_nights VALUES (NULL,?,?,?,?)
-        ''', (date, exposures, quads, retrieved))
+        if nightid is None:
+            c = self.db.execute('''
+            INSERT INTO ztf_nights VALUES (NULL,?,?,?,?)
+            ''', (date, exposures, quads, retrieved))
+        else:
+            c = self.db.execute('''
+            UPDATE ztf_nights SET date=?,exposures=?,quads=?,retrieved=?
+            WHERE nightid=?
+            ''', (date, exposures, quads, retrieved, nightid))
         nightid = c.lastrowid
 
         def obs_iterator(tab):

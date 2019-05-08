@@ -1,5 +1,15 @@
 # Changes
 
+## v2.3.2
+* Download difference images and use for sun-angle image, if available.
+
+## v2.3.1
+* Fix missing science image download bug.
+* `zstack --clean-missing` to verify and fix local stack file repository.
+
+## v2.3.0
+* `zchecker cutout --missing` to verify local cutout file repository.
+
 ## v2.2.0
 * Cutout sizes can be specified in configuration file and at run time.
 

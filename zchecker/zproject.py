@@ -16,20 +16,25 @@ from zchecker import ZChecker
 from sbsearch import util
 from sbsearch.logging import ProgressBar
 
+# no data below this value is useful; used to test if reference
+# subtracted image is bad
+DATA_FLOOR = -100
+
 
 class ZProject(ZChecker):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.logger.info('ZProject')
 
-    def project(self, alignment='sangle', objects=None, force=False, size=300):
+    def project(self, alignment='sangle', objects=None, force=False, size=300,
+                single=False):
         path = self.config['cutout path'] + os.path.sep
 
         if alignment not in ['vangle', 'sangle']:
             raise ValueError('alignment must be vangle or sangle')
 
         cmd = 'SELECT foundid,archivefile FROM ztf_cutouts'
-        constraints = [('sciimg != 0', None)]
+        constraints = [('sciimg+diffimg != 0', None)]
         if not force:
             constraints.append(('({a}img=0 OR {a}img IS NULL)'.format(
                 a=alignment), None))
@@ -64,34 +69,41 @@ class ZProject(ZChecker):
                 count -= 1
                 queued += 1
 
-                if queued == mp.cpu_count() * 2:
-                    self.queue(foundids, archivefiles, alignment, bar, size)
+                if queued == mp.cpu_count() * 2 or single:
+                    self.queue(foundids, archivefiles, alignment, bar, size,
+                               single)
                     foundids, archivefiles, args = [], [], []
                     queued = 0
 
             if queued:
                 error_count += self.queue(foundids, archivefiles,
-                                          alignment, bar, size)
+                                          alignment, bar, size, single)
         self.logger.info('{} errors.'.format(error_count))
 
-    def queue(self, foundids, archivefiles, alignment, bar, size):
-        error_count = 0
+    def queue(self, foundids, archivefiles, alignment, bar, size, single):
         args = list(zip(archivefiles, repeat([alignment]), repeat(size)))
-        with mp.Pool() as pool:
-            errors = pool.starmap(project_file, args)
-            for i in range(len(errors)):
-                if errors[i] is False:
-                    self.db.execute('''
-                        UPDATE ztf_cutouts
-                        SET {a}img=?
-                        WHERE foundid=?
-                        '''.format(a=alignment), (1, foundids[i]))
-                else:
-                    error_count += 1
-                    self.logger.error(
-                        '    Error projecting {}: {}'.format(
-                            archivefiles[i], errors[i]))
-                bar.update()
+        if single:
+            errors = []
+            for i in range(len(args)):
+                errors.append(project_file(*args[i]))
+        else:
+            with mp.Pool() as pool:
+                errors = pool.starmap(project_file, args)
+
+        error_count = 0
+        for i in range(len(errors)):
+            if errors[i] is False:
+                self.db.execute('''
+                UPDATE ztf_cutouts
+                SET {a}img=?
+                WHERE foundid=?
+                '''.format(a=alignment), (1, foundids[i]))
+            else:
+                error_count += 1
+                self.logger.error(
+                    '    Error projecting {}: {}'.format(
+                    archivefiles[i], errors[i]))
+            bar.update()
 
         self.db.commit()
         return error_count
@@ -99,12 +111,28 @@ class ZProject(ZChecker):
 
 def project_file(fn, alignments, size):
     with fits.open(fn) as hdu:
+        # Difference image preferred, but not if there are too many
+        # artifacts due to being close to the edge.
+        sci_ext = 0
+        if 'DIFF' in hdu:
+            d = hdu['DIFF'].data
+            bad_rows = np.sum(d < DATA_FLOOR, 0) == d.shape[0]
+            bad_cols = np.sum(d < DATA_FLOOR, 1) == d.shape[1]
+
+            # any near the target?  don't use it.
+            x = hdu['SCI'].header['TGTX']
+            y = hdu['SCI'].header['TGTY']
+            bady = np.any(bad_rows[max(y-50, 0):min(y+51, d.shape[0])])
+            badx = np.any(bad_cols[max(x-50, 0):min(x+51, d.shape[1])])
+            if not (bady or badx):
+                sci_ext = hdu.index_of('DIFF')
+
         mask_ext = hdu.index_of('MASK') if 'MASK' in hdu else None
         ref_ext = hdu.index_of('REF') if 'REF' in hdu else None
 
     for alignment in alignments:
         try:
-            newsci = project_extension(fn, 0, alignment, size)
+            newsci = project_extension(fn, sci_ext, alignment, size)
         except (m.MontageError, ValueError) as e:
             return str(e)
 
@@ -122,6 +150,7 @@ def project_file(fn, alignments, size):
 
         with fits.open(fn, mode='update') as hdu:
             append_image_to(hdu, newsci, alignment.upper())
+            hdu[alignment.upper()].header['DIFFIMG'] = sci_ext != 0, 'True if based on DIFF, else SCI'
             if mask_ext is not None:
                 append_image_to(hdu, newmask, alignment.upper() + 'MASK')
             if ref_ext is not None:
@@ -154,36 +183,32 @@ def project_extension(fn, ext, alignment, size):
 
     radec = (h0['tgtra'], h0['tgtdec'])
     temp_header = make_header(radec, 90 + h0[alignment], size)
-
     bitpix = fits.getheader(fn, ext=ext)['BITPIX']
-    if bitpix == 16:
-        # convert to float
-        fd_in, inf = mkstemp()
-        with fits.open(fn) as original:
-            newhdu = fits.PrimaryHDU(original[ext].data.astype(float),
-                                     original[ext].header)
-            newhdu.writeto(inf)
-        ext = 0
-    else:
-        fd_in = None
-        inf = fn
+
+    # could not reproject diff images with hdu keyword, instead copy
+    # all extensions to their own file, and reproject that
+    fd_in, inf = mkstemp()
+    with fits.open(fn) as original:
+        # astype(float) to convert integers
+        newhdu = fits.PrimaryHDU(original[ext].data.astype(float),
+                                 original[ext].header)
+        newhdu.writeto(inf)
 
     fd_out, outf = mkstemp()
     try:
-        m.reproject(inf, outf, hdu=ext, header=temp_header,
+        m.reproject(inf, outf, header=temp_header,
                     exact_size=True, silent_cleanup=True)
         im, h = fits.getdata(outf, header=True)
         if bitpix == 16:
             im = im.round().astype(int)
             im[im < 0] = 0
         projected = fits.ImageHDU(im, h)
-    except m.MontageError:
+    except m.MontageError as e:
         raise
     finally:
         # temp file clean up
-        if fd_in is not None:
-            os.fdopen(fd_in).close()
-            os.unlink(inf)
+        os.fdopen(fd_in).close()
+        os.unlink(inf)
         os.fdopen(fd_out).close()
         os.unlink(outf)
         os.unlink(temp_header)
@@ -240,7 +265,7 @@ END
 def update_background(fn):
     with fits.open(fn, mode='update') as hdu:
         im = hdu[0].data.copy()
-        mask = ~np.isfinite(im)
+        mask = ~np.isfinite(im) + (im < DATA_FLOOR)
         if 'MASK' in hdu:
             mask += hdu['MASK'].data > 0
         im = ma.MaskedArray(im, mask=mask, copy=True)

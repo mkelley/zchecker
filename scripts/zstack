@@ -19,6 +19,9 @@ parser.add_argument(
 parser.add_argument(
     '--force', '-f', action='store_true',
     help='overwrite previous stacks')
+parser.add_argument(
+    '--clean-missing', action='store_true',
+    help='clean missing files from database')
 parser.add_argument('--db', help='database file')
 parser.add_argument('--log', help='log file')
 parser.add_argument('--cutout-path', help='path to cutout directory')
@@ -42,6 +45,8 @@ if args.stack_path:
     c['stack path'] = args.stack_path
 config = Config.from_args(args, **c)
 with ZStack(config, save_log=True) as z:
-
-    z.stack(scale_by, args.baseline, objects=args.objects,
-            restack=args.force)
+    if args.clean_missing:
+        z.clean_missing()
+    else:
+        z.stack(scale_by, args.baseline, objects=args.objects,
+                restack=args.force)

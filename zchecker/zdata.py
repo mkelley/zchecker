@@ -9,7 +9,7 @@ from astropy.io import fits
 from astropy.wcs import WCS
 import astropy.units as u
 
-from .exceptions import ZCheckerError
+from .exceptions import DownloadError, FITSHeaderError
 
 
 def desg2file(s): return s.replace('/', '').replace(' ', '').lower()
@@ -44,17 +44,8 @@ class ZData:
         self.logger = logger
         self.meta = meta
 
-        prepost = 'pre' if self.meta['rdot'] < 0 else 'post'
-        date = Time(float(self.meta['obsjd']), format='jd').iso
-        datetime = (date[:18]
-                    .replace('-', '')
-                    .replace(':', '')
-                    .replace(' ', '_'))
-
         self.path = path
-        self.fn = fntemplate.format(
-            datetime=datetime, prepost=prepost,
-            desgfile=desg2file(self.meta['desg']), **meta)
+        self.fn = self.filename(fntemplate, meta)
 
     def __enter__(self):
         fn = '/'.join((self.path, self.fn))
@@ -79,102 +70,105 @@ class ZData:
             # an exception occurred
             return
 
-        if len(self.hdu) > 0:
-            # add found object metadata to primary header
-            updates = OrderedDict()
-            updates['objid'] = (
-                self.meta['objid'],
-                'Object database ID'
-            )
-            updates['desg'] = (
-                self.meta['desg'],
-                'Target designation'
-            )
-            updates['obsjd'] = (
-                self.meta['obsjd'],
-                'Shutter start time'
-            )
-            updates['rh'] = (
-                self.meta['rh'],
-                'Heliocentric distance, au'
-            )
-            updates['delta'] = (
-                self.meta['delta'],
-                'Observer-target distance, au'
-            )
-            updates['phase'] = (
-                self.meta['phase'],
-                'Sun-target-observer angle, deg'
-            )
-            updates['rdot'] = (
-                self.meta['rdot'],
-                'Heliocentric radial velocity, km/s'
-            )
-            updates['selong'] = (
-                self.meta['selong'],
-                'Solar elongation, deg'
-            )
-            updates['sangle'] = (
-                self.meta['sangle'],
-                'Projected target->Sun position angle, deg'
-            )
-            updates['vangle'] = (
-                self.meta['vangle'],
-                'Projected velocity position angle, deg'
-            )
-            updates['trueanom'] = (
-                self.meta['trueanomaly'],
-                'True anomaly (osculating), deg'
-            )
-            updates['tmtp'] = (
-                self.meta['tmtp'],
-                'T-Tp (osculating), days'
-            )
-            updates['tgtra'] = (
-                self.meta['ra'],
-                'Target RA, deg'
-            )
-            updates['tgtdec'] = (
-                self.meta['dec'],
-                'Target Dec, deg'
-            )
-            updates['tgtdra'] = (
-                self.meta['dra'],
-                'RA*cos(dec) rate of change, arcsec/s'
-            )
-            updates['tgtddec'] = (
-                self.meta['ddec'],
-                'Dec rate of change, arcsec/s'
-            )
-            updates['tgtrasig'] = (
-                self.meta['ra3sig'],
-                'RA 3-sigma, arcsec'
-            )
-            updates['tgtdesig'] = (
-                self.meta['dec3sig'],
-                'Dec 3-sigma, arcsec'
-            )
-            updates['foundid'] = (
-                self.meta['foundid'],
-                'ZChecker DB foundid'
-            )
+        if len(self.hdu) == 0:
+            raise DownloadError('Empty HDU for foundid={}, unknown cause.'
+                                .format(self.meta['foundid']))
 
-            wcs = WCS(self.hdu[0].header)
-            x, y = wcs.all_world2pix(self.meta['ra'] * u.deg,
-                                     self.meta['dec'] * u.deg, 0)
-            if not all(np.isfinite((x, y))):
-                self.logger.error(
-                    'Target RA, Dec -> pix returned bad values.')
-            else:
-                updates['tgtx'] = int(x), 'Target x coordinate, 0-based'
-                updates['tgty'] = int(y), 'Target y coordinate, 0-based'
+        # add found object metadata to primary header
+        updates = OrderedDict()
+        updates['objid'] = (
+            self.meta['objid'],
+            'Object database ID'
+        )
+        updates['desg'] = (
+            self.meta['desg'],
+            'Target designation'
+        )
+        updates['obsjd'] = (
+            self.meta['obsjd'],
+            'Shutter start time'
+        )
+        updates['rh'] = (
+            self.meta['rh'],
+            'Heliocentric distance, au'
+        )
+        updates['delta'] = (
+            self.meta['delta'],
+            'Observer-target distance, au'
+        )
+        updates['phase'] = (
+            self.meta['phase'],
+            'Sun-target-observer angle, deg'
+        )
+        updates['rdot'] = (
+            self.meta['rdot'],
+            'Heliocentric radial velocity, km/s'
+        )
+        updates['selong'] = (
+            self.meta['selong'],
+            'Solar elongation, deg'
+        )
+        updates['sangle'] = (
+            self.meta['sangle'],
+            'Projected target->Sun position angle, deg'
+        )
+        updates['vangle'] = (
+            self.meta['vangle'],
+            'Projected velocity position angle, deg'
+        )
+        updates['trueanom'] = (
+            self.meta['trueanomaly'],
+            'True anomaly (osculating), deg'
+        )
+        updates['tmtp'] = (
+            self.meta['tmtp'],
+            'T-Tp (osculating), days'
+        )
+        updates['tgtra'] = (
+            self.meta['ra'],
+            'Target RA, deg'
+        )
+        updates['tgtdec'] = (
+            self.meta['dec'],
+            'Target Dec, deg'
+        )
+        updates['tgtdra'] = (
+            self.meta['dra'],
+            'RA*cos(dec) rate of change, arcsec/s'
+        )
+        updates['tgtddec'] = (
+            self.meta['ddec'],
+            'Dec rate of change, arcsec/s'
+        )
+        updates['tgtrasig'] = (
+            self.meta['ra3sig'],
+            'RA 3-sigma, arcsec'
+        )
+        updates['tgtdesig'] = (
+            self.meta['dec3sig'],
+            'Dec 3-sigma, arcsec'
+        )
+        updates['foundid'] = (
+            self.meta['foundid'],
+            'ZChecker DB foundid'
+        )
 
-            try:
-                self.hdu[0].header.update(**updates)
-            except ValueError as e:
-                self.logger.error(
-                    'Error creating FITS header for foundid {}: {}'.format(
-                        self.meta['foundid'], str(e)))
+        wcs = WCS(self.hdu[0].header)
+        x, y = wcs.all_world2pix(self.meta['ra'] * u.deg,
+                                 self.meta['dec'] * u.deg, 0)
+        if not all(np.isfinite((x, y))):
+            self.logger.error(
+                'Target RA, Dec -> pix returned bad values.')
+        else:
+            updates['tgtx'] = int(x), 'Target x coordinate, 0-based'
+            updates['tgty'] = int(y), 'Target y coordinate, 0-based'
+
+        try:
+            self.hdu[0].header.update(**updates)
+        except ValueError as e:
+            raise FITSHeaderError(
+                'Error creating FITS header for foundid {}: {}'
+                .format(self.meta['foundid'], str(e)))
 
         self.hdu.writeto('/'.join((self.path, self.fn)))
         self.hdu.close()
@@ -229,27 +223,60 @@ class ZData:
         fn = mktemp(dir='/tmp')
         self.irsa.download(url, fn, clean_failed=True, logger=self.logger)
         with fits.open(fn, lazy_load_hdus=False) as f:
+            if img_name == 'diff':
+                ext = 1
+            else:
+                ext = 0
             # in case img_name with extensions
-            f[0].name = img_name.split('.')[0]
-            self.hdu.append(f[0].copy())
+            f[ext].name = img_name.split('.')[0]
+            self.hdu.append(f[ext].copy())
         os.unlink(fn)
 
-    def update_db(self, db):
-        """Update found table in database."""
-        retrieved = Time.now().iso[:-4]
-        db.execute('''
-        INSERT OR REPLACE INTO ztf_cutouts (
-          foundid,archivefile,retrieved,sciimg,mskimg,scipsf,diffimg,
-          diffpsf,refimg,vangleimg,sangleimg)
-        VALUES (?,?,?,?,?,?,?,?,?,0,0)
-        ''', (self.meta['foundid'],
-              self.fn,
-              retrieved,
-              int('sci' in self.hdu),
-              int('mask' in self.hdu),
-              int('psf' in self.hdu),
-              int('diff' in self.hdu),
-              int('diffpsf' in self.hdu),
-              int('ref' in self.hdu))
-        )
+    @staticmethod
+    def filename(fntemplate, meta):
+        """Apply metadata to file name template."""
+
+        prepost = 'pre' if meta['rdot'] < 0 else 'post'
+        date = Time(float(meta['obsjd']), format='jd').iso
+        datetime = (date[:18]
+                    .replace('-', '')
+                    .replace(':', '')
+                    .replace(' ', '_'))
+
+        return fntemplate.format(
+            datetime=datetime, prepost=prepost,
+            desgfile=desg2file(meta['desg']), **meta)
+
+    def add_to_db(self, db, update=False):
+        """Insert or update to found table."""
+
+        if 'sci' not in self.hdu:
+            values = (None,)
+        else:
+            values = (self.fn,)
+
+        values += (Time.now().iso[:-4],
+                   int('sci' in self.hdu),
+                   int('mask' in self.hdu),
+                   int('psf' in self.hdu),
+                   int('diff' in self.hdu),
+                   int('diffpsf' in self.hdu),
+                   int('ref' in self.hdu))
+
+        if update:
+            db.execute('''
+            UPDATE ztf_cutouts SET (
+              archivefile,retrieved,sciimg,mskimg,scipsf,diffimg,
+              diffpsf,refimg,vangleimg,sangleimg
+            ) = (?,?,?,?,?,?,?,?,0,0)
+            WHERE foundid=?
+            ''', values + (self.meta['foundid'],))
+        else:
+            db.execute('''
+            INSERT OR REPLACE INTO ztf_cutouts (
+              foundid,archivefile,retrieved,sciimg,mskimg,scipsf,diffimg,
+              diffpsf,refimg,vangleimg,sangleimg)
+            VALUES (?,?,?,?,?,?,?,?,?,0,0)
+            ''', (self.meta['foundid'],) + values)
+
         db.commit()
