@@ -370,7 +370,8 @@ class ZStack(ZChecker):
                 else:
                     obj_mask = np.zeros_like(hdu['SANGLE'].data, bool)
 
-                obj_mask += hdu['SANGLE'].data < DATA_FLOOR
+                mask = (hdu['SANGLE'].data < DATA_FLOOR
+                        + ~np.isfinite(hdu['SANGLE'].data))
 
                 # unmask objects within ~5" of target position
                 x = int(hdu['SANGLE'].header['CRPIX1']) - 1
@@ -381,9 +382,7 @@ class ZStack(ZChecker):
 
                 # get data, if not a diff image, subtract background
                 # and use the object mask
-                im = np.ma.MaskedArray(
-                    hdu['SANGLE'].data,
-                    mask=~np.isfinite(hdu['SANGLE'].data))
+                im = np.ma.MaskedArray(hdu['SANGLE'].data, mask=mask)
 
                 usediff = hdu['SANGLE'].header.get('DIFFIMG', False)
                 if not usediff:
@@ -397,7 +396,7 @@ class ZStack(ZChecker):
                 # use reference image, if possible
                 if 'SANGLEREF' in hdu:
                     # update mask with nans
-                    mask = obj_mask + ~np.isfinite(hdu['SANGLEREf'].data)
+                    mask = obj_mask + ~np.isfinite(hdu['SANGLEREF'].data)
                     ref = np.ma.MaskedArray(hdu['SANGLEREF'].data, mask=mask)
                     mms = sigma_clipped_stats(ref)
                     ref -= mms[1]
@@ -416,6 +415,7 @@ class ZStack(ZChecker):
             raise BadStackSet
 
         im = np.ma.dstack(stack)
+        im.mask += ~np.isfinite(im)
         im = np.ma.median(im, 2).filled(np.nan)
         combined = fits.ImageHDU(im)
 
