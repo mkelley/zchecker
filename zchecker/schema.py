@@ -39,6 +39,7 @@ CREATE TABLE IF NOT EXISTS ztf(
   FOREIGN KEY(obsid) REFERENCES obs(obsid),
   FOREIGN KEY(nightid) REFERENCES ztf_nights(nightid)
 );
+CREATE UNIQUE INDEX ztf_pid ON ztf(pid);
 
 CREATE TABLE IF NOT EXISTS ztf_cutouts(
   foundid INTEGER PRIMARY KEY,
