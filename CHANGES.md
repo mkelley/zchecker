@@ -1,5 +1,11 @@
 # Changes
 
+## v2.3.3
+* Smarter use and masking of difference images.
+* Fix duplicate ZTF PID bug after ztf-update.
+* Enable incremental updates with ztf-update.
+* clean-found will remove dates without specifying object.
+
 ## v2.3.2
 * Download difference images and use for sun-angle image, if available.
 
