@@ -122,8 +122,8 @@ def project_file(fn, alignments, size):
             # any near the target?  don't use it.
             x = hdu['SCI'].header['TGTX']
             y = hdu['SCI'].header['TGTY']
-            bady = np.any(bad_rows[max(y-50, 0):min(y+51, d.shape[0])])
-            badx = np.any(bad_cols[max(x-50, 0):min(x+51, d.shape[1])])
+            bady = np.any(bad_cols[max(y-50, 0):min(y+51, d.shape[0])])
+            badx = np.any(bad_rows[max(x-50, 0):min(x+51, d.shape[1])])
             if not (bady or badx):
                 sci_ext = hdu.index_of('DIFF')
 

@@ -42,7 +42,7 @@ class ZChecker(SBSearch):
         self.config = Config(**kwargs) if config is None else config
         super().__init__(config=config, save_log=save_log,
                          disable_log=disable_log, **kwargs)
-        
+
     def check_pccp(self, start=None, stop=None, cutouts=False):
         """Search for today's objects on the MPC's PCCP.
 
