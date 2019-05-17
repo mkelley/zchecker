@@ -289,7 +289,7 @@ class ZChecker(SBSearch):
                         continue
                     missing += 1
 
-                alternates = self.db.get_alternate_desg(row['objid'])
+                alternates = self.db.get_alternate_desgination(row['objid'])
                 for i, alt in enumerate(alternates):
                     row['desg{}'.format(i + 1)] = alt
 
