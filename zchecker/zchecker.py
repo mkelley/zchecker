@@ -1,6 +1,7 @@
 # Licensed under a 3-clause BSD style license - see LICENSE.rst
 import re
 import os
+from collections import OrderedDict
 
 import numpy as np
 import astropy.units as u
@@ -279,6 +280,7 @@ class ZChecker(SBSearch):
         downloaded = 0
         with ztf.IRSA(path, self.config.auth) as irsa:
             for row in util.iterate_over(rows):
+                row = OrderedDict(row)
                 count -= 1
 
                 if missing_files:
@@ -286,6 +288,10 @@ class ZChecker(SBSearch):
                     if os.path.exists(os.path.join(path, fn)):
                         continue
                     missing += 1
+
+                alternates = self.db.get_alternate_desg(row['objid'])
+                for i, alt in enumerate(alternates):
+                    row['desg{}'.format(i + 1)] = alt
 
                 try:
                     with ZData(irsa, path, fntemplate, self.logger,

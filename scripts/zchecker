@@ -451,8 +451,8 @@ def list_objects(args):
 
 parser_objects = subparsers.add_parser(
     'list-objects', aliases=['objects'],
-    help=('list all objects in the local database with their '
-          'ephemeris ranges'))
+    help=('list all objects in the local database with their ephemeris'
+          'ranges, ephemeris coverage, or found object coverage'))
 mutex = parser_objects.add_mutually_exclusive_group()
 mutex.add_argument(
     '--eph', action='store_true', help='summarize ephemeris coverage')
@@ -483,6 +483,50 @@ parser_clean_files = subparsers.add_parser(
     help='clean stale files from local archive',
     epilog='best to run after database manulation outside of zchecker')
 parser_clean_files.set_defaults(func=clean_files)
+
+
+# UPDATE_OBJECT ########################################################
+def update_object(args):
+    config = Config.from_args(args)
+    with ZChecker(config, save_log=True) as z:
+        if args.rename:
+            z.update_object(args.desg, args.new_desg)
+        else:
+            z.add_alternate_desg(args.desg, args.new_desg)
+
+
+parser_update_desg = subparsers.add_parser(
+    'update-object',
+    help='rename object or add alternate designation')
+parser_update_desg.add_argument(
+    'desg', type=str, help='current object designation')
+parser_update_desg.add_argument(
+    'new_desg', type=str, help='new object designation')
+parser_update_desg.add_argument(
+    '--rename', action='store_true',
+    help='make new_desg the primary for this object')
+parser_update_desg.set_defaults(func=update_object)
+
+
+# REMOVE_OBJECT ########################################################
+def remove_object(args):
+    config = Config.from_args(args)
+    with ZChecker(config, save_log=True) as z:
+        obj = z.db.resolve_object(args.desg)
+        if obj[1] == args.desg:
+            raise ValueError(
+                'Removing primary designations is not supported.')
+        z.remove_alternate_designation(args.desg)
+
+
+parser_remove_object = subparsers.add_parser(
+    'remove-object',
+    help='remove alternative designation from database',
+    epilog='removing primary designations is not supported')
+parser_remove_object.add_argument(
+    'desg', type=str, help='current object designation')
+parser_remove_object.set_defaults(func=remove_object)
+
 
 ########################################################################
 
