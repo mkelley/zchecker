@@ -1,7 +1,7 @@
 # Licensed under a 3-clause BSD style license - see LICENSE.rst
 
-zchecker_names = ['ztf_nights', 'ztf', 'ztf_cutouts', 'ztf_found',
-                  'ztf_stacks', 'ztf_stale_files',
+zchecker_names = ['ztf_nights', 'ztf', 'ztf_pid', 'ztf_cutouts',
+                  'ztf_found', 'ztf_stacks', 'ztf_stale_files',
                   'ztf_phot', 'delete_found_from_ztf_cutouts',
                   'delete_ztf_cutouts_from_ztf_stacks',
                   'delete_ztf_nights_from_obs',
@@ -39,7 +39,7 @@ CREATE TABLE IF NOT EXISTS ztf(
   FOREIGN KEY(obsid) REFERENCES obs(obsid),
   FOREIGN KEY(nightid) REFERENCES ztf_nights(nightid)
 );
-CREATE UNIQUE INDEX ztf_pid ON ztf(pid);
+CREATE UNIQUE INDEX IF NOT EXISTS ztf_pid ON ztf(pid);
 
 CREATE TABLE IF NOT EXISTS ztf_cutouts(
   foundid INTEGER PRIMARY KEY,
