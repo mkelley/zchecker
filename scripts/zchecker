@@ -126,7 +126,7 @@ def one_shot(args):
         try:
             eph = z.db.get_ephemeris_exact(
                 args.object, 'I41', epochs, source=args.source)
-            n, obs, tab = z.find_by_ephemeris(eph)
+            obs, tab = z.find_by_ephemeris(eph)
         except Exception as e:
             z.logger.error(str(e))
             raise e
