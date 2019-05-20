@@ -11,6 +11,6 @@ if __name__ == "__main__":
           packages=find_packages(),
           requires=['numpy', 'astropy', 'requests'],
           scripts=['scripts/zchecker', 'scripts/zproject', 'scripts/zstack',
-                   'scripts/zphot'],
+                   'scripts/zphot', 'scripts/ds9-ztf'],
           license='BSD',
           )
