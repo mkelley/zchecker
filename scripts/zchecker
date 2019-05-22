@@ -160,10 +160,17 @@ def pccp(args):
     stop = args.stop + 1 * u.day  # search limit is end of the day
 
     config = Config.from_args(args)
+    if args.cutouts:
+        download = 'cutouts'
+    elif args.fullframe:
+        download = 'fullframe'
+    else:
+        download = None
+
     with ZChecker(config, save_log=False) as z:
         try:
             tab = z.check_pccp(start=args.start, stop=args.stop,
-                               cutouts=args.cutouts)
+                               download=download)
         except Exception as e:
             z.logger.error(str(e))
             raise e
@@ -181,8 +188,11 @@ parser_pccp.add_argument(
     help='search ending with this date, UT [default today]')
 parser_pccp.add_argument(
     '--step', default='1d', help='step size for ephemeris generation')
-parser_pccp.add_argument(
+mutex = parser_pccp.add_mutually_exclusive_group()
+mutex.add_argument(
     '--cutouts', action='store_true', help='Download cutouts.')
+mutex.add_argument(
+    '--fullframe', action='store_true', help='Download full-frame images.')
 
 parser_pccp.set_defaults(func=pccp)
 

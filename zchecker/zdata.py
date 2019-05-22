@@ -12,11 +12,11 @@ import astropy.units as u
 from .exceptions import DownloadError, FITSHeaderError
 
 
-def desg2file(s): return s.replace('/', '').replace(' ', '').lower()
+def desg2file(s): return s.replace('/', '').replace(' ', '')
 
 
 class ZData:
-    """ZTF cutout download helper.
+    """ZTF download helper.
 
     Parameters
     ----------
@@ -33,19 +33,23 @@ class ZData:
             prepost: 'pre' or 'post'
             desgfile: designation as a friendly file name
 
+    preserve_case : bool, optional
+        Preserve object name case in file names.
+
     **meta
         Found object metadata from database.  Required: object, found,
         and obs columns.
 
     """
 
-    def __init__(self, irsa, path, fntemplate, logger, **meta):
+    def __init__(self, irsa, path, fntemplate, logger, preserve_case=False,
+                 **meta):
         self.irsa = irsa
         self.logger = logger
         self.meta = meta
 
         self.path = path
-        self.fn = self.filename(fntemplate, meta)
+        self.fn = self.filename(fntemplate, meta, preserve_case=preserve_case)
 
     def __enter__(self):
         fn = '/'.join((self.path, self.fn))
@@ -182,7 +186,8 @@ class ZData:
             Data to download: sci, mask, psf, diff, diffpsf, ref.
 
         size : string, optional
-            For cutouts, download use this size.
+            For cutouts, download use this size.  Set to ``None`` for
+            full frame data.
 
         """
 
@@ -216,7 +221,7 @@ class ZData:
                    ).format(data=data, year=ffd[:4], monthday=ffd[4:8],
                             frac=ffd[8:], ffd=ffd, **self.meta)
 
-        if img_name in ['sci', 'mask', 'diff', 'ref']:
+        if img_name in ['sci', 'mask', 'diff', 'ref'] and size is not None:
             url += '?center={ra},{dec}deg&size={size}'.format(
                 size=size, **self.meta)
 
@@ -233,7 +238,7 @@ class ZData:
         os.unlink(fn)
 
     @staticmethod
-    def filename(fntemplate, meta):
+    def filename(fntemplate, meta, preserve_case=False):
         """Apply metadata to file name template."""
 
         prepost = 'pre' if meta['rdot'] < 0 else 'post'
@@ -243,9 +248,13 @@ class ZData:
                     .replace(':', '')
                     .replace(' ', '_'))
 
+        desgfile = desg2file(meta['desg'])
+        if not preserve_case:
+            desgfile = desgfile.lower()
+
         return fntemplate.format(
             datetime=datetime, prepost=prepost,
-            desgfile=desg2file(meta['desg']), **meta)
+            desgfile=desgfile, **meta)
 
     def add_to_db(self, db, update=False):
         """Insert or update to found table."""

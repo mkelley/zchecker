@@ -44,7 +44,7 @@ class ZChecker(SBSearch):
         super().__init__(config=config, save_log=save_log,
                          disable_log=disable_log, **kwargs)
 
-    def check_pccp(self, start=None, stop=None, cutouts=False):
+    def check_pccp(self, start=None, stop=None, download=None):
         """Search for today's objects on the MPC's PCCP.
 
         Possible Comet Confirmation Page:
@@ -58,8 +58,8 @@ class ZChecker(SBSearch):
         stop : float or `~astropy.time.Time`, optional
             Search before this epoch, inclusive.
 
-        cutouts : bool, optional
-            Download cutouts.
+        download : string, optional
+            Download 'cutouts' or 'fullframe'.
 
         Returns
         -------
@@ -69,7 +69,7 @@ class ZChecker(SBSearch):
 
         summary = super().check_pccp(start=start, stop=stop)
 
-        if not cutouts:
+        if download is None:
             return summary
 
         if summary is None:
@@ -103,10 +103,16 @@ class ZChecker(SBSearch):
         path = self.config['cutout path']
         fntemplate = ('pccp/{desgfile}/{desgfile}-{datetime}-{rh:.3f}'
                       '-{filtercode[1]}-ztf.fits')
+        if download is 'cutouts':
+            size = self.config['cutout size']
+        elif download is 'fullframe':
+            size = None
+        else:
+            raise ValueError('download must be cutout or fullframe.')
 
         count = len(rows)
         exists = 0
-        self.logger.info('Checking for {} cutouts.'.format(count))
+        self.logger.info('Checking for {} images.'.format(count))
 
         with ztf.IRSA(path, self.config.auth) as irsa:
             for i in range(len(rows)):
@@ -116,15 +122,14 @@ class ZChecker(SBSearch):
 
                 try:
                     with ZData(irsa, path, fntemplate, self.logger,
-                               **row) as cutout:
+                               preserve_case=True, **row) as cutout:
                         count -= 1
 
                         if os.path.exists(cutout.fn):
                             exists += 1
                             continue
 
-                        cutout.append(
-                            'sci', size=self.config['cutout size'])
+                        cutout.append('sci', size=size)
 
                         for img in ['mask', 'psf', 'diff', 'ref']:
                             try:
