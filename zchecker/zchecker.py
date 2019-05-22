@@ -133,8 +133,7 @@ class ZChecker(SBSearch):
 
                         for img in ['mask', 'psf', 'diff', 'ref']:
                             try:
-                                cutout.append(
-                                    img, size=self.config['cutout size'])
+                                cutout.append(img, size=size)
                             except ZCheckerError:
                                 pass
                 except ZCheckerError as e:
