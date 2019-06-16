@@ -14,7 +14,7 @@ from zchecker.config import _config_example
 from zchecker.cli_helpers import object_list, as_time
 
 
-def parse_date_range(start, stop, date, full=None):
+def parse_date_range(start, stop, date, full=False):
     all_dates_none = all([x is None for x in
                           [args.date, args.start, args.stop]])
     if full:
