@@ -72,8 +72,6 @@ CREATE TABLE IF NOT EXISTS ztf_phot(
   bg FLOAT,
   bg_area INTEGER,
   bg_stdev FLOAT,
-  nap INTEGER,
-  rap BLOB,
   flux BLOB,
   m BLOB,
   merr BLOB,

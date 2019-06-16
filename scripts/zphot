@@ -2,6 +2,7 @@
 # Licensed under a 3-clause BSD style license - see LICENSE.rst
 import os
 import argparse
+import matplotlib.pyplot as plt
 from zchecker import ZPhot, Config
 from zchecker.cli_helpers import object_list
 
@@ -16,6 +17,15 @@ parser.add_argument(
 parser.add_argument(
     '--unc-limit', default=2,
     help='ephemeris uncertainty limit')
+parser.add_argument(
+    '--plot', action='store_true',
+    help='plot photometry')
+parser.add_argument(
+    '--rap', default=10000,
+    help='aperture radius for plot')
+parser.add_argument(
+    '--unit', default='km',
+    help='aperture radius unit')
 parser.add_argument('--db', help='database file')
 parser.add_argument('--log', help='log file')
 parser.add_argument('--config', default=os.path.expanduser(
@@ -28,3 +38,13 @@ config = Config.from_args(args)
 with ZPhot(config, save_log=True) as z:
     z.photometry(objects=args.objects, update=args.force,
                  unc_limit=args.unc_limit)
+
+    if args.plot:
+        fig = plt.figure(1)
+        fig.clear()
+        ax = fig.gca()
+        ax.minorticks_on()
+        for obj in args.objects:
+            z.plot(obj, args.rap, unit=args.unit)
+        ax.legend()
+        plt.show()
