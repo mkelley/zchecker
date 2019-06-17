@@ -90,6 +90,26 @@ $ zchecker --help
 1. Summarize nights in the local database::
 
      `zchecker list-nights`
+	 
+1. Get ephemerides for an object::
+
+     `zchecker eph-update 60558 --start=YYYY-MM-DD --stop=YYYY-MM-DD`
+	 
+1. Add/remove alternate name for object::
+
+	 `zchecker update-object 60558 174P`
+	 
+   Remove it::
+   
+	 `zchecker remove-object 174P`
+	 
+   The primary designation will always be used for ephemerides.
+   
+   **Experimental** Rename object's primary designation::
+   
+     `zchecker update-object --rename 'P/2000 S4' 'P/2019 K2'`
+	 
+   No cutout files, etc. will be updated, but new ones will use the new name.
 
 1. Find observations of your targets from the last night::
 
@@ -234,13 +254,13 @@ $r_h^{-2} \Delta^{-2}$.
 
 Summary of ZTF observations by night, as downloaded from IRSA.
 
-| Column    | Type    | Source   | Description               |
-|-----------|---------|----------|---------------------------|
-| nightid   | integer | zchecker | unique night identifier   |
-| date      | text    | user     | UT date                   |
-| exposures | integer | IRSA     | number of exposures       |
-| quads     | integer | IRSA     | number of image quadrants |
-
+| Column    | Type    | Source   | Description                                |
+|-----------|---------|----------|--------------------------------------------|
+| nightid   | integer | zchecker | unique night identifier                    |
+| date      | text    | user     | UT date                                    |
+| exposures | integer | IRSA     | number of exposures                        |
+| quads     | integer | IRSA     | number of image quadrants                  |
+| retrieved | text    | zchecker | date observations were retrieved from IRSA |
 
 ### `obj`
 
@@ -250,6 +270,16 @@ Objects.
 |--------|---------|----------|--------------------------|
 | objid  | integer | zchecker | unique object identifier |
 | desg   | text    | user     | target designation       |
+
+### `altobj`
+
+Objects.
+
+| Column   | Type    | Source   | Description                    |
+|----------|---------|----------|--------------------------------|
+| crossid  | integer | zchecker | unique identifier for cross-ID |
+| objid    | integer | zchecker | unique object identifier       |
+| desg     | text    | user     | target alternate designation   |
 
 ### `eph`
 
@@ -407,8 +437,6 @@ preserved upon multiple runs of ``zstack``.
 | bg       | float   | zchecker | estimated background (ADU/pixel)                              |
 | bg_area  | integer | zchecker | number of pixels used to estimate background                  |
 | bg_stdev | float   | zchecker | standard deviation of background values (ADU)                 |
-| nap      | integer | zchecker | number of apertures                                           |
-| rap      | blob    | zchecker | source aperture radii (pixels)                                |
 | flux     | blob    | zchecker | background subtracted source flux in circular apertures (ADU) |
 | m        | blob    | zchecker | calibrated magnitude for each aperture                        |
 | merr     | blob    | zchecker | estimated uncertainty on m                                    |
@@ -419,12 +447,12 @@ single-precision floats.
 
 Photometry flags:
 
-| Bit | Description                         |
-|-----|-------------------------------------|
-| 0   | Centroid failure                    |
-| 1   | Large centroid offset               |
-| 2   | Large estimated background aperture |
-| 4   | Not background subtracted           |
+| Bit | Description                               |
+|-----|-------------------------------------------|
+| 0   | Ephemeris outside image                   |
+| 1   | Centroid failure                          |
+| 2   | Centroid outside uncertainty limit        |
+| 3   | Ephemeris too uncertain to measure source |
 
 
 ### Schema summary

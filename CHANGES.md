@@ -1,5 +1,12 @@
 # Changes
 
+## v2.4.0
+* New `zphot measure` and `zphot plot`.
+* New script to plot cutout files with DS9: `ds9-ztf`
+* Added ability to download full-frame images for PCCP searches.
+* New support for alternate designations.
+* Further fix to address duplicate ZTF PID bug.
+
 ## v2.3.3
 * Smarter use and masking of difference images.
 * Fix duplicate ZTF PID bug after ztf-update.

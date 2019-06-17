@@ -36,14 +36,12 @@ class Flag(enum.Flag):
 
     """
 
+    # keep sync'ed with README
     NONE = 0
     EPHEMERIS_OUTSIDE_IMAGE = 2**0
     CENTROID_FAIL = 2**1
     CENTROID_OUTSIDE_UNC = 2**2
     EPHEMERIS_TOO_UNCERTAIN = 2**3
-#    LARGE_BACKGROUND_AP = 2**3
-#    NO_BACKGROUND = 2**3
-#    BACKGROUND_STAR = 2**4
 
 
 class ZPhot(ZChecker):
