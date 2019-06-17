@@ -375,7 +375,8 @@ class ZPhot(ZChecker):
 
     def _data_iterator(self, objects, update, unc_limit):
         cmd = '''
-        SELECT foundid,archivefile,seeing,ra,dec,delta FROM ztf_found
+        SELECT foundid,archivefile,seeing,ra,dec,delta,ra3sig,dec3sig
+        FROM ztf_found
         INNER JOIN ztf_cutouts USING (foundid)
         LEFT JOIN ztf_phot USING (foundid)
         '''

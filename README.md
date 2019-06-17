@@ -25,7 +25,7 @@ Support for ZChecker was provided by the NASA/University of Maryland/Minor Plane
 ### Optional packages
 * Montage and montage_wrapper, optional, for image reprojection with ``zproject``
 * [oorb](https://github.com/oorb/oorb) and its Python wrapper for Minor Planet Center Possible Comet Confirmation Page (PCCP) checking
-* photutils 0.5+ for measuring photometry with ``zphot``
+* photutils 0.5+, sep for measuring photometry with ``zphot``
 * matplotlib for quick look plots with ``zphot``
 
 ## Configuration
