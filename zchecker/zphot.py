@@ -22,11 +22,18 @@ from sbsearch import util
 
 @enum.unique
 class Flag(enum.Flag):
-    """Photometry flags."""
+    """Photometry flags.
+
+    If any values are redefined, the photometry database must be
+    reconstructed.
+
+    """
+
     NONE = 0
     EPHEMERIS_OUTSIDE_IMAGE = 2**0
     CENTROID_FAIL = 2**1
     CENTROID_OUTSIDE_UNC = 2**2
+    EPHEMERIS_TOO_UNCERTAIN = 2**3
 #    LARGE_BACKGROUND_AP = 2**3
 #    NO_BACKGROUND = 2**3
 #    BACKGROUND_STAR = 2**4
@@ -74,15 +81,7 @@ class ZPhot(ZChecker):
 
         Notes
         -----
-        Photometry flag:
-
-        | Bit | Description                                     |
-        |-----|-------------------------------------------------|
-        | 0   | centroiding failed                              |
-        | 1   | large centroid offset                           |
-        | 2   | estimated bg aperture too large                 |
-        | 3   | not background subtracted                       |
-        | 4   | possible star in aperture                       |
+        Photometry flags are defined by `~Flag.
 
         """
 
@@ -96,10 +95,15 @@ class ZPhot(ZChecker):
             im = np.ma.MaskedArray(hdu[ext].data, mask=mask)
             im = im.byteswap().newbyteorder()  # prep for SEP
 
+            # If ephemeris uncertainty is greater than unc_limit, then pass
+            if obs['ra3sig'] > unc_limit or obs['dec3sig'] > unc_limit:
+                self._update(
+                    obs['foundid'], flag=Flag.EPHEMERIS_TOO_UNCERTAIN)
+                return
+
             # centroid
             wcs = WCS(hdu[ext])
-            xy, dxy, flag = self._centroid(
-                im, wcs, obs['ra'], obs['dec'], unc_limit)
+            xy, dxy, flag = self._centroid(im, obs, wcs, unc_limit)
 
             if (flag & Flag.EPHEMERIS_OUTSIDE_IMAGE):
                 self._update(obs['foundid'], flag=flag.value)
@@ -378,8 +382,9 @@ class ZPhot(ZChecker):
         mask += ~np.isfinite(im.data)
         return sources, mask
 
-    def _centroid(self, im, wcs, ra, dec, unc_limit):
-        gxy = np.r_[wcs.all_world2pix(ra * u.deg, dec * u.deg, 0)]
+    def _centroid(self, im, obs, wcs):
+        gxy = np.r_[wcs.all_world2pix(obs['ra'] * u.deg,
+                                      obs['dec'] * u.deg, 0)]
         if (any(gxy > np.array(im.shape[::-1])) or any(gxy < 0)):
             return gxy, np.r_[0, 0], Flag.EPHEMERIS_OUTSIDE_IMAGE
 
@@ -391,7 +396,7 @@ class ZPhot(ZChecker):
 
         flag = Flag.NONE
         dxy = xy - gxy
-        if np.sqrt(np.sum(dxy**2)) > unc_limit:
+        if np.hypot(*dxy) > np.hypot(obs['ra3sig'] / 2, obs['dec3sig'] / 2):
             flag = flag | Flag.CENTROID_OUTSIDE_UNC
 
         if all(dxy == 0):

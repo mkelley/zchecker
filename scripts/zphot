@@ -15,13 +15,13 @@ parser.add_argument(
     '--force', '-f', action='store_true',
     help='remeasure previous photometry')
 parser.add_argument(
-    '--unc-limit', default=2,
+    '--unc-limit', type=float, default=5,
     help='ephemeris uncertainty limit')
 parser.add_argument(
     '--plot', action='store_true',
     help='plot photometry')
 parser.add_argument(
-    '--rap', default=10000,
+    '--rap', type=int, default=10000,
     help='aperture radius for plot')
 parser.add_argument(
     '--unit', default='km',
