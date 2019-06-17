@@ -1,4 +1,4 @@
-# ZChecker v2.3.3
+# ZChecker v2.4.0
 ZTF moving target checker for short object lists.
 
 ## Attribution and license
@@ -26,6 +26,7 @@ Support for ZChecker was provided by the NASA/University of Maryland/Minor Plane
 * Montage and montage_wrapper, optional, for image reprojection with ``zproject``
 * [oorb](https://github.com/oorb/oorb) and its Python wrapper for Minor Planet Center Possible Comet Confirmation Page (PCCP) checking
 * photutils 0.5+ for measuring photometry with ``zphot``
+* matplotlib for quick look plots with ``zphot``
 
 ## Configuration
 
@@ -168,9 +169,15 @@ $ zchecker --help
 
      `zstack --clean-missing`
 	 
-1. Experimental: measure object photometry::
+1. Measure object photometry::
 
-     `zphot`
+     `zphot measure 46P`
+	 
+   Without an object name, `zphot` would measure all missing photometry.
+	 
+1. Plot object photometry::
+
+     `zphot plot 46P`
 
 
 ## Image data

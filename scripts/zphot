@@ -1,50 +1,89 @@
 #!/usr/bin/env python3
 # Licensed under a 3-clause BSD style license - see LICENSE.rst
 import os
+import sys
 import argparse
 import matplotlib.pyplot as plt
+from astropy.time import Time
 from zchecker import ZPhot, Config
 from zchecker.cli_helpers import object_list
 
+today = Time(Time.now().iso[:10])
+
 parser = argparse.ArgumentParser(
     description='Photometry for ZChecker data.')
-parser.add_argument(
-    'objects', type=object_list, nargs='?',
-    help=('measure these targets, or those listed in this file'))
-parser.add_argument(
-    '--force', '-f', action='store_true',
-    help='remeasure previous photometry')
-parser.add_argument(
-    '--unc-limit', type=float, default=5,
-    help='ephemeris uncertainty limit')
-parser.add_argument(
-    '--plot', action='store_true',
-    help='plot photometry')
-parser.add_argument(
-    '--rap', type=int, default=10000,
-    help='aperture radius for plot')
-parser.add_argument(
-    '--unit', default='km',
-    help='aperture radius unit')
 parser.add_argument('--db', help='database file')
 parser.add_argument('--log', help='log file')
 parser.add_argument('--config', default=os.path.expanduser(
     '~/.config/zchecker.config'), help='configuration file')
 parser.add_argument('-v', action='store_true', help='increase verbosity')
 
+subparsers = parser.add_subparsers(help='sub-commands')
+
+
+def measure(args):
+    config = Config.from_args(args)
+    with ZPhot(config, save_log=True) as z:
+        z.photometry(objects=args.objects, update=args.force,
+                     unc_limit=args.unc_limit)
+
+
+parser_measure = subparsers.add_parser(
+    'measure', help='measure photometry')
+parser_measure.add_argument(
+    'objects', type=object_list, nargs='?',
+    help=('measure these targets, or those listed in this file'))
+parser_measure.add_argument(
+    '--force', '-f', action='store_true',
+    help='remeasure previous photometry')
+parser_measure.add_argument(
+    '--unc-limit', type=float, default=5,
+    help='ephemeris uncertainty limit')
+parser_measure.set_defaults(func=measure)
+
+########################################################################
+
+
+def plot(args):
+    config = Config.from_args(args)
+    with ZPhot(config, save_log=False) as z:
+        z.plot(args.object, args.rap, unit=args.unit)
+        if args.o:
+            plt.savefig(args.o)
+        else:
+            plt.show()
+
+
+parser_plot = subparsers.add_parser(
+    'plot', help='plot photometry')
+parser_plot.add_argument(
+    'object',  help='plot this target')
+parser_plot.add_argument(
+    '--plot', action='store_true',
+    help='plot photometry')
+parser_plot.add_argument(
+    '--rap', type=int, default=10000,
+    help='aperture radius for plot')
+parser_plot.add_argument(
+    '-o', help='save to this file name')
+parser_plot.add_argument(
+    '--unit', default='km',
+    help='aperture radius unit')
+parser_plot.set_defaults(func=plot)
+
+########################################################################
 args = parser.parse_args()
+try:
+    getattr(args, 'func')
+except AttributeError as e:
+    parser.print_help()
+    sys.exit()
 
-config = Config.from_args(args)
-with ZPhot(config, save_log=True) as z:
-    z.photometry(objects=args.objects, update=args.force,
-                 unc_limit=args.unc_limit)
-
-    if args.plot:
-        fig = plt.figure(1)
-        fig.clear()
-        ax = fig.gca()
-        ax.minorticks_on()
-        for obj in args.objects:
-            z.plot(obj, args.rap, unit=args.unit)
-        ax.legend()
-        plt.show()
+try:
+    args.func(args)
+except Exception as e:
+    if args.v:
+        raise(e)
+    else:
+        print(str(e))
+        sys.exit()

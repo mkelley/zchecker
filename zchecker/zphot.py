@@ -7,12 +7,19 @@ from collections import defaultdict
 import numpy as np
 from numpy import pi
 import scipy.ndimage as nd
-import matplotlib.pyplot as plt
+
+try:
+    import matplotlib.pyplot as plt
+    import matplotlib.dates as mdates
+except ImportError:
+    plt = None
+
 import astropy.units as u
 from astropy.io import fits
 from astropy.wcs import WCS
 from astropy.stats import sigma_clipped_stats
 from astropy.table import Table
+from astropy.time import Time
 from photutils.centroids import centroid_sources, centroid_2dg
 import sep
 
@@ -43,7 +50,6 @@ class ZPhot(ZChecker):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.logger.info('ZPhot')
-        self.logger.warning('*** ZPhot is experimental ***')
 
     APERTURE_RADII_PIXELS = np.arange(2, 20)
     APERTURE_RADII_KM = (np.arange(5) + 1) * 10000
@@ -253,8 +259,8 @@ class ZPhot(ZChecker):
 
         return phot
 
-    def plot(self, obj, rap, unit='pixel', ax=None, **kwargs):
-        """Plot photometry of an object.
+    def plot(self, obj, rap, unit='pixel', fignum=None, **kwargs):
+        """Quick-look plot of a single object.
 
         Parameters
         ----------
@@ -267,8 +273,8 @@ class ZPhot(ZChecker):
         unit : str, optional
             Units of ``rap``.
 
-        ax : matplotlib Axes, optional
-            Plot to these axes.
+        fignum : matplotlib Figure, optional
+            Plot to this figure number.  The plot will be cleared.
 
         **kwargs
             Keyword arguments for `~matplotlib.pyplot.errorbar`.
@@ -280,19 +286,37 @@ class ZPhot(ZChecker):
 
         """
 
-        if ax is None:
-            ax = plt.gca()
+        if plt is None:
+            self.logger.error('matplotlib is required for plotting')
+
+        fig = plt.figure(fignum)
+        fig.clear()
+        ax = plt.gca()
+        ax.minorticks_on()
 
         tab = self.get_phot(obj, [rap], unit=unit)
         if len(tab) == 0:
             self.logger.info('Nothing to plot.')
             return tab
 
+        self.logger.debug('Found {} data points.'.format(len(tab)))
         m = tab['m'].ravel()
         tab = tab[(m != 0) * np.isfinite(m)]
         if len(tab) == 0:
-            self.logger.info('Nothing to plot.')
+            self.logger.info('No good data to plot.')
             return tab
+        self.logger.debug('{} good data points to plot.'.format(len(tab)))
+
+        # seeing in rap units
+        seeing = tab['seeing']
+        if unit == 'km':
+            seeing *= 725 * tab['delta']
+        else:
+            seeing /= 1.01  # pixels
+
+        # signed heliocentric distance
+        rh = np.sign(tab['rdot']) * tab['rh']
+        date = Time(tab['obsdate'])
 
         kwargs['ls'] = kwargs.pop('linestyle', kwargs.get('ls', 'none'))
         kwargs['alpha'] = kwargs.get('alpha', 0.5)
@@ -300,21 +324,32 @@ class ZPhot(ZChecker):
         for filt in ('zg', 'zr', 'zi'):
             c = self.PLOT_COLORS[filt]
             m = self.PLOT_MARKERS[filt]
-            i = (tab['filtercode'] == filt) * (tab['flag'] == 0)
-            if any(i):
-                plt.errorbar(np.sign(tab['rdot'][i]) * tab['rh'][i],
-                             tab['m'][i], tab['merr'][i], color=c, marker=m,
-                             label=filt, **kwargs)
+            i = tab['filtercode'] == filt
+            if not any(i):
+                continue
+
+            j = (tab[i]['flag'] == 0) * (seeing[i] < rap)
+            if any(j):
+                plt.errorbar(date.plot_date[i][j],
+                             tab['m'][i][j], tab['merr'][i][j], color=c,
+                             marker=m, **kwargs)
 
             m = self.PLOT_FLAGGED_MARKERS[filt]
-            i = (tab['filtercode'] == filt) * (tab['flag'] != 0)
-            if any(i):
-                plt.errorbar(np.sign(tab['rdot'][i]) * tab['rh'][i],
-                             tab['m'][i], tab['merr'][i], color=c, marker=m,
-                             label=filt + ' (flagged)', **kwargs)
+            if any(~j):
+                plt.errorbar(date.plot_date[i][~j],
+                             tab['m'][i][~j], tab['merr'][i][~j], color=c,
+                             marker=m, **kwargs)
 
         ylim = ax.get_ylim()
         ax.set_ylim(max(ylim), min(ylim))
+        plt.setp(ax, xlabel='Date (UT)', ylabel='$m$ (mag)')
+
+        ax.xaxis_date()
+        ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
+        ax.xaxis.set_tick_params('major', length=15)
+        fig.autofmt_xdate()
+
+        plt.tight_layout()
 
         return tab
 
