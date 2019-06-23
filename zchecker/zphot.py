@@ -107,7 +107,7 @@ class ZPhot(ZChecker):
 
             # centroid
             wcs = WCS(hdu[ext])
-            xy, dxy, flag = self._centroid(im, obs, wcs, unc_limit)
+            xy, dxy, flag = self._centroid(im, obs, wcs)
 
             if (flag & Flag.EPHEMERIS_OUTSIDE_IMAGE):
                 self._update(obs['foundid'], flag=flag.value)
