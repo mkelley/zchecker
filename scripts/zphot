@@ -10,6 +10,10 @@ from zchecker.cli_helpers import object_list
 
 today = Time(Time.now().iso[:10])
 
+def list_of(_type):
+    def f(arg):
+        return [_type(v) for v in arg.split(',')]
+
 parser = argparse.ArgumentParser(
     description='Photometry for ZChecker data.')
 parser.add_argument('--db', help='database file')
@@ -43,6 +47,25 @@ parser_measure.set_defaults(func=measure)
 
 ########################################################################
 
+def dump(args):
+    config = Config.from_args(args)
+    with ZPhot(config, save_log=True) as z:
+        tab = z.get_phot(args.object, rap=[args.rap], unit=args.unit)
+        tab.pprint(-1, -1)
+
+parser_dump = subparsers.add_parser(
+    'dump', help='dump photometry')
+parser_dump.add_argument('object')
+parser_dump.add_argument(
+    '--rap', type=int, default=10000,
+    help='limit to this radius')
+parser_dump.add_argument(
+    '--unit', default='km', choices=['km', 'pixel'],
+    help='--rap unit')
+parser_dump.set_defaults(func=dump)
+
+########################################################################
+
 
 def plot(args):
     config = Config.from_args(args)
@@ -58,9 +81,6 @@ parser_plot = subparsers.add_parser(
     'plot', help='plot photometry')
 parser_plot.add_argument(
     'object',  help='plot this target')
-parser_plot.add_argument(
-    '--plot', action='store_true',
-    help='plot photometry')
 parser_plot.add_argument(
     '--rap', type=int, default=10000,
     help='aperture radius for plot')

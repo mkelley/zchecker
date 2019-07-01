@@ -254,6 +254,8 @@ class ZPhot(ZChecker):
 
             for k in ['flux', 'm', 'merr']:
                 phot[k] = phot[k][i]
+                if len(phot[k]) == 1:
+                    phot[k] = float(phot[k])
 
         return phot
 
