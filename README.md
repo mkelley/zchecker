@@ -1,4 +1,4 @@
-# ZChecker v2.4.0
+# ZChecker v2.4.1
 ZTF moving target checker for short object lists.
 
 ## Attribution and license
@@ -453,6 +453,7 @@ Photometry flags:
 | 1   | Centroid failure                          |
 | 2   | Centroid outside uncertainty limit        |
 | 3   | Ephemeris too uncertain to measure source |
+| 4   | Image uncalibrated                        |
 
 
 ### Schema summary
