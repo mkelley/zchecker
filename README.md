@@ -13,7 +13,7 @@ ZChecker is licensed with the BSD 3-clause license.  See LICENSE for details.
 Support for ZChecker was provided by the NASA/University of Maryland/Minor Planet Center Augmentation through the NASA Planetary Data System Cooperative Agreement NNX16AB16A, and by the NASA Near-Earth Objects Observations grant NNX15AD99G.
 
 ## Requirements
-* Python 3.5+
+* Python 3.6+
 * astropy v2.0+
 * [sbsearch v0.1](https://github.com/Small-Bodies-Node/sbsearch/tree/v0.1)
 * [sbpy](https://github.com/NASA-Planetary-Science/sbpy) current dev version
