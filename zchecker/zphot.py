@@ -383,8 +383,8 @@ class ZPhot(ZChecker):
         LEFT JOIN ztf_phot USING (foundid)
         '''
 
-        constraints = [('infobits=0', None),
-                       ('sciimg!=0', None)]
+        constraints = [('sciimg!=0', None),
+                       ('infobits=0', None)]
         if not update:
             constraints.append(('flag IS NULL', None))
 
