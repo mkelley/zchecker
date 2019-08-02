@@ -57,6 +57,7 @@ CREATE TABLE IF NOT EXISTS ztf_cutouts(
   FOREIGN KEY(foundid) REFERENCES found(foundid),
   FOREIGN KEY(stackid) REFERENCES ztf_stacks(stackid)
 );
+CREATE INDEX IF NOT EXISTS ztf_cutouts_sciimg ON ztf_cutouts (sciimg);
 
 CREATE TABLE IF NOT EXISTS ztf_stacks(
   stackid INTEGER PRIMARY KEY,
