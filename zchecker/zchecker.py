@@ -238,10 +238,7 @@ class ZChecker(SBSearch):
         fntemplate = ('{desgfile}/{desgfile}-{datetime}-{prepost}{rh:.3f}'
                       '-{filtercode[1]}-ztf.fits')
 
-        cmd = '''SELECT * FROM ztf_found
-        INNER JOIN obj USING (objid)
-        LEFT JOIN ztf_cutouts USING (foundid)
-        '''
+        cmd = 'SELECT foundid FROM found LEFT JOIN ztf_cutouts USING (foundid)'
 
         constraints = []
 
@@ -266,8 +263,7 @@ class ZChecker(SBSearch):
 
         cmd, parameters = util.assemble_sql(cmd, [], constraints)
         count = self.db.execute(
-            cmd.replace(' * ', ' COUNT() ', 1), parameters).fetchone()[0]
-        rows = self.db.execute(cmd, parameters)
+            cmd.replace(' foundid ', ' COUNT() ', 1), parameters).fetchone()[0]
 
         if count == 0:
             self.logger.info('No cutouts to download.')
@@ -280,11 +276,19 @@ class ZChecker(SBSearch):
 
         self.logger.info('{} {} cutouts.'.format(verb, count))
 
+        foundids = self.db.execute(cmd, parameters)
         missing = 0
         downloaded = 0
         with ztf.IRSA(path, self.config.auth) as irsa:
-            for row in util.iterate_over(rows):
-                row = OrderedDict(row)
+            for foundid in util.iterate_over(foundids):
+                row = OrderedDict(
+                    self.db.execute('''
+                    SELECT * FROM found
+                    INNER JOIN ztf USING (obsid)
+                    INNER JOIN obj USING (objid)
+                    WHERE foundid=:foundid
+                    ''', {'foundid': foundid})
+                )
                 count -= 1
 
                 if missing_files:
