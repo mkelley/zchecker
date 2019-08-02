@@ -103,6 +103,11 @@ class ZProject(ZChecker):
                 self.logger.error(
                     '    Error projecting {}: {}'.format(
                     archivefiles[i], errors[i]))
+                self.db.execute('''
+                UPDATE ztf_cutouts
+                SET {a}img=?
+                WHERE foundid=?
+                '''.format(a=alignment), (-1, foundids[i]))
             bar.update()
 
         self.db.commit()
@@ -130,23 +135,25 @@ def project_file(fn, alignments, size):
         mask_ext = hdu.index_of('MASK') if 'MASK' in hdu else None
         ref_ext = hdu.index_of('REF') if 'REF' in hdu else None
 
+    errors = []
     for alignment in alignments:
         try:
             newsci = project_extension(fn, sci_ext, alignment, size)
         except (m.MontageError, ValueError) as e:
-            return str(e)
+            newsci = np.empty((size, size)) * np.nan
+            errors.append(str(e))
 
         if mask_ext is not None:
             try:
                 newmask = project_extension(fn, mask_ext, alignment, size)
             except (m.MontageError, ValueError) as e:
-                return str(e)
+                mask_ext = None
 
         if ref_ext is not None:
             try:
                 newref = project_extension(fn, ref_ext, alignment, size)
             except (m.MontageError, ValueError) as e:
-                return str(e)
+                ref_ext = None
 
         with fits.open(fn, mode='update') as hdu:
             append_image_to(hdu, newsci, alignment.upper())
@@ -158,6 +165,9 @@ def project_file(fn, alignments, size):
 
     # background estimate
     update_background(fn)
+    
+    if len(errors) > 0:
+        return '; '.join(errors)
 
     return False  # no error
 
