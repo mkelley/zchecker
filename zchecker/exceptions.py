@@ -25,3 +25,7 @@ class BadStackSet(ZCheckerError):
 
 class StackIDError(ZCheckerError):
     pass
+
+
+class UncalibratedError(ZCheckerError):
+    pass

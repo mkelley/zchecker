@@ -24,6 +24,7 @@ from photutils.centroids import centroid_sources, centroid_2dg
 import sep
 
 from . import ZChecker
+from .exceptions import UncalibratedError
 from sbsearch import util
 
 
@@ -42,6 +43,7 @@ class Flag(enum.Flag):
     CENTROID_FAIL = 2**1
     CENTROID_OUTSIDE_UNC = 2**2
     EPHEMERIS_TOO_UNCERTAIN = 2**3
+    IMAGE_UNCALIBRATED = 2**4
 
 
 class ZPhot(ZChecker):
@@ -85,7 +87,7 @@ class ZPhot(ZChecker):
 
         Notes
         -----
-        Photometry flags are defined by `~Flag.
+        Photometry flags are defined by `~Flag`.
 
         """
 
@@ -95,7 +97,7 @@ class ZPhot(ZChecker):
             self.logger.debug('  ' + fn)
             hdu = fits.open(fn)
             ext = 'DIFF' if 'DIFF' in hdu else 'SCI'
-            sources, mask = self._mask(hdu[ext], hdu['mask'])
+            sources, mask = self._mask(hdu, ext)
             im = np.ma.MaskedArray(hdu[ext].data, mask=mask)
             im = im.byteswap().newbyteorder()  # prep for SEP
 
@@ -134,17 +136,12 @@ class ZPhot(ZChecker):
                 gain=hdu[ext].header['gain'], mask=im.mask)
 
             # calibrate to PS1
-            zp = hdu[ext].header['MAGZP']
-            zp_rms = hdu[ext].header['MAGZPRMS']
-            C = hdu[ext].header['CLRCOEFF']
-            sun = {  # PS1 system solar colors
-                'R - i': 0.12,
-                'g - R': 0.39
-            }[hdu[ext].header['PCOLOR'].strip()]
-
-            m_inst = -2.5 * np.log10(flux)
-            m = m_inst + zp + C * sun
-            merr = np.sqrt((1.0857 * ferr / flux)**2 + zp_rms**2)
+            try:
+                m, merr = self._calibrate(hdu[ext].header, flux, ferr)
+            except UncalibratedError:
+                m = flux * 0
+                merr = flux * 0
+                flag = flag | Flag.IMAGE_UNCALIBRATED
 
             packed = self.pack(flux, m, merr)
             self._update(obs['foundid'], dx=dxy[0], dy=dxy[1], bg=bg,
@@ -400,12 +397,27 @@ class ZPhot(ZChecker):
         cmd, parameters = util.assemble_sql(cmd, [], constraints)
         data = self.db.execute(cmd, parameters)
 
-        for obs in data:
-            yield obs
-        return
+        while True:
+            observations = data.fetchmany()
+            if len(observations) == 0:
+                return
+            else:
+                for obs in observations:
+                    yield obs
 
-    def _mask(self, im, mask):
-        mask = mask.data.astype(bool)
+    def _mask(self, hdu, sci_ext):
+        im = hdu[sci_ext].data + 0
+        try:
+            mask = hdu['mask'].data.astype(bool)
+        except KeyError:
+            opts = dict(bw=64, bh=64, fw=3, fh=3)
+            mask = np.zeros(im.shape, bool)
+            for i in range(2):
+                bkg = sep.Background(im, mask=mask, **opts)
+                objects, mask = sep.extract(im - bkg, 2, err=bkg.globalrms,
+                                            segmentation_map=True)
+                mask = mask != 0
+
         sources = mask.copy()
 
         # unmask objects near center
@@ -471,6 +483,25 @@ class ZPhot(ZChecker):
         else:
             flux[0] = phot[0]['aperture_sum']
         return flux
+
+    def _calibrate(self, header, flux, ferr):
+        try:
+            zp = header['MAGZP']
+        except KeyError:
+            raise UncalibratedError
+
+        zp_rms = header['MAGZPRMS']
+        C = header['CLRCOEFF']
+        sun = {  # PS1 system solar colors
+            'R - i': 0.12,
+            'g - R': 0.39
+        }[header['PCOLOR'].strip()]
+
+        m_inst = -2.5 * np.log10(flux)
+        m = m_inst + zp + C * sun
+        merr = np.sqrt((1.0857 * ferr / flux)**2 + zp_rms**2)
+
+        return m, merr
 
     def _update(self, foundid, **kwargs):
         values = defaultdict(lambda: None)
