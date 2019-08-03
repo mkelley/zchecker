@@ -40,6 +40,7 @@ CREATE TABLE IF NOT EXISTS ztf(
   FOREIGN KEY(nightid) REFERENCES ztf_nights(nightid)
 );
 CREATE UNIQUE INDEX IF NOT EXISTS ztf_pid ON ztf(pid);
+CREATE INDEX IF NOT EXISTS ztf_nightid ON ztf(nightid);
 
 CREATE TABLE IF NOT EXISTS ztf_cutouts(
   foundid INTEGER PRIMARY KEY,
@@ -57,7 +58,8 @@ CREATE TABLE IF NOT EXISTS ztf_cutouts(
   FOREIGN KEY(foundid) REFERENCES found(foundid),
   FOREIGN KEY(stackid) REFERENCES ztf_stacks(stackid)
 );
-CREATE INDEX IF NOT EXISTS ztf_cutouts_sciimg ON ztf_cutouts (sciimg);
+CREATE INDEX IF NOT EXISTS ztf_cutouts_sciimg ON ztf_cutouts(sciimg);
+CREATE INDEX IF NOT EXISTS ztf_cutouts_stackid ON ztf_cutouts(stackid);
 
 CREATE TABLE IF NOT EXISTS ztf_stacks(
   stackid INTEGER PRIMARY KEY,

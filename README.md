@@ -1,10 +1,10 @@
-# ZChecker v2.4.1
+# ZChecker v2.4.2
 ZTF moving target checker for short object lists.
 
 ## Attribution and license
 Written by Michael S. P. Kelley (University of Maryland), with contributions from Quan-Zhi Ye (IPAC/Caltech).  Thanks to James Bauer, Dennis Bodewits, Tony Farnham, and Matthew Knight for some design comments.
 
-If `ZChecker` is useful to you, please cite Kelley, M. S. P., Bodewits, D., Ye, Q. et al. 2019.  ADASS XXVIII, ed. P. Teuben, M. Pound, B. Thomas, andE. Warner, ASP Conf. Ser., in press.
+If `ZChecker` is useful to you, please cite Kelley, M. S. P., Bodewits, D., Ye, Q. et al. 2019.  ADASS XXVIII, ed. P. Teuben, M. Pound, B. Thomas, and E. Warner, ASP Conf. Ser., 471, 305.
 
 ZChecker is licensed with the BSD 3-clause license.  See LICENSE for details.
 
@@ -459,3 +459,10 @@ Photometry flags:
 ### Schema summary
 
 ![schema](db-schema.png)
+
+
+## Notes
+
+In sbsearch v0.1.2 and earlier, a bug allowed observations to be added twice.  If the database only contains ZTF observations, the number of duplicates may be identified with:
+
+  `SELECT COUNT() FROM obs LEFT JOIN ztf USING(obsid) WHERE pid IS NULL;`

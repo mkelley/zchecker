@@ -105,7 +105,7 @@ class ZPhot(ZChecker):
             if obs['ra3sig'] > unc_limit or obs['dec3sig'] > unc_limit:
                 self._update(
                     obs['foundid'], flag=Flag.EPHEMERIS_TOO_UNCERTAIN)
-                return
+                continue
 
             # centroid
             wcs = WCS(hdu[ext])
@@ -113,7 +113,7 @@ class ZPhot(ZChecker):
 
             if (flag & Flag.EPHEMERIS_OUTSIDE_IMAGE):
                 self._update(obs['foundid'], flag=flag.value)
-                return
+                continue
 
             # background esimate based on ZTF source mask
             bkg = sep.Background(im.data, mask=sources,
@@ -395,15 +395,9 @@ class ZPhot(ZChecker):
                                 ('dec3sig<=?', unc_limit)))
 
         cmd, parameters = util.assemble_sql(cmd, [], constraints)
-        data = self.db.execute(cmd, parameters)
-
-        while True:
-            observations = data.fetchmany()
-            if len(observations) == 0:
-                return
-            else:
-                for obs in observations:
-                    yield obs
+        import pdb
+        pdb.set_trace()
+        return self.db.iterate_over(cmd, parameters)
 
     def _mask(self, hdu, sci_ext):
         im = hdu[sci_ext].data + 0

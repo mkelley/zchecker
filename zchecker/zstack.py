@@ -36,12 +36,12 @@ class ZStack(ZChecker):
         ''').fetchone()[0]
         self.logger.info('Checking {} files.'.format(count))
 
-        rows = self.db.execute('''
+        rows = self.db.iterate_over('''
         SELECT stackid,stackfile FROM ztf_stacks
         WHERE stackfile IS NOT NULL
-        ''')
+        ''', [])
         exists = 0
-        for stackid, fn in util.iterate_over(rows):
+        for stackid, fn in rows:
             if os.path.exists(os.path.join(self.config['stack path'], fn)):
                 exists += 1
                 continue

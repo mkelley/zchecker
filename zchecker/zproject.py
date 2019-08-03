@@ -56,7 +56,7 @@ class ZProject(ZChecker):
         ).fetchone()[0]
         self.logger.info('{} files to process.'.format(count))
 
-        rows = util.iterate_over(self.db.execute(cmd, parameters))
+        rows = self.db.iterate_over(cmd, parameters)
         error_count = 0
         with ProgressBar(count, self.logger) as bar:
             foundids, archivefiles, args = [], [], []

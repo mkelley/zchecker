@@ -276,19 +276,17 @@ class ZChecker(SBSearch):
 
         self.logger.info('{} {} cutouts.'.format(verb, count))
 
-        foundids = self.db.execute(cmd, parameters)
+        foundids = self.db.iterate_over(cmd, parameters)
         missing = 0
         downloaded = 0
         with ztf.IRSA(path, self.config.auth) as irsa:
-            for foundid in util.iterate_over(foundids):
-                row = OrderedDict(
-                    self.db.execute('''
-                    SELECT * FROM found
-                    INNER JOIN ztf USING (obsid)
-                    INNER JOIN obj USING (objid)
-                    WHERE foundid=:foundid
-                    ''', {'foundid': foundid})
-                )
+            for foundid in foundids:
+                row = OrderedDict(self.db.execute('''
+                SELECT * FROM found
+                INNER JOIN ztf USING (obsid)
+                INNER JOIN obj USING (objid)
+                WHERE foundid=:foundid
+                ''', {'foundid': foundid}))
                 count -= 1
 
                 if missing_files:
@@ -478,7 +476,7 @@ class ZChecker(SBSearch):
                 yield ztf
 
         ztf_insert = '''
-        INSERT OR IGNORE INTO ztf VALUES (
+        INSERT OR ROLLBACK INTO ztf VALUES (
           last_insert_rowid(),?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?
         )
         '''
