@@ -28,6 +28,9 @@ from .exceptions import UncalibratedError
 from sbsearch import util
 
 
+# no data below this value is useful
+DATA_FLOOR = -100
+
 @enum.unique
 class Flag(enum.Flag):
     """Photometry flags.
@@ -398,16 +401,19 @@ class ZPhot(ZChecker):
         im = hdu[sci_ext].data + 0
         try:
             mask = hdu['mask'].data.astype(bool)
+            mask[im < DATA_FLOOR] = True
         except KeyError:
             opts = dict(bw=64, bh=64, fw=3, fh=3)
             mask = np.zeros(im.shape, bool)
             for i in range(2):
+                mask[im < DATA_FLOOR] = True
                 bkg = sep.Background(im, mask=mask, **opts)
                 objects, mask = sep.extract(im - bkg, 2, err=bkg.globalrms,
                                             segmentation_map=True)
                 mask = mask != 0
 
         sources = mask.copy()
+        mask[im < DATA_FLOOR] = True
 
         # unmask objects near center
         lbl, n = nd.label(mask)

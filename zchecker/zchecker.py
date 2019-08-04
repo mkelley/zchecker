@@ -165,6 +165,7 @@ class ZChecker(SBSearch):
         n_rows = self.executemany('DELETE FROM ztf_cutouts WHERE foundid=?',
                                   [[i] for i in foundids])
         n_files = self.clean_stale_files()
+        self.commit()
         return n_rows, n_files
 
     def clean_stacks(self, stackids):
@@ -185,6 +186,7 @@ class ZChecker(SBSearch):
         n_rows = self.executemany('DELETE FROM ztf_stacks WHERE stackid=?',
                                   [[i] for i in stackids])
         n_files = self.clean_stale_files()
+        self.commit()
         return n_rows, n_files
 
     def clean_stale_files(self):
@@ -211,6 +213,7 @@ class ZChecker(SBSearch):
             self.db.executemany(
                 'DELETE FROM ztf_stale_files WHERE rowid=?', rowids)
             self.logger.info('{} stale archive files removed.'.format(count))
+        self.commit()
         return count
 
     def download_cutouts(self, objects=None, clean_failed=True,
@@ -286,7 +289,7 @@ class ZChecker(SBSearch):
                 INNER JOIN ztf USING (obsid)
                 INNER JOIN obj USING (objid)
                 WHERE foundid=:foundid
-                ''', {'foundid': foundid}))
+                ''', {'foundid': foundid[0]}).fetchone())
                 count -= 1
 
                 if missing_files:
@@ -458,6 +461,8 @@ class ZChecker(SBSearch):
             UPDATE OR FAIL ztf_nights SET exposures=?,quads=?,retrieved=?
             WHERE nightid=?
             ''', (exposures, quads, retrieved, nightid))
+
+        self.db.commit()
 
         def obs_iterator(tab):
             for i in range(len(tab)):
