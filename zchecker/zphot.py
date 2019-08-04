@@ -91,7 +91,7 @@ class ZPhot(ZChecker):
 
         """
 
-        data = self._data_iterator(objects, update, unc_limit)
+        data = self._data_iterator(objects, update)
         for obs in data:
             fn = self.config['cutout path'] + '/' + obs['archivefile']
             self.logger.debug('  ' + fn)
@@ -104,7 +104,7 @@ class ZPhot(ZChecker):
             # If ephemeris uncertainty is greater than unc_limit, then pass
             if obs['ra3sig'] > unc_limit or obs['dec3sig'] > unc_limit:
                 self._update(
-                    obs['foundid'], flag=Flag.EPHEMERIS_TOO_UNCERTAIN)
+                    obs['foundid'], flag=Flag.EPHEMERIS_TOO_UNCERTAIN.value)
                 continue
 
             # centroid
@@ -147,6 +147,7 @@ class ZPhot(ZChecker):
             self._update(obs['foundid'], dx=dxy[0], dy=dxy[1], bg=bg,
                          bg_area=bgarea, bg_stdev=bgsig, flux=packed[0],
                          m=packed[1], merr=packed[2], flag=flag.value)
+        print('exited normally')
 
     def get_phot(self, obj, rap=None, unit='pixel'):
         """Get photometry from database.
@@ -372,7 +373,7 @@ class ZPhot(ZChecker):
                   np.array(struct.unpack(float_pack, merr)))
         return packed
 
-    def _data_iterator(self, objects, update, unc_limit):
+    def _data_iterator(self, objects, update):
         cmd = '''
         SELECT foundid,archivefile,seeing,ra,dec,delta,ra3sig,dec3sig
         FROM ztf_found
@@ -390,13 +391,7 @@ class ZPhot(ZChecker):
             q = ','.join('?' * len(objids))
             constraints.append(('objid IN ({})'.format(q), objids))
 
-        if unc_limit:
-            constraints.extend((('ra3sig<=?', unc_limit),
-                                ('dec3sig<=?', unc_limit)))
-
         cmd, parameters = util.assemble_sql(cmd, [], constraints)
-        import pdb
-        pdb.set_trace()
         return self.db.iterate_over(cmd, parameters)
 
     def _mask(self, hdu, sci_ext):
