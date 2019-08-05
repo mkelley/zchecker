@@ -415,9 +415,9 @@ class ZPhot(ZChecker):
         sources = mask.copy()
         mask[im < DATA_FLOOR] = True
 
-        # unmask objects near center
+        # unmask objects near target
         lbl, n = nd.label(mask)
-        cen = np.array(im.shape) // 2
+        cen = hdu['sci'].header['tgty'], hdu['sci'].header['tgtx']
         for m in np.unique(lbl[cen[0]-2:cen[0]+3, cen[1]-2:cen[1]+3]):
             mask[lbl == m] = False
 
@@ -435,11 +435,13 @@ class ZPhot(ZChecker):
             xy = np.r_[centroid_sources(im, *gxy, box_size=7,
                                         centroid_func=centroid_2dg)]
         except ValueError:
+            import pdb
+            pdb.set_trace()
             return gxy, np.r_[0, 0], Flag.CENTROID_FAIL
 
         flag = Flag.NONE
         dxy = xy - gxy
-        if np.hypot(*dxy) > np.hypot(obs['ra3sig'] / 2, obs['dec3sig'] / 2):
+        if np.hypot(*dxy) > np.hypot(obs['ra3sig'], obs['dec3sig']):
             flag = flag | Flag.CENTROID_OUTSIDE_UNC
 
         if all(dxy == 0):
