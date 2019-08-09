@@ -435,8 +435,6 @@ class ZPhot(ZChecker):
             xy = np.r_[centroid_sources(im, *gxy, box_size=7,
                                         centroid_func=centroid_2dg)]
         except ValueError:
-            import pdb
-            pdb.set_trace()
             return gxy, np.r_[0, 0], Flag.CENTROID_FAIL
 
         flag = Flag.NONE
@@ -490,8 +488,8 @@ class ZPhot(ZChecker):
         zp_rms = header['MAGZPRMS']
         C = header['CLRCOEFF']
         sun = {  # PS1 system solar colors
-            'R - i': 0.12,
-            'g - R': 0.39
+            'R - i': 0.17,
+            'g - R': 0.55
         }[header['PCOLOR'].strip()]
 
         m_inst = -2.5 * np.log10(flux)
