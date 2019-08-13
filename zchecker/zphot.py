@@ -488,8 +488,8 @@ class ZPhot(ZChecker):
         zp_rms = header['MAGZPRMS']
         C = header['CLRCOEFF']
         sun = {  # PS1 system solar colors
-            'R - i': 0.17,
-            'g - R': 0.55
+            'R - i': 0.15,
+            'g - R': 0.52
         }[header['PCOLOR'].strip()]
 
         m_inst = -2.5 * np.log10(flux)
