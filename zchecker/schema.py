@@ -3,6 +3,7 @@
 zchecker_names = ['ztf_nights', 'ztf', 'ztf_pid', 'ztf_cutouts',
                   'ztf_found', 'ztf_stacks', 'ztf_stale_files',
                   'ztf_phot', 'delete_found_from_ztf_cutouts',
+                  'delete_found_from_ztf_phot',
                   'delete_ztf_cutouts_from_ztf_stacks',
                   'delete_ztf_nights_from_obs',
                   'delete_obs_from_ztf',
@@ -96,6 +97,12 @@ CREATE TRIGGER IF NOT EXISTS delete_found_from_ztf_cutouts
 BEFORE DELETE ON found
 BEGIN
   DELETE FROM ztf_cutouts WHERE foundid=old.foundid;
+END;
+
+CREATE TRIGGER IF NOT EXISTS delete_found_from_ztf_phot
+BEFORE DELETE ON found
+BEGIN
+  DELETE FROM ztf_phot WHERE foundid=old.foundid;
 END;
 
 CREATE TRIGGER IF NOT EXISTS delete_ztf_cutouts_from_ztf_stacks
