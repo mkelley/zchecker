@@ -454,7 +454,7 @@ Photometry flags:
 | 2   | Centroid outside uncertainty limit        |
 | 3   | Ephemeris too uncertain to measure source |
 | 4   | Image uncalibrated                        |
-
+| 5   | Non-zero info bit flag, see Section 10.4 of the [ZTF Science Data System][1] |
 
 ### Schema summary
 

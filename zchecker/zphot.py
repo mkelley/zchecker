@@ -47,6 +47,7 @@ class Flag(enum.Flag):
     CENTROID_OUTSIDE_UNC = 2**2
     EPHEMERIS_TOO_UNCERTAIN = 2**3
     IMAGE_UNCALIBRATED = 2**4
+    NONZERO_INFOBITS = 2**5
 
 
 class ZPhot(ZChecker):
@@ -96,6 +97,11 @@ class ZPhot(ZChecker):
 
         data = self._data_iterator(objects, update)
         for obs in data:
+            flag = Flag.NONE
+
+            if obs['infobits'] != 0:
+                flag = Flag.NONZERO_INFOBITS
+
             fn = self.config['cutout path'] + '/' + obs['archivefile']
             self.logger.debug('  ' + fn)
             hdu = fits.open(fn)
@@ -106,13 +112,14 @@ class ZPhot(ZChecker):
 
             # If ephemeris uncertainty is greater than unc_limit, then pass
             if obs['ra3sig'] > unc_limit or obs['dec3sig'] > unc_limit:
-                self._update(
-                    obs['foundid'], flag=Flag.EPHEMERIS_TOO_UNCERTAIN.value)
+                flag |= Flag.EPHEMERIS_TOO_UNCERTAIN
+                self._update(obs['foundid'], flag=flag.value)
                 continue
 
             # centroid
             wcs = WCS(hdu[ext])
-            xy, dxy, flag = self._centroid(im, obs, wcs)
+            xy, dxy, cflag = self._centroid(im, obs, wcs)
+            flag |= cflag
 
             if (flag & Flag.EPHEMERIS_OUTSIDE_IMAGE):
                 self._update(obs['foundid'], flag=flag.value)
@@ -144,13 +151,12 @@ class ZPhot(ZChecker):
             except UncalibratedError:
                 m = flux * 0
                 merr = flux * 0
-                flag = flag | Flag.IMAGE_UNCALIBRATED
+                flag |= Flag.IMAGE_UNCALIBRATED
 
             packed = self.pack(flux, m, merr)
             self._update(obs['foundid'], dx=dxy[0], dy=dxy[1], bg=bg,
                          bg_area=bgarea, bg_stdev=bgsig, flux=packed[0],
                          m=packed[1], merr=packed[2], flag=flag.value)
-        print('exited normally')
 
     def get_phot(self, obj, rap=None, unit='pixel'):
         """Get photometry from database.
@@ -378,14 +384,13 @@ class ZPhot(ZChecker):
 
     def _data_iterator(self, objects, update):
         cmd = '''
-        SELECT foundid,archivefile,seeing,ra,dec,delta,ra3sig,dec3sig
+        SELECT foundid,archivefile,seeing,ra,dec,delta,ra3sig,dec3sig,infobits
         FROM ztf_found
         INNER JOIN ztf_cutouts USING (foundid)
         LEFT JOIN ztf_phot USING (foundid)
         '''
 
-        constraints = [('sciimg>0', None),
-                       ('infobits=0', None)]
+        constraints = [('sciimg>0', None)]
         if not update:
             constraints.append(('flag IS NULL', None))
 
