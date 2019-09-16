@@ -383,6 +383,19 @@ class ZPhot(ZChecker):
         return packed
 
     def _data_iterator(self, objects, update):
+        if update:
+            # Delete photometry and remeasure.
+            if objects:
+                objids = [obj[0] for obj in self.db.resolve_objects(objects)]
+                q = ','.join('?' * len(objids))
+                objcon = 'WHERE foundid IN (SELECT foundid FROM ztf_found WHERE objid IN ({}))'.format(q)
+                parameters = objids
+            else:
+                objcon = 'WHERE 1'
+                parameters = []
+
+            self.db.execute('DELETE FROM ztf_phot ' + objcon, parameters)
+
         cmd = '''
         SELECT foundid,archivefile,seeing,ra,dec,delta,ra3sig,dec3sig,infobits
         FROM ztf_found
@@ -390,17 +403,20 @@ class ZPhot(ZChecker):
         LEFT JOIN ztf_phot USING (foundid)
         '''
 
-        constraints = [('sciimg>0', None)]
-        if not update:
-            constraints.append(('flag IS NULL', None))
-
+        constraints = [('sciimg>0', None),
+                       ('flag IS NULL', None)]
         if objects:
             objids = [obj[0] for obj in self.db.resolve_objects(objects)]
             q = ','.join('?' * len(objids))
             constraints.append(('objid IN ({})'.format(q), objids))
 
         cmd, parameters = util.assemble_sql(cmd, [], constraints)
-        return self.db.iterate_over(cmd, parameters)
+        iterating = True
+        while iterating:
+            iterating = False
+            for obs in self.db.iterate_over(cmd, parameters):
+                iterating = True
+                yield obs
 
     def _mask(self, hdu, sci_ext):
         im = hdu[sci_ext].data + 0
@@ -422,9 +438,12 @@ class ZPhot(ZChecker):
 
         # unmask objects near target
         lbl, n = nd.label(mask)
-        cen = hdu['sci'].header['tgty'], hdu['sci'].header['tgtx']
-        for m in np.unique(lbl[cen[0]-2:cen[0]+3, cen[1]-2:cen[1]+3]):
-            mask[lbl == m] = False
+        try:
+            cen = hdu['sci'].header['tgty'], hdu['sci'].header['tgtx']
+            for m in np.unique(lbl[cen[0]-2:cen[0]+3, cen[1]-2:cen[1]+3]):
+                mask[lbl == m] = False
+        except KeyError:
+            pass
 
         # add nans
         mask += ~np.isfinite(im.data)
@@ -492,13 +511,14 @@ class ZPhot(ZChecker):
 
         zp_rms = header['MAGZPRMS']
         C = header['CLRCOEFF']
-        sun = {  # PS1 system solar colors
-            'R - i': 0.15,
-            'g - R': 0.52
+        # PS1 system colors based on Solontoi et al. 2010
+        comet_default = {
+            'R - i': 0.24,
+            'g - R': 0.49
         }[header['PCOLOR'].strip()]
 
         m_inst = -2.5 * np.log10(flux)
-        m = m_inst + zp + C * sun
+        m = m_inst + zp + C * comet_default
         merr = np.sqrt((1.0857 * ferr / flux)**2 + zp_rms**2)
 
         return m, merr

@@ -1,5 +1,9 @@
 # Changes
 
+## v2.4.
+* Removed infobits=0 requirement in ZStack and ZPhot
+* ZPhot default color correction based on Solontoi et al. 2010.
+
 ## v2.4.0
 * New `zphot measure` and `zphot plot`.
 * New script to plot cutout files with DS9: `ds9-ztf`

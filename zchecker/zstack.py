@@ -153,7 +153,7 @@ class ZStack(ZChecker):
         INNER JOIN ztf_nights USING (nightid)
         LEFT JOIN ztf_stacks USING (stackid)
         '''
-        constraints = [('infobits=0', None), ('sangleimg!=0', None)]
+        constraints = [('sangleimg!=0', None)]
         if objects:
             objids = [obj[0] for obj in self.db.resolve_objects(objects)]
             q = ','.join('?' * len(objids))
@@ -362,6 +362,8 @@ class ZStack(ZChecker):
             with fits.open(fn) as hdu:
                 h = hdu['SCI'].header
                 if 'MAGZP' not in h:
+                    continue
+                if h['MAGZP'] < 0:
                     continue
 
                 # use provided mask, if possible
