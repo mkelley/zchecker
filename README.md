@@ -1,4 +1,4 @@
-# ZChecker v2.4.6
+# ZChecker v2.4.7
 ZTF moving target checker for short object lists.
 
 ## Attribution and license

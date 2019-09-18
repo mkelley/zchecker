@@ -1,5 +1,8 @@
 # Changes
 
+## v2.4.7
+* Delete found objects when updating pointing.  Requires sbsearch v0.1.5.
+
 ## v2.4.6
 * Removed infobits=0 requirement in ZStack and ZPhot
 * ZPhot default color correction based on Solontoi et al. 2010.

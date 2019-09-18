@@ -165,7 +165,7 @@ class ZChecker(SBSearch):
         n_rows = self.executemany('DELETE FROM ztf_cutouts WHERE foundid=?',
                                   [[i] for i in foundids])
         n_files = self.clean_stale_files()
-        self.commit()
+        self.db.commit()
         return n_rows, n_files
 
     def clean_stacks(self, stackids):
@@ -186,7 +186,7 @@ class ZChecker(SBSearch):
         n_rows = self.executemany('DELETE FROM ztf_stacks WHERE stackid=?',
                                   [[i] for i in stackids])
         n_files = self.clean_stale_files()
-        self.commit()
+        self.db.commit()
         return n_rows, n_files
 
     def clean_stale_files(self):
@@ -213,7 +213,7 @@ class ZChecker(SBSearch):
             self.db.executemany(
                 'DELETE FROM ztf_stale_files WHERE rowid=?', rowids)
             self.logger.info('{} stale archive files removed.'.format(count))
-        self.commit()
+        self.db.commit()
         return count
 
     def download_cutouts(self, objects=None, clean_failed=True,
@@ -481,7 +481,7 @@ class ZChecker(SBSearch):
                 yield ztf
 
         ztf_insert = '''
-        INSERT OR ROLLBACK INTO ztf VALUES (
+        INSERT OR REPLACE INTO ztf VALUES (
           last_insert_rowid(),?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?
         )
         '''
