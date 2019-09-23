@@ -464,6 +464,16 @@ class ZChecker(SBSearch):
 
         self.db.commit()
 
+        # make sure we do not add any duplicates
+        test = '''
+        SELECT count() FROM ztf WHERE pid=:pid
+        '''
+        new = [not bool(self.db.execute(test, {'pid': row[0]}).fetchone()[0])
+               for row in tab]
+        tab = tab[new]
+        exposures = len(np.unique(tab['expid']))
+        quads = len(tab)
+
         def obs_iterator(tab):
             for i in range(len(tab)):
                 row = tuple(tab[i].as_void())
@@ -481,7 +491,7 @@ class ZChecker(SBSearch):
                 yield ztf
 
         ztf_insert = '''
-        INSERT OR REPLACE INTO ztf VALUES (
+        INSERT INTO ztf VALUES (
           last_insert_rowid(),?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?
         )
         '''

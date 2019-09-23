@@ -105,7 +105,22 @@ class ZPhot(ZChecker):
             fn = self.config['cutout path'] + '/' + obs['archivefile']
             self.logger.debug('  ' + fn)
             hdu = fits.open(fn)
-            ext = 'DIFF' if 'DIFF' in hdu else 'SCI'
+
+            # Difference image preferred, but not if too close the edge.
+            ext = 'SCI'
+            if 'DIFF' in hdu:
+                d = hdu['DIFF'].data
+                bad_rows = np.sum(d < DATA_FLOOR, 0) == d.shape[0]
+                bad_cols = np.sum(d < DATA_FLOOR, 1) == d.shape[1]
+
+                # any near the target?  don't use it.
+                x = hdu['SCI'].header['TGTX']
+                y = hdu['SCI'].header['TGTY']
+                bady = np.any(bad_cols[max(y-50, 0):min(y+51, d.shape[0])])
+                badx = np.any(bad_rows[max(x-50, 0):min(x+51, d.shape[1])])
+                if not (bady or badx):
+                    ext = 'DIFF'
+
             sources, mask = self._mask(hdu, ext)
             im = np.ma.MaskedArray(hdu[ext].data, mask=mask)
             im = im.byteswap().newbyteorder()  # prep for SEP
@@ -462,6 +477,7 @@ class ZPhot(ZChecker):
             return gxy, np.r_[0, 0], Flag.CENTROID_FAIL
 
         flag = Flag.NONE
+
         dxy = xy - gxy
         if np.hypot(*dxy) > np.hypot(obs['ra3sig'], obs['dec3sig']):
             flag = flag | Flag.CENTROID_OUTSIDE_UNC
