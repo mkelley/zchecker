@@ -282,9 +282,11 @@ class ZStack(ZChecker):
         h['OBSJDM'] = mean_key(
             headers, 'OBSJD', 'Mean shutter start time', float)
 
-        wcs = WCS(fits.getheader(os.path.join(path, sorted(files)[0]),
+        wcsfn = sorted(files)[0]
+        wcs = WCS(fits.getheader(os.path.join(path, wcsfn),
                                  extname='SANGLE'))
         h.update(wcs.to_header())
+        h['WCSORIGN'] = wcsfn
 
         h['DBPID'] = (','.join([str(_['DBPID']) for _ in headers]),
                       'Database processed-image IDs')
