@@ -1,5 +1,9 @@
 # Changes
 
+## v2.4.8
+* New feature: search by orbit.
+* Requires astroquery 0.3.10 and sbpy 0.2.
+
 ## v2.4.7
 * Delete found objects when updating pointing.  Requires sbsearch v0.1.5.
 

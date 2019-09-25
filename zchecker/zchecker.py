@@ -327,6 +327,111 @@ class ZChecker(SBSearch):
         self.logger.info('{} files successfully downloaded.'
                          .format(downloaded))
 
+    def find_by_orbit(self, desg, orbit, start=None, stop=None, download=None):
+        """Search for object by orbital elements.
+
+        Parameters
+        ----------
+        orbit : `~sbpy.data.orbit.Orbit`
+            Target name (`'desg'`) and orbital parameters.  If `'M'`
+            and `'K'` are provided, they will be used for the apparent
+            magnitude model.
+
+        start : float or `~astropy.time.Time`, optional
+            Search after this epoch, inclusive.
+
+        stop : float or `~astropy.time.Time`, optional
+            Search before this epoch, inclusive.
+
+        download : string, optional
+            Download 'cutouts' or 'fullframe'.
+
+        Returns
+        -------
+        tab : `~astropy.table.Table` or ``None``
+
+        """
+
+        tab = super().find_by_orbit(orbit, start=start, stop=stop)
+
+        if download is None:
+            return tab
+
+        if tab is None:
+            self.logger.info('Nothing to download.')
+            return None
+
+        rows = tab.copy()
+
+        # add ZData required meta data
+        undef = ['undef'] * len(rows)
+        na = ['N/A'] * len(rows)
+        rows['desg'] = [desg] * len(rows)
+        rows['objid'] = na
+        rows['obsjd'] = Time(rows['date']).jd
+        rows['phase'] = undef
+        rows['rdot'] = np.zeros(len(rows))
+        rows['sangle'] = undef
+        rows['vangle'] = undef
+        rows['trueanomaly'] = undef
+        rows['tmtp'] = undef
+        rows['ra'] = rows['RA']
+        rows['dec'] = rows['Dec']
+        rows['dra'] = undef
+        rows['ddec'] = undef
+        rows['ra3sig'] = undef
+        rows['dec3sig'] = undef
+        rows['foundid'] = na
+        rows['ccdid'] = rows['ccd']
+        rows['qid'] = rows['quad']
+        rows['filtercode'] = rows['filter']
+
+        path = self.config['cutout path']
+        fntemplate = ('found-by-orbit/{desgfile}/{desgfile}-{datetime}-{rh:.3f}'
+                      '-{filtercode[1]}-ztf.fits')
+        if download is 'cutouts':
+            size = self.config['cutout size']
+        elif download is 'fullframe':
+            size = None
+        else:
+            raise ValueError('download must be cutout or fullframe.')
+
+        count = len(rows)
+        exists = 0
+        self.logger.info('Checking for {} images.'.format(count))
+
+        with ztf.IRSA(path, self.config.auth) as irsa:
+            for i in range(len(rows)):
+                row = {}
+                for col in rows.colnames:
+                    row[col] = rows[col][i]
+
+                try:
+                    with ZData(irsa, path, fntemplate, self.logger,
+                               preserve_case=True, **row) as cutout:
+                        count -= 1
+
+                        if os.path.exists(cutout.fn):
+                            exists += 1
+                            continue
+
+                        cutout.append('sci', size=size)
+
+                        for img in ['mask', 'psf', 'diff', 'ref']:
+                            try:
+                                cutout.append(img, size=size)
+                            except ZCheckerError:
+                                pass
+                except ZCheckerError as e:
+                    self.logger.error('{} - {}'.format(cutout.fn, str(e)))
+
+                self.logger.debug('  [{}] {}'.format(count + 1, cutout.fn))
+
+        self.logger.info('{} downloaded, {} already exist{}.'.format(
+            len(rows) - exists, exists, 's' if exists == 1 else ''))
+
+        return summary
+
     def summarize_found(self, objects=None, start=None, stop=None):
         """Summarize found object database."""
         kwargs = {

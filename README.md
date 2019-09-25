@@ -1,4 +1,4 @@
-# ZChecker v2.4.7
+# ZChecker v2.4.8
 ZTF moving target checker for short object lists.
 
 ## Attribution and license
@@ -16,9 +16,9 @@ Support for ZChecker was provided by the NASA/University of Maryland/Minor Plane
 * Python 3.6+
 * astropy v2.0+
 * [sbsearch v0.1](https://github.com/Small-Bodies-Node/sbsearch/tree/v0.1)
-* [sbpy](https://github.com/NASA-Planetary-Science/sbpy) current dev version
+* [sbpy](https://github.com/NASA-Planetary-Science/sbpy) 0.2
 * requests
-* astroquery 0.3.9
+* astroquery 0.3.10
 * sqlite
 * wget
 

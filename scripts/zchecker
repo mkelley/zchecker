@@ -11,7 +11,7 @@ from astropy.time import Time
 
 from zchecker import ZChecker, Config
 from zchecker.config import _config_example
-from zchecker.cli_helpers import object_list, as_time
+from zchecker.cli_helpers import object_list, as_time, args2orbit
 
 
 def parse_date_range(start, stop, date, full=False):
@@ -31,6 +31,30 @@ def parse_date_range(start, stop, date, full=False):
         stop = stop + 1 * u.day  # search limit is end of the day
 
     return start, stop
+
+def add_orbital_elements(parser):
+    group = parser.add_argument_group('orbital parameters')
+    group.add_argument(
+        '-M', type=float, help='absolute magnitude')
+    group.add_argument(
+        '-K', type=float, help='heliocentric distance slope')
+    group.add_argument(
+        '-q', type=float, help='perihelion distance')
+    group.add_argument(
+        '-e', type=float, help='eccentricity')
+    group.add_argument(
+        '-i', type=float, help='inclincation')
+    group.add_argument(
+        '--argperi', '--omega', '-w', type=float, 
+        help='argument of perihelion')
+    group.add_argument(
+        '--node', '--Omega', '-W', type=float, 
+        help='longitude of the ascending node')
+    group.add_argument(
+        '--Tp', '--tp', help='perihelion epoch, TT')
+    group.add_argument(
+        '--epoch', help='epoch of the elements')
+    return parser
 
 
 # create the top-level parser
@@ -122,11 +146,24 @@ def one_shot(args):
     }
 
     config = Config.from_args(args)
-    with ZChecker(config, disable_log=True) as z:
+    with ZChecker(config, save_log=False) as z:
         try:
-            eph = z.db.get_ephemeris_exact(
-                args.object, 'I41', epochs, source=args.source)
-            obs, tab = z.find_by_ephemeris(eph)
+            if args.source == 'orbit':
+                orbit = args2orbit(args)
+
+                if args.cutouts:
+                    download = 'cutouts'
+                elif args.fullframe:
+                    download = 'fullframe'
+                else:
+                    download = None
+
+                tab = z.find_by_orbit(args.object, orbit, start=start,
+                                      stop=stop, download=download)
+            else:
+                eph = z.db.get_ephemeris_exact(
+                    args.object, 'I41', epochs, source=args.source)
+                obs, tab = z.find_by_ephemeris(eph)
         except Exception as e:
             z.logger.error(str(e))
             raise e
@@ -136,19 +173,26 @@ def one_shot(args):
 
 parser_one_shot = subparsers.add_parser(
     'one-shot', help='search ZTF fields on the fly',
-    epilog='Date format: YYYY-MM-DD.')
+    epilog=('Date format: YYYY-MM-DD.  Download option only available for'
+           ' --source=orbit.'))
 parser_one_shot.add_argument(
     'object',
-    help='object designation to resolve')
+    help='object designation')
 parser_one_shot.add_argument(
     'start', type=as_time, help='search beginning with this date, UT')
 parser_one_shot.add_argument(
     'stop', type=as_time, help='search ending with this date, UT')
 parser_one_shot.add_argument(
-    '--source', choices=['jpl', 'mpc'], default='jpl',
-    help='base search on ephemerides from JPL or MPC')
+    '--source', choices=['jpl', 'mpc', 'orbit'], default='jpl',
+    help='base search on ephemerides from JPL, MPC, or orbit')
 parser_one_shot.add_argument(
     '--step', default='1d', help='step size for ephemeris generation')
+mutex = parser_one_shot.add_mutually_exclusive_group()
+mutex.add_argument(
+    '--cutouts', action='store_true', help='download cutouts')
+mutex.add_argument(
+    '--fullframe', action='store_true', help='download full-frame images.')
+parser_one_shot = add_orbital_elements(parser_one_shot)
 parser_one_shot.set_defaults(func=one_shot)
 
 
@@ -202,6 +246,7 @@ parser_pccp.set_defaults(func=pccp)
 def eph_update(args):
     stop = args.stop + 1 * u.day  # place limit at end of day
     config = Config.from_args(args)
+
     with ZChecker(config, save_log=True) as z:
         try:
             if args.clean:
