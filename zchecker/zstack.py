@@ -53,10 +53,14 @@ class ZStack(ZChecker):
 
             self.logger.error('{} was expected, but does not exist.'
                               .format(fn))
-            self.db.execute('UPDATE ztf_cutouts SET stackid=NULL WHERE stackid={}'
-                            .format(stackid))
-            self.db.execute('DELETE FROM ztf_stacks WHERE stackid={}'
-                            .format(stackid))
+            self.db.execute('''
+            UPDATE ztf_cutouts SET stackid=NULL WHERE stackid=?
+            ''', [stackid])
+
+            self.db.execute('''
+            DELETE FROM ztf_stacks WHERE stackid=?
+            ''', [stackid])
+
         self.logger.info('{} files verified, {} database rows removed'
                          .format(exists, count - exists))
 
@@ -75,10 +79,25 @@ class ZStack(ZChecker):
 
             self.logger.info('[{}] {}'.format(n, fn))
 
+            # only stack calibrated data
+            headers = [
+                fits.getheader(
+                    os.path.join(self.config['cutout path'], f)
+                )
+                for f in sorted(nightly)
+            ]
+            calibrated = [h.get('MAGZP', -1) > 0 for h in headers]
+            
+            if sum(calibrated) == 0:
+                self.db.executemany('''
+                UPDATE ztf_cutouts SET stackid=NULL WHERE foundid=?
+                ''', ((i,) for i in nightlyids))
+                continue
+
             # setup FITS object, primary HDU is just a header
             hdu = fits.HDUList()
             primary_header = self._header(self.config['cutout path'],
-                                          nightly)
+                                          nightly[calibrated])
             hdu.append(fits.PrimaryHDU(header=primary_header))
 
             # update header with baseline info
@@ -97,7 +116,7 @@ class ZStack(ZChecker):
             rh0 = primary_header['RH']
             delta0 = primary_header['DELTA']
             try:
-                im, ref = self._combine(nightly, 'nightly',
+                im, ref = self._combine(nightly[calibrated], 'nightly',
                                         rh0, delta0,
                                         self.config['cutout path'])
                 hdu.append(im)
@@ -146,9 +165,9 @@ class ZStack(ZChecker):
                         ('Unsuccessful stack {}, deleting previous data.')
                         .format(fn))
 
-                    self.db.executemany('''
-                    UPDATE ztf_cutouts SET stackid=NULL WHERE foundid=?
-                    ''', ((i,) for i in nightlyids))
+                self.db.executemany('''
+                UPDATE ztf_cutouts SET stackid=NULL WHERE foundid=?
+                ''', ((i,) for i in nightlyids))
 
             self.db.commit()
 
@@ -281,7 +300,7 @@ class ZStack(ZChecker):
         h['OBSLAT'] = 33.3483, 'Observatory latitude (deg E)'
         h['OBSALT'] = 1706., 'Observatory altitude (m)'
         h['IMGTYPE'] = 'object', 'Image type'
-        h['NIMAGES'] = len(headers), 'Number of images in stack'
+        h['NIMAGES'] = N, 'Number of images in stack'
         h['EXPOSURE'] = (sum([_['EXPOSURE'] for _ in headers]),
                          'Total stack exposure time (s)')
         if len(headers) == 0:
@@ -289,9 +308,8 @@ class ZStack(ZChecker):
 
         h['MAGZP'] = 25.0, 'Magnitude zero point, solar color'
         h['MAGZPRMS'] = (
-            np.sqrt(np.sum([h['MAGZPRMS']**2 for h in headers])) / N,
+            np.sqrt(np.sum([h.get('MAGZPRMS', 0)**2 for h in headers])) / N,
             'Mean MAGZP RMS')
-
         h['PCOLOR'] = headers[0]['PCOLOR']
         h['CLRCOEFF'] = mean_key(headers, 'CLRCOEFF',
                                  'Mean color coefficient', float)
