@@ -97,7 +97,7 @@ class ZStack(ZChecker):
             rh0 = primary_header['RH']
             delta0 = primary_header['DELTA']
             try:
-                im, ref = self._combine(nightly, 'none',
+                im, ref = self._combine(nightly, 'nightly',
                                         rh0, delta0,
                                         self.config['cutout path'])
                 hdu.append(im)
@@ -368,7 +368,7 @@ class ZStack(ZChecker):
         return m
 
     def _combine(self, files, scale_by, rh0, delta0, path):
-        if scale_by == 'none':
+        if scale_by == 'nightly':
             k = 0, 0
         elif scale_by == 'coma':
             # coma: delta**1 rh**4

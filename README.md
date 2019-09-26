@@ -236,8 +236,8 @@ with the format: `desg-yyyymmdd-rh-ztf-stack.fits`:
 | Extension name | HDU type | Source | Description                                            |
 |----------------|----------|--------|--------------------------------------------------------|
 | PRIMARY        | Primary  | IRSA   | Original science data header                           |
-| COMA           | Image    | zstack | Nightly stack of SANGLE data using coma model          |
-| COMA REF       | Image    | zstack | Nightly stack of SANGLEREF data using coma model       |
+| NIGHTLY        | Image    | zstack | Nightly stack of SANGLE data                           |
+| NIGHTLY REF    | Image    | zstack | Nightly stack of SANGLEREF data                        |
 | COMA BL        | Image    | zstack | Baseline image from SANGLE data using coma model       |
 | COMA REF BL    | Image    | zstack | Baseline image from SANGLEREF data using coma model    |
 | SURF           | Image    | zstack | Nightly stack of SANGLE data using surface model       |

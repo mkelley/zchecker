@@ -430,7 +430,7 @@ class ZChecker(SBSearch):
         self.logger.info('{} downloaded, {} already exist{}.'.format(
             len(rows) - exists, exists, 's' if exists == 1 else ''))
 
-        return summary
+        return tab
 
     def summarize_found(self, objects=None, start=None, stop=None):
         """Summarize found object database."""

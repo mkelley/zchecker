@@ -11,7 +11,7 @@ parser.add_argument(
     'objects', type=object_list, nargs='?',
     help=('find and stack these targets, or those listed in this file'))
 parser.add_argument(
-    '--scale', default='both', choices=['coma', 'surface', 'both'],
+    '--scale', default='coma', choices=['coma', 'surface', 'both'],
     help='image scaling basis')
 parser.add_argument(
     '--baseline', default=14, type=int,
