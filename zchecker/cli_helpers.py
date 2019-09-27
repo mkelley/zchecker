@@ -49,7 +49,7 @@ def args2orbit(args):
         'incl': args.i * u.deg,
         'Omega': args.node * u.deg,
         'w': args.argperi * u.deg,
-        'Tp': epochs_to_time([Tp], scale='tt')
+        'Tp_jd': epochs_to_time([Tp], scale='tt').jd * u.day
     })
     orbit['orbittype'] = ['COM']
     orbit['epoch'] = epochs_to_time([epoch], scale='tt')
