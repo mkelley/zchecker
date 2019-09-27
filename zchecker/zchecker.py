@@ -592,7 +592,11 @@ class ZChecker(SBSearch):
                 row = tuple(tab[i].as_void())
                 jd_mid = float(row[1]) + row[2] / 86400 / 2
                 obsdate = Time(jd_mid, format='jd').iso[:-4]
-                ztf = (row[0], nightid, obsdate) + row[13:]
+                if isinstance(row[-1], bytes):
+                    maglim = None
+                else:
+                    maglim = float(row[-1])
+                ztf = (row[0], nightid, obsdate) + row[13:-1] + [maglim]
                 yield ztf
 
         ztf_insert = '''

@@ -404,6 +404,7 @@ Found objects and observation geometry at image mid-time.
 |-------------|---------|----------|------------------------------------------------------|
 | foundid     | integer | zchecker | unique identifier from `found` table                 |
 | stackid     | integer | zchecker | unique identifier from `ztf_stacks` table            |
+| programid   | integer | ZTF      | queue program ID from header                         |
 | retrieved   | text    | zchecker | date cutout was downloaded                           |
 | archivefile | text    | zchecker | file name                                            |
 | sciimg      | integer | zchecker | flag for science image presence                      |

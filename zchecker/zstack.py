@@ -181,7 +181,9 @@ class ZStack(ZChecker):
         INNER JOIN ztf_nights USING (nightid)
         LEFT JOIN ztf_stacks USING (stackid)
         '''
-        constraints = [('sangleimg!=0', None)]
+
+        constraints = [('sangleimg!=0', None), ('maglimit>0', None)]
+
         if objects:
             objids = [obj[0] for obj in self.db.resolve_objects(objects)]
             q = ','.join('?' * len(objids))

@@ -46,6 +46,7 @@ CREATE INDEX IF NOT EXISTS ztf_nightid ON ztf(nightid);
 CREATE TABLE IF NOT EXISTS ztf_cutouts(
   foundid INTEGER PRIMARY KEY,
   stackid INTEGER KEY,
+  programid INTEGER,
   retrieved TEXT,
   archivefile TEXT,
   sciimg INTEGER,
