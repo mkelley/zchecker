@@ -596,7 +596,7 @@ class ZChecker(SBSearch):
                     maglim = None
                 else:
                     maglim = float(row[-1])
-                ztf = (row[0], nightid, obsdate) + row[13:-1] + [maglim]
+                ztf = (row[0], nightid, obsdate) + row[13:-1] + (maglim,)
                 yield ztf
 
         ztf_insert = '''
