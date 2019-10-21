@@ -69,7 +69,8 @@ class ZPhot(ZChecker):
         'zi': '*'
     }
 
-    def photometry(self, objects=None, update=False, unc_limit=None):
+    def photometry(self, objects=None, update=False, unc_limit=None,
+                   snr_limit=5):
         """Find data with missing photometry and measure it.
 
         Parameters
@@ -85,13 +86,15 @@ class ZPhot(ZChecker):
             than this limit (arcsec), or ``None`` for no limit.  RA
             and Dec are tested independently.
 
+        snr_limit : float, optional
+
         Notes
         -----
         Photometry flags are defined by `~Flag`.
 
         """
 
-        data = self._data_iterator(objects, update, unc_limit)
+        data = self._data_iterator(objects, update, unc_limit, snr_limit)
         for obs in data:
             fn = self.config['cutout path'] + '/' + obs['archivefile']
             self.logger.debug('  ' + fn)
@@ -184,7 +187,8 @@ class ZPhot(ZChecker):
 
         tab = Table(rows=rows)
 
-        return tab
+        i = tab['merr'] < 0.5
+        return tab[i]
 
     def get_phot_by_foundid(self, foundid, rap, unit='pixel'):
         """Get photometry from database given foundid.
@@ -339,10 +343,10 @@ class ZPhot(ZChecker):
 
         ylim = ax.get_ylim()
         ax.set_ylim(max(ylim), min(ylim))
-        plt.setp(ax, xlabel='Date (UT)', ylabel='$m$ (mag)')
+        plt.setp(ax, xlabel='Date (UTC)', ylabel='$m$ (mag)')
 
         ax.xaxis_date()
-        ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
+        ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d %H:%M'))
         ax.xaxis.set_tick_params('major', length=15)
         fig.autofmt_xdate()
 
