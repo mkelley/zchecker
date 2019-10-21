@@ -1,10 +1,10 @@
-# ZChecker v2.4.1
+# ZChecker v2.4.8
 ZTF moving target checker for short object lists.
 
 ## Attribution and license
 Written by Michael S. P. Kelley (University of Maryland), with contributions from Quan-Zhi Ye (IPAC/Caltech).  Thanks to James Bauer, Dennis Bodewits, Tony Farnham, and Matthew Knight for some design comments.
 
-If `ZChecker` is useful to you, please cite Kelley, M. S. P., Bodewits, D., Ye, Q. et al. 2019.  ADASS XXVIII, ed. P. Teuben, M. Pound, B. Thomas, andE. Warner, ASP Conf. Ser., in press.
+If `ZChecker` is useful to you, please cite Kelley, M. S. P., Bodewits, D., Ye, Q. et al. 2019.  ADASS XXVIII, ed. P. Teuben, M. Pound, B. Thomas, and E. Warner, ASP Conf. Ser., 471, 305.
 
 ZChecker is licensed with the BSD 3-clause license.  See LICENSE for details.
 
@@ -16,9 +16,9 @@ Support for ZChecker was provided by the NASA/University of Maryland/Minor Plane
 * Python 3.6+
 * astropy v2.0+
 * [sbsearch v0.1](https://github.com/Small-Bodies-Node/sbsearch/tree/v0.1)
-* [sbpy](https://github.com/NASA-Planetary-Science/sbpy) current dev version
+* [sbpy](https://github.com/NASA-Planetary-Science/sbpy) 0.2
 * requests
-* astroquery 0.3.9
+* astroquery 0.3.10
 * sqlite
 * wget
 
@@ -236,8 +236,8 @@ with the format: `desg-yyyymmdd-rh-ztf-stack.fits`:
 | Extension name | HDU type | Source | Description                                            |
 |----------------|----------|--------|--------------------------------------------------------|
 | PRIMARY        | Primary  | IRSA   | Original science data header                           |
-| COMA           | Image    | zstack | Nightly stack of SANGLE data using coma model          |
-| COMA REF       | Image    | zstack | Nightly stack of SANGLEREF data using coma model       |
+| NIGHTLY        | Image    | zstack | Nightly stack of SANGLE data                           |
+| NIGHTLY REF    | Image    | zstack | Nightly stack of SANGLEREF data                        |
 | COMA BL        | Image    | zstack | Baseline image from SANGLE data using coma model       |
 | COMA REF BL    | Image    | zstack | Baseline image from SANGLEREF data using coma model    |
 | SURF           | Image    | zstack | Nightly stack of SANGLE data using surface model       |
@@ -404,6 +404,7 @@ Found objects and observation geometry at image mid-time.
 |-------------|---------|----------|------------------------------------------------------|
 | foundid     | integer | zchecker | unique identifier from `found` table                 |
 | stackid     | integer | zchecker | unique identifier from `ztf_stacks` table            |
+| programid   | integer | ZTF      | queue program ID from header                         |
 | retrieved   | text    | zchecker | date cutout was downloaded                           |
 | archivefile | text    | zchecker | file name                                            |
 | sciimg      | integer | zchecker | flag for science image presence                      |
@@ -454,8 +455,15 @@ Photometry flags:
 | 2   | Centroid outside uncertainty limit        |
 | 3   | Ephemeris too uncertain to measure source |
 | 4   | Image uncalibrated                        |
-
+| 5   | Non-zero info bit flag, see Section 10.4 of the [ZTF Science Data System][1] |
 
 ### Schema summary
 
 ![schema](db-schema.png)
+
+
+## Notes
+
+In sbsearch v0.1.2 and earlier, a bug allowed observations to be added twice.  If the database only contains ZTF observations, the number of duplicates may be identified with:
+
+  `SELECT COUNT() FROM obs LEFT JOIN ztf USING(obsid) WHERE pid IS NULL;`

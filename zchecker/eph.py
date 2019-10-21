@@ -93,18 +93,18 @@ def ephemeris(desg, epochs, orbit=True):
         if len(orb) == 0:
             raise EphemerisError('{}'.format(desg))
 
-        Tp = Time(orb['Tp_jd'], format='jd', scale='tdb')
-        T = Time(orb['datetime_jd'], format='jd', scale='utc')
-        tmtp = (T - Tp).jd
+        Tp = orb['Tp']
+        T = orb['epoch']
+        tmtp = (T - Tp).utc.jd
         orb.add_column(Column(tmtp, name='T-Tp'))
 
         # remove repeated columns
         repeated = [c for c in orb.colnames
-                    if (c in eph.colnames) and (c != 'datetime_jd')]
+                    if (c in eph.colnames) and (c != 'epoch')]
         orb.remove_columns(repeated)
 
         # cheat to avoid float errors
-        orb['datetime_jd'] = eph['datetime_jd']
+        orb['epoch'] = eph['epoch']
 
         eph = join(eph, orb)
 

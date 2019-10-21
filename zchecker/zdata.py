@@ -264,7 +264,8 @@ class ZData:
         else:
             values = (self.fn,)
 
-        values += (Time.now().iso[:-4],
+        values += (self.hdu[0].header.get('PROGRMID', -1),
+                   Time.now().iso[:-4],
                    int('sci' in self.hdu),
                    int('mask' in self.hdu),
                    int('psf' in self.hdu),
@@ -275,17 +276,17 @@ class ZData:
         if update:
             db.execute('''
             UPDATE ztf_cutouts SET (
-              archivefile,retrieved,sciimg,mskimg,scipsf,diffimg,
+              archivefile,programid,retrieved,sciimg,mskimg,scipsf,diffimg,
               diffpsf,refimg,vangleimg,sangleimg
-            ) = (?,?,?,?,?,?,?,?,0,0)
+            ) = (?,?,?,?,?,?,?,?,?,0,0)
             WHERE foundid=?
             ''', values + (self.meta['foundid'],))
         else:
             db.execute('''
             INSERT OR REPLACE INTO ztf_cutouts (
-              foundid,archivefile,retrieved,sciimg,mskimg,scipsf,diffimg,
-              diffpsf,refimg,vangleimg,sangleimg)
-            VALUES (?,?,?,?,?,?,?,?,?,0,0)
+              foundid,archivefile,programid,retrieved,sciimg,mskimg,scipsf,
+              diffimg,diffpsf,refimg,vangleimg,sangleimg)
+            VALUES (?,?,?,?,?,?,?,?,?,?,0,0)
             ''', (self.meta['foundid'],) + values)
 
         db.commit()

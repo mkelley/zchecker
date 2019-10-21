@@ -21,6 +21,11 @@ def desg2file(s): return s.replace('/', '').replace(' ', '').lower()
 # subtracted image is bad
 DATA_FLOOR = -100
 
+# default colors for color correction (solar)
+COLOR_DEFAULT = {
+    'R - i': 0.12,
+    'g - R': 0.39
+}
 
 class ZStack(ZChecker):
     def __init__(self, *args, **kwargs):
@@ -36,22 +41,26 @@ class ZStack(ZChecker):
         ''').fetchone()[0]
         self.logger.info('Checking {} files.'.format(count))
 
-        rows = self.db.execute('''
+        rows = self.db.iterate_over('''
         SELECT stackid,stackfile FROM ztf_stacks
         WHERE stackfile IS NOT NULL
-        ''')
+        ''', [])
         exists = 0
-        for stackid, fn in util.iterate_over(rows):
+        for stackid, fn in rows:
             if os.path.exists(os.path.join(self.config['stack path'], fn)):
                 exists += 1
                 continue
 
             self.logger.error('{} was expected, but does not exist.'
                               .format(fn))
-            self.db.execute('UPDATE ztf_cutouts SET stackid=NULL WHERE stackid={}'
-                            .format(stackid))
-            self.db.execute('DELETE FROM ztf_stacks WHERE stackid={}'
-                            .format(stackid))
+            self.db.execute('''
+            UPDATE ztf_cutouts SET stackid=NULL WHERE stackid=?
+            ''', [stackid])
+
+            self.db.execute('''
+            DELETE FROM ztf_stacks WHERE stackid=?
+            ''', [stackid])
+
         self.logger.info('{} files verified, {} database rows removed'
                          .format(exists, count - exists))
 
@@ -70,10 +79,25 @@ class ZStack(ZChecker):
 
             self.logger.info('[{}] {}'.format(n, fn))
 
+            # only stack calibrated data
+            headers = [
+                fits.getheader(
+                    os.path.join(self.config['cutout path'], f)
+                )
+                for f in sorted(nightly)
+            ]
+            calibrated = [h.get('MAGZP', -1) > 0 for h in headers]
+            
+            if sum(calibrated) == 0:
+                self.db.executemany('''
+                UPDATE ztf_cutouts SET stackid=NULL WHERE foundid=?
+                ''', ((i,) for i in nightlyids))
+                continue
+
             # setup FITS object, primary HDU is just a header
             hdu = fits.HDUList()
             primary_header = self._header(self.config['cutout path'],
-                                          nightly)
+                                          nightly[calibrated])
             hdu.append(fits.PrimaryHDU(header=primary_header))
 
             # update header with baseline info
@@ -88,22 +112,26 @@ class ZStack(ZChecker):
             for key, name, comment in metadata:
                 hdu[0].header[key] = h.get(name), comment
 
+            # combine nightly
+            rh0 = primary_header['RH']
+            delta0 = primary_header['DELTA']
+            try:
+                im, ref = self._combine(nightly[calibrated], 'nightly',
+                                        rh0, delta0,
+                                        self.config['cutout path'])
+                hdu.append(im)
+                if ref:
+                    hdu.append(ref)
+            except BadStackSet:
+                continue
+
             # loop over scaling models
             for i in range(len(scale_by)):
-                # combine nightly
-                try:
-                    im, ref = self._combine(nightly, scale_by[i],
-                                            self.config['cutout path'])
-                    hdu.append(im)
-                    if ref:
-                        hdu.append(ref)
-                except BadStackSet:
-                    continue
-
                 # combine baseline
                 if len(baseline) > 0:
                     try:
-                        im, ref = self._combine(baseline, scale_by[i],
+                        im, ref = self._combine(baseline, scale_by[i], 
+                                                rh0, delta0,
                                                 self.config['cutout path'])
                     except BadStackSet:
                         continue
@@ -137,9 +165,9 @@ class ZStack(ZChecker):
                         ('Unsuccessful stack {}, deleting previous data.')
                         .format(fn))
 
-                    self.db.executemany('''
-                    UPDATE ztf_cutouts SET stackid=NULL WHERE foundid=?
-                    ''', ((i,) for i in nightlyids))
+                self.db.executemany('''
+                UPDATE ztf_cutouts SET stackid=NULL WHERE foundid=?
+                ''', ((i,) for i in nightlyids))
 
             self.db.commit()
 
@@ -153,7 +181,9 @@ class ZStack(ZChecker):
         INNER JOIN ztf_nights USING (nightid)
         LEFT JOIN ztf_stacks USING (stackid)
         '''
-        constraints = [('infobits=0', None), ('sangleimg!=0', None)]
+
+        constraints = [('sangleimg!=0', None), ('maglimit>0', None)]
+
         if objects:
             objids = [obj[0] for obj in self.db.resolve_objects(objects)]
             q = ','.join('?' * len(objids))
@@ -167,6 +197,8 @@ class ZStack(ZChecker):
             # only nights with with images not yet stacked
             stack_constraint = [('(stackfile IS NULL)', None)]
 
+        # must group by filter, otherwise photometric corrections /
+        # header info will fail / be wrong
         cmd, parameters = util.assemble_sql(
             cmd, [], constraints + stack_constraint + object_constraint)
         cmd += ' GROUP BY nightid,objid,filtercode'
@@ -254,6 +286,7 @@ class ZStack(ZChecker):
         """New FITS header based on this file list."""
         headers = [fits.getheader(os.path.join(path, f))
                    for f in sorted(files)]
+        N = len(headers)
 
         def mean_key(headers, key, comment, type): return (
             np.mean([type(h[key]) for h in headers]), comment)
@@ -269,22 +302,30 @@ class ZStack(ZChecker):
         h['OBSLAT'] = 33.3483, 'Observatory latitude (deg E)'
         h['OBSALT'] = 1706., 'Observatory altitude (m)'
         h['IMGTYPE'] = 'object', 'Image type'
-        h['NIMAGES'] = len(headers), 'Number of images in stack'
+        h['NIMAGES'] = N, 'Number of images in stack'
         h['EXPOSURE'] = (sum([_['EXPOSURE'] for _ in headers]),
                          'Total stack exposure time (s)')
-        # h['FILTERS'] = (''.join([_['FILTER'].split()[1] for _ in headers]),
-        #                'Filters in stack')
         if len(headers) == 0:
             return h
+
+        h['MAGZP'] = 25.0, 'Magnitude zero point, solar color'
+        h['MAGZPRMS'] = (
+            np.sqrt(np.sum([h.get('MAGZPRMS', 0)**2 for h in headers])) / N,
+            'Mean MAGZP RMS')
+        h['PCOLOR'] = headers[0]['PCOLOR']
+        h['CLRCOEFF'] = mean_key(headers, 'CLRCOEFF',
+                                 'Mean color coefficient', float)
 
         h['OBSJD1'] = float(headers[0]['OBSJD']), 'First shutter start time'
         h['OBSJDN'] = float(headers[-1]['OBSJD']), 'Last shutter start time'
         h['OBSJDM'] = mean_key(
             headers, 'OBSJD', 'Mean shutter start time', float)
 
-        wcs = WCS(fits.getheader(os.path.join(path, sorted(files)[0]),
+        wcsfn = sorted(files)[0]
+        wcs = WCS(fits.getheader(os.path.join(path, wcsfn),
                                  extname='SANGLE'))
         h.update(wcs.to_header())
+        h['WCSORIGN'] = wcsfn
 
         h['DBPID'] = (','.join([str(_['DBPID']) for _ in headers]),
                       'Database processed-image IDs')
@@ -346,8 +387,10 @@ class ZStack(ZChecker):
 
         return m
 
-    def _combine(self, files, scale_by, path):
-        if scale_by == 'coma':
+    def _combine(self, files, scale_by, rh0, delta0, path):
+        if scale_by == 'nightly':
+            k = 0, 0
+        elif scale_by == 'coma':
             # coma: delta**1 rh**4
             k = 1, 4
         else:
@@ -361,7 +404,7 @@ class ZStack(ZChecker):
             fn = os.path.join(path, f)
             with fits.open(fn) as hdu:
                 h = hdu['SCI'].header
-                if 'MAGZP' not in h:
+                if h.get('MAGZP', -1) < 0:
                     continue
 
                 # use provided mask, if possible
@@ -390,8 +433,12 @@ class ZStack(ZChecker):
                     im.mask += obj_mask
 
                 # scale by image zero point, scale to rh=delta=1 au
-                im *= (10**(-0.4 * (h['MAGZP'] - 25.0))
-                       * h['DELTA']**k[0] * h['RH']**k[1])
+                magzp = (
+                    h['MAGZP'] +
+                    h['CLRCOEFF'] * COLOR_DEFAULT[h['PCOLOR']]
+                )
+                im *= (10**(-0.4 * (magzp - 25.0))
+                       * (h['DELTA'] / delta0)**k[0] * (h['RH'] / rh0)**k[1])
 
                 # use reference image, if possible
                 if 'SANGLEREF' in hdu:
@@ -403,7 +450,8 @@ class ZStack(ZChecker):
 
                     mzp = hdu['REF'].header['MAGZP']
                     ref *= (10**(-0.4 * (mzp - 25.0))
-                            * h['DELTA']**k[0] * h['RH']**k[1])
+                            * (h['DELTA'] / delta0)**k[0]
+                            * (h['RH'] / rh0)**k[1])
                 else:
                     ref = None
 

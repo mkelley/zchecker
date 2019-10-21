@@ -1,5 +1,16 @@
 # Changes
 
+## v2.4.8
+* New feature: search by orbit.
+* Requires astroquery 0.3.10 and sbpy 0.2.
+
+## v2.4.7
+* Delete found objects when updating pointing.  Requires sbsearch v0.1.5.
+
+## v2.4.6
+* Removed infobits=0 requirement in ZStack and ZPhot
+* ZPhot default color correction based on Solontoi et al. 2010.
+
 ## v2.4.0
 * New `zphot measure` and `zphot plot`.
 * New script to plot cutout files with DS9: `ds9-ztf`

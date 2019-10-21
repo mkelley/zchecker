@@ -3,6 +3,7 @@
 zchecker_names = ['ztf_nights', 'ztf', 'ztf_pid', 'ztf_cutouts',
                   'ztf_found', 'ztf_stacks', 'ztf_stale_files',
                   'ztf_phot', 'delete_found_from_ztf_cutouts',
+                  'delete_found_from_ztf_phot',
                   'delete_ztf_cutouts_from_ztf_stacks',
                   'delete_ztf_nights_from_obs',
                   'delete_obs_from_ztf',
@@ -40,10 +41,12 @@ CREATE TABLE IF NOT EXISTS ztf(
   FOREIGN KEY(nightid) REFERENCES ztf_nights(nightid)
 );
 CREATE UNIQUE INDEX IF NOT EXISTS ztf_pid ON ztf(pid);
+CREATE INDEX IF NOT EXISTS ztf_nightid ON ztf(nightid);
 
 CREATE TABLE IF NOT EXISTS ztf_cutouts(
   foundid INTEGER PRIMARY KEY,
   stackid INTEGER KEY,
+  programid INTEGER,
   retrieved TEXT,
   archivefile TEXT,
   sciimg INTEGER,
@@ -57,6 +60,8 @@ CREATE TABLE IF NOT EXISTS ztf_cutouts(
   FOREIGN KEY(foundid) REFERENCES found(foundid),
   FOREIGN KEY(stackid) REFERENCES ztf_stacks(stackid)
 );
+CREATE INDEX IF NOT EXISTS ztf_cutouts_sciimg ON ztf_cutouts(sciimg);
+CREATE INDEX IF NOT EXISTS ztf_cutouts_stackid ON ztf_cutouts(stackid);
 
 CREATE TABLE IF NOT EXISTS ztf_stacks(
   stackid INTEGER PRIMARY KEY,
@@ -93,6 +98,12 @@ CREATE TRIGGER IF NOT EXISTS delete_found_from_ztf_cutouts
 BEFORE DELETE ON found
 BEGIN
   DELETE FROM ztf_cutouts WHERE foundid=old.foundid;
+END;
+
+CREATE TRIGGER IF NOT EXISTS delete_found_from_ztf_phot
+BEFORE DELETE ON found
+BEGIN
+  DELETE FROM ztf_phot WHERE foundid=old.foundid;
 END;
 
 CREATE TRIGGER IF NOT EXISTS delete_ztf_cutouts_from_ztf_stacks

@@ -28,6 +28,10 @@ from .exceptions import UncalibratedError
 from sbsearch import util
 
 
+# no data below this value is useful
+DATA_FLOOR = -100
+
+
 @enum.unique
 class Flag(enum.Flag):
     """Photometry flags.
@@ -44,6 +48,7 @@ class Flag(enum.Flag):
     CENTROID_OUTSIDE_UNC = 2**2
     EPHEMERIS_TOO_UNCERTAIN = 2**3
     IMAGE_UNCALIBRATED = 2**4
+    NONZERO_INFOBITS = 2**5
 
 
 class ZPhot(ZChecker):
@@ -96,27 +101,48 @@ class ZPhot(ZChecker):
 
         data = self._data_iterator(objects, update, unc_limit, snr_limit)
         for obs in data:
+            flag = Flag.NONE
+
+            if obs['infobits'] != 0:
+                flag = Flag.NONZERO_INFOBITS
+
             fn = self.config['cutout path'] + '/' + obs['archivefile']
             self.logger.debug('  ' + fn)
             hdu = fits.open(fn)
-            ext = 'DIFF' if 'DIFF' in hdu else 'SCI'
+
+            # Difference image preferred, but not if too close the edge.
+            ext = 'SCI'
+            if 'DIFF' in hdu:
+                d = hdu['DIFF'].data
+                bad_rows = np.sum(d < DATA_FLOOR, 0) == d.shape[0]
+                bad_cols = np.sum(d < DATA_FLOOR, 1) == d.shape[1]
+
+                # any near the target?  don't use it.
+                x = hdu['SCI'].header['TGTX']
+                y = hdu['SCI'].header['TGTY']
+                bady = np.any(bad_cols[max(y-50, 0):min(y+51, d.shape[0])])
+                badx = np.any(bad_rows[max(x-50, 0):min(x+51, d.shape[1])])
+                if not (bady or badx):
+                    ext = 'DIFF'
+
             sources, mask = self._mask(hdu, ext)
             im = np.ma.MaskedArray(hdu[ext].data, mask=mask)
             im = im.byteswap().newbyteorder()  # prep for SEP
 
             # If ephemeris uncertainty is greater than unc_limit, then pass
             if obs['ra3sig'] > unc_limit or obs['dec3sig'] > unc_limit:
-                self._update(
-                    obs['foundid'], flag=Flag.EPHEMERIS_TOO_UNCERTAIN)
-                return
+                flag |= Flag.EPHEMERIS_TOO_UNCERTAIN
+                self._update(obs['foundid'], flag=flag.value)
+                continue
 
             # centroid
             wcs = WCS(hdu[ext])
-            xy, dxy, flag = self._centroid(im, obs, wcs)
+            xy, dxy, cflag = self._centroid(im, obs, wcs)
+            flag |= cflag
 
             if (flag & Flag.EPHEMERIS_OUTSIDE_IMAGE):
                 self._update(obs['foundid'], flag=flag.value)
-                return
+                continue
 
             # background esimate based on ZTF source mask
             bkg = sep.Background(im.data, mask=sources,
@@ -144,7 +170,7 @@ class ZPhot(ZChecker):
             except UncalibratedError:
                 m = flux * 0
                 merr = flux * 0
-                flag = flag | Flag.IMAGE_UNCALIBRATED
+                flag |= Flag.IMAGE_UNCALIBRATED
 
             packed = self.pack(flux, m, merr)
             self._update(obs['foundid'], dx=dxy[0], dy=dxy[1], bg=bg,
@@ -376,59 +402,69 @@ class ZPhot(ZChecker):
                   np.array(struct.unpack(float_pack, merr)))
         return packed
 
-    def _data_iterator(self, objects, update, unc_limit):
+    def _data_iterator(self, objects, update):
+        if update:
+            # Delete photometry and remeasure.
+            if objects:
+                objids = [obj[0] for obj in self.db.resolve_objects(objects)]
+                q = ','.join('?' * len(objids))
+                objcon = 'WHERE foundid IN (SELECT foundid FROM ztf_found WHERE objid IN ({}))'.format(
+                    q)
+                parameters = objids
+            else:
+                objcon = 'WHERE 1'
+                parameters = []
+
+            self.db.execute('DELETE FROM ztf_phot ' + objcon, parameters)
+
         cmd = '''
-        SELECT foundid,archivefile,seeing,ra,dec,delta,ra3sig,dec3sig
+        SELECT foundid,archivefile,seeing,ra,dec,delta,ra3sig,dec3sig,infobits
         FROM ztf_found
         INNER JOIN ztf_cutouts USING (foundid)
         LEFT JOIN ztf_phot USING (foundid)
         '''
 
-        constraints = [('infobits=0', None),
-                       ('sciimg!=0', None)]
-        if not update:
-            constraints.append(('flag IS NULL', None))
-
+        constraints = [('sciimg>0', None),
+                       ('flag IS NULL', None)]
         if objects:
             objids = [obj[0] for obj in self.db.resolve_objects(objects)]
             q = ','.join('?' * len(objids))
             constraints.append(('objid IN ({})'.format(q), objids))
 
-        if unc_limit:
-            constraints.extend((('ra3sig<=?', unc_limit),
-                                ('dec3sig<=?', unc_limit)))
-
         cmd, parameters = util.assemble_sql(cmd, [], constraints)
-        data = self.db.execute(cmd, parameters)
-
-        while True:
-            observations = data.fetchmany()
-            if len(observations) == 0:
-                return
-            else:
-                for obs in observations:
-                    yield obs
+        iterating = True
+        while iterating:
+            iterating = False
+            for obs in self.db.iterate_over(cmd, parameters):
+                iterating = True
+                yield obs
 
     def _mask(self, hdu, sci_ext):
         im = hdu[sci_ext].data + 0
         try:
             mask = hdu['mask'].data.astype(bool)
+            mask[im < DATA_FLOOR] = True
         except KeyError:
             opts = dict(bw=64, bh=64, fw=3, fh=3)
             mask = np.zeros(im.shape, bool)
             for i in range(2):
+                mask[im < DATA_FLOOR] = True
                 bkg = sep.Background(im, mask=mask, **opts)
                 objects, mask = sep.extract(im - bkg, 2, err=bkg.globalrms,
                                             segmentation_map=True)
                 mask = mask != 0
 
         sources = mask.copy()
+        mask[im < DATA_FLOOR] = True
 
-        # unmask objects near center
+        # unmask objects near target
         lbl, n = nd.label(mask)
-        cen = np.array(im.shape) // 2
-        for m in np.unique(lbl[cen[0]-2:cen[0]+3, cen[1]-2:cen[1]+3]):
-            mask[lbl == m] = False
+        try:
+            cen = hdu['sci'].header['tgty'], hdu['sci'].header['tgtx']
+            for m in np.unique(lbl[cen[0]-2:cen[0]+3, cen[1]-2:cen[1]+3]):
+                mask[lbl == m] = False
+        except KeyError:
+            pass
 
         # add nans
         mask += ~np.isfinite(im.data)
@@ -447,8 +483,9 @@ class ZPhot(ZChecker):
             return gxy, np.r_[0, 0], Flag.CENTROID_FAIL
 
         flag = Flag.NONE
+
         dxy = xy - gxy
-        if np.hypot(*dxy) > np.hypot(obs['ra3sig'] / 2, obs['dec3sig'] / 2):
+        if np.hypot(*dxy) > np.hypot(obs['ra3sig'], obs['dec3sig']):
             flag = flag | Flag.CENTROID_OUTSIDE_UNC
 
         if all(dxy == 0):
@@ -496,13 +533,14 @@ class ZPhot(ZChecker):
 
         zp_rms = header['MAGZPRMS']
         C = header['CLRCOEFF']
-        sun = {  # PS1 system solar colors
-            'R - i': 0.12,
-            'g - R': 0.39
+        # PS1 system colors based on Solontoi et al. 2010
+        comet_default = {
+            'R - i': 0.24,
+            'g - R': 0.49
         }[header['PCOLOR'].strip()]
 
         m_inst = -2.5 * np.log10(flux)
-        m = m_inst + zp + C * sun
+        m = m_inst + zp + C * comet_default
         merr = np.sqrt((1.0857 * ferr / flux)**2 + zp_rms**2)
 
         return m, merr
