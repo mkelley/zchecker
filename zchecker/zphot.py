@@ -99,7 +99,7 @@ class ZPhot(ZChecker):
 
         """
 
-        data = self._data_iterator(objects, update, unc_limit, snr_limit)
+        data = self._data_iterator(objects, update)
         for obs in data:
             flag = Flag.NONE
 
