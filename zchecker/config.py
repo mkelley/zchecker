@@ -43,7 +43,8 @@ class Config(sbsearch.config.Config):
 
     """
 
-    DEFAULT_FILE = os.path.expanduser('~/.config/zchecker.config')
+    DEFAULT_FILES = ['./zchecker.config',
+                     os.path.expanduser('~/.config/zchecker.config')]
 
     def __init__(self, **kwargs):
         config = json.loads(_config_example)
