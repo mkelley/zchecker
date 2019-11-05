@@ -327,7 +327,8 @@ class ZChecker(SBSearch):
         self.logger.info('{} files successfully downloaded.'
                          .format(downloaded))
 
-    def find_by_orbit(self, desg, orbit, start=None, stop=None, download=None):
+    def find_by_orbit(self, desg, orbit, start=None, stop=None, step=None,
+                      download=None):
         """Search for object by orbital elements.
 
         Parameters
@@ -343,6 +344,9 @@ class ZChecker(SBSearch):
         stop : float or `~astropy.time.Time`, optional
             Search before this epoch, inclusive.
 
+        step : `~astropy.units.Quantity`, optional
+            Ephemeris step size.
+
         download : string, optional
             Download 'cutouts' or 'fullframe'.
 
@@ -352,7 +356,7 @@ class ZChecker(SBSearch):
 
         """
 
-        tab = super().find_by_orbit(orbit, start=start, stop=stop)
+        tab = super().find_by_orbit(orbit, start=start, stop=stop, step=step)
 
         if download is None:
             return tab

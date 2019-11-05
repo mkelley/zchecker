@@ -139,13 +139,17 @@ parser_search.set_defaults(func=search)
 def one_shot(args):
     start = args.start
     stop = args.stop + 1 * u.day  # search limit is end of the day
+    step = u.Quantity(args.step)
     epochs = {
         'start': start.iso[:10],
         'stop': stop.iso[:10],
-        'step': args.step
+        'step': step
     }
 
-    config = Config.from_args(args)
+    c = {}
+    if args.size:
+        c['cutout size'] = args.size
+    config = Config.from_args(args, **c)
     with ZChecker(config, save_log=False) as z:
         try:
             if args.source == 'orbit':
@@ -158,8 +162,8 @@ def one_shot(args):
                 else:
                     download = None
 
-                tab = z.find_by_orbit(args.object, orbit, start=start,
-                                      stop=stop, download=download)
+                tab = z.find_by_orbit(args.object, orbit, download=download,
+                                      start=start, stop=stop, step=step)
             else:
                 eph = z.db.get_ephemeris_exact(
                     args.object, 'I41', epochs, source=args.source)
@@ -191,7 +195,9 @@ mutex = parser_one_shot.add_mutually_exclusive_group()
 mutex.add_argument(
     '--cutouts', action='store_true', help='download cutouts')
 mutex.add_argument(
-    '--fullframe', action='store_true', help='download full-frame images.')
+    '--fullframe', action='store_true', help='download full-frame images')
+parser_one_shot.add_argument(
+	'--size', help='cutout size')
 parser_one_shot = add_orbital_elements(parser_one_shot)
 parser_one_shot.set_defaults(func=one_shot)
 

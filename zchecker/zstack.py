@@ -61,6 +61,10 @@ class ZStack(ZChecker):
             DELETE FROM ztf_stacks WHERE stackid=?
             ''', [stackid])
 
+        # file is missing, but still gets moved to ztf_stale_files, so
+        # clean that up too:
+        self.clean_stale_files()
+
         self.logger.info('{} files verified, {} database rows removed'
                          .format(exists, count - exists))
 
@@ -145,13 +149,18 @@ class ZStack(ZChecker):
             # database update
             if len(hdu) > 1:
                 # images were stacked
-                hdu.writeto(os.path.join(self.config['stack path'], fn),
-                            overwrite=restack)
-
                 cursor = self.db.execute('''
                 INSERT OR REPLACE INTO ztf_stacks VALUES (?,?,?)
                 ''', (stackid, fn, Time.now().iso[:-4]))
                 stackid = cursor.lastrowid  # in case this is a new stack
+
+                # If there is a stale file, clean it before saving the
+                # new stack.
+                self.clean_stale_files()
+
+                # OK to save
+                hdu.writeto(os.path.join(self.config['stack path'], fn),
+                            overwrite=restack)
 
                 self.db.executemany('''
                 UPDATE ztf_cutouts SET stackid=? WHERE foundid=?

@@ -264,7 +264,12 @@ class ZData:
         else:
             values = (self.fn,)
 
-        values += (self.hdu[0].header.get('PROGRMID', -1),
+        if len(self.hdu) > 0:
+            programid = self.hdu[0].header.get('PROGRMID', -1)
+        else:
+            programid = -1
+
+        values += (programid,
                    Time.now().iso[:-4],
                    int('sci' in self.hdu),
                    int('mask' in self.hdu),
