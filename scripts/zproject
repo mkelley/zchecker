@@ -25,8 +25,8 @@ parser.add_argument('--log', help='log file')
 parser.add_argument('--path', '--cutout-path', help='local cutout path')
 parser.add_argument('--size', default='5arcmin',
                     help='angular size of projected images')
-parser.add_argument('--config', default=os.path.expanduser(
-    '~/.config/zchecker.config'), help='configuration file')
+parser.add_argument('--config', default='~/.config/zchecker.config',
+                    help='configuration file')
 parser.add_argument('-v', action='store_true', help='increase verbosity')
 args = parser.parse_args()
 

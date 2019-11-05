@@ -10,16 +10,18 @@ from zchecker.cli_helpers import object_list
 
 today = Time(Time.now().iso[:10])
 
+
 def list_of(_type):
     def f(arg):
         return [_type(v) for v in arg.split(',')]
+
 
 parser = argparse.ArgumentParser(
     description='Photometry for ZChecker data.')
 parser.add_argument('--db', help='database file')
 parser.add_argument('--log', help='log file')
-parser.add_argument('--config', default=os.path.expanduser(
-    '~/.config/zchecker.config'), help='configuration file')
+parser.add_argument('--config', default='./zchecker.config',
+                    help='configuration file')
 parser.add_argument('-v', action='store_true', help='increase verbosity')
 
 subparsers = parser.add_subparsers(help='sub-commands')
@@ -47,11 +49,13 @@ parser_measure.set_defaults(func=measure)
 
 ########################################################################
 
+
 def dump(args):
     config = Config.from_args(args)
     with ZPhot(config, save_log=True) as z:
         tab = z.get_phot(args.object, rap=[args.rap], unit=args.unit)
         tab.pprint(-1, -1)
+
 
 parser_dump = subparsers.add_parser(
     'dump', help='dump photometry')

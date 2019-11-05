@@ -32,6 +32,7 @@ def parse_date_range(start, stop, date, full=False):
 
     return start, stop
 
+
 def add_orbital_elements(parser):
     group = parser.add_argument_group('orbital parameters')
     group.add_argument(
@@ -45,10 +46,10 @@ def add_orbital_elements(parser):
     group.add_argument(
         '-i', type=float, help='inclincation')
     group.add_argument(
-        '--argperi', '--omega', '-w', type=float, 
+        '--argperi', '--omega', '-w', type=float,
         help='argument of perihelion')
     group.add_argument(
-        '--node', '--Omega', '-W', type=float, 
+        '--node', '--Omega', '-W', type=float,
         help='longitude of the ascending node')
     group.add_argument(
         '--Tp', '--tp', help='perihelion epoch, TT')
@@ -67,8 +68,8 @@ Configuration file format:
 
 parser.add_argument('--db', help='database file')
 parser.add_argument('--log', help='log file')
-parser.add_argument('--config', default=os.path.expanduser(
-    '~/.config/zchecker.config'), help='configuration file')
+parser.add_argument('--config', default='./zchecker.config',
+                    help='configuration file')
 parser.add_argument('-v', action='store_true', help='increase verbosity')
 subparsers = parser.add_subparsers(help='sub-commands')
 
@@ -178,7 +179,7 @@ def one_shot(args):
 parser_one_shot = subparsers.add_parser(
     'one-shot', help='search ZTF fields on the fly',
     epilog=('Date format: YYYY-MM-DD.  Download option only available for'
-           ' --source=orbit.'))
+            ' --source=orbit.'))
 parser_one_shot.add_argument(
     'object',
     help='object designation')
@@ -197,7 +198,7 @@ mutex.add_argument(
 mutex.add_argument(
     '--fullframe', action='store_true', help='download full-frame images')
 parser_one_shot.add_argument(
-	'--size', help='cutout size')
+    '--size', help='cutout size')
 parser_one_shot = add_orbital_elements(parser_one_shot)
 parser_one_shot.set_defaults(func=one_shot)
 

@@ -26,8 +26,8 @@ parser.add_argument('--db', help='database file')
 parser.add_argument('--log', help='log file')
 parser.add_argument('--cutout-path', help='path to cutout directory')
 parser.add_argument('--stack-path', help='path to stack directory')
-parser.add_argument('--config', default=os.path.expanduser(
-    '~/.config/zchecker.config'), help='configuration file')
+parser.add_argument('--config', default='./zchecker.config',
+                    help='configuration file')
 parser.add_argument('-v', action='store_true', help='increase verbosity')
 
 args = parser.parse_args()

@@ -1,4 +1,4 @@
-# ZChecker v2.5.0
+# ZChecker v2.5.1
 ZTF moving target checker for short object lists.
 
 ## Attribution and license
@@ -21,6 +21,7 @@ Support for ZChecker was provided by the NASA/University of Maryland/Minor Plane
 * astroquery 0.3.10
 * sqlite
 * wget
+* sep
 
 ### Optional packages
 * Montage and montage_wrapper, optional, for image reprojection with ``zproject``
@@ -31,8 +32,11 @@ Support for ZChecker was provided by the NASA/University of Maryland/Minor Plane
 ## Configuration
 
 Create a file with your preferred locations for the database, log
-file, etc. in `~/.config/zchecker.config`.  To see the file format and
-current allowed configuration parameters::
+file, etc..  The file may be placed in the current directory
+(`./zchecker.config`) or in a user configuration directory
+(`$HOME/.config/zchecker.config`).  If both exist, the former takes
+precedence.  To see the file format and current allowed configuration
+parameters::
 
   ```
 $ zchecker --help
