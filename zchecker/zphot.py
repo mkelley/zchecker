@@ -31,6 +31,7 @@ from sbsearch import util
 # no data below this value is useful
 DATA_FLOOR = -100
 
+
 @enum.unique
 class Flag(enum.Flag):
     """Photometry flags.
@@ -73,7 +74,8 @@ class ZPhot(ZChecker):
         'zi': '*'
     }
 
-    def photometry(self, objects=None, update=False, unc_limit=None):
+    def photometry(self, objects=None, update=False, unc_limit=None,
+                   snr_limit=5):
         """Find data with missing photometry and measure it.
 
         Parameters
@@ -89,13 +91,15 @@ class ZPhot(ZChecker):
             than this limit (arcsec), or ``None`` for no limit.  RA
             and Dec are tested independently.
 
+        snr_limit : float, optional
+
         Notes
         -----
         Photometry flags are defined by `~Flag`.
 
         """
 
-        data = self._data_iterator(objects, update)
+        data = self._data_iterator(objects, update, unc_limit, snr_limit)
         for obs in data:
             flag = Flag.NONE
 
@@ -209,7 +213,8 @@ class ZPhot(ZChecker):
 
         tab = Table(rows=rows)
 
-        return tab
+        i = tab['merr'] < 0.5
+        return tab[i]
 
     def get_phot_by_foundid(self, foundid, rap, unit='pixel'):
         """Get photometry from database given foundid.
@@ -364,10 +369,10 @@ class ZPhot(ZChecker):
 
         ylim = ax.get_ylim()
         ax.set_ylim(max(ylim), min(ylim))
-        plt.setp(ax, xlabel='Date (UT)', ylabel='$m$ (mag)')
+        plt.setp(ax, xlabel='Date (UTC)', ylabel='$m$ (mag)')
 
         ax.xaxis_date()
-        ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
+        ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d %H:%M'))
         ax.xaxis.set_tick_params('major', length=15)
         fig.autofmt_xdate()
 
@@ -403,7 +408,8 @@ class ZPhot(ZChecker):
             if objects:
                 objids = [obj[0] for obj in self.db.resolve_objects(objects)]
                 q = ','.join('?' * len(objids))
-                objcon = 'WHERE foundid IN (SELECT foundid FROM ztf_found WHERE objid IN ({}))'.format(q)
+                objcon = 'WHERE foundid IN (SELECT foundid FROM ztf_found WHERE objid IN ({}))'.format(
+                    q)
                 parameters = objids
             else:
                 objcon = 'WHERE 1'
