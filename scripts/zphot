@@ -4,7 +4,9 @@ import os
 import sys
 import argparse
 import matplotlib.pyplot as plt
+import astropy.units as u
 from astropy.time import Time
+from astropy.table import Table
 from zchecker import ZPhot, Config
 from zchecker.cli_helpers import object_list
 
@@ -14,6 +16,22 @@ today = Time(Time.now().iso[:10])
 def list_of(_type):
     def f(arg):
         return [_type(v) for v in arg.split(',')]
+
+
+class RAp:
+    """Validate --rap input."""
+
+    def __init__(self, rap):
+        rap = u.Quantity(rap)
+        if rap.unit.is_equivalent(u.km):
+            rap = rap.to(u.km)
+        elif rap.unit.is_equivalent(u.pix):
+            rap = rap.to(u.pix)
+        else:
+            raise ValueError('--rap must have units of km or pix')
+
+        self.value = rap.value
+        self.unit = str(rap.unit)
 
 
 parser = argparse.ArgumentParser(
@@ -53,7 +71,8 @@ parser_measure.set_defaults(func=measure)
 def dump(args):
     config = Config.from_args(args)
     with ZPhot(config, save_log=True) as z:
-        tab = z.get_phot(args.object, rap=[args.rap], unit=args.unit)
+        tab = z.get_phot(args.object, rap=[args.rap.value],
+                         unit=args.rap.unit)
         tab.pprint(-1, -1)
 
 
@@ -61,12 +80,72 @@ parser_dump = subparsers.add_parser(
     'dump', help='dump photometry')
 parser_dump.add_argument('object')
 parser_dump.add_argument(
-    '--rap', type=int, default=10000,
-    help='limit to this radius')
-parser_dump.add_argument(
-    '--unit', default='km', choices=['km', 'pixel'],
-    help='--rap unit')
+    '--rap', type=RAp, default='10000 km',
+    help='limit to this radius, include units: km or pix')
 parser_dump.set_defaults(func=dump)
+
+########################################################################
+
+
+def outburst(args):
+    opts = dict(rap=[args.rap.value], unit=args.rap.unit,
+                threshold=args.threshold, update=args.update)
+
+    config = Config.from_args(args)
+    with ZPhot(config, disable_log=~args.update) as z:
+        if args.object is None:
+            foundids = z.find_outbursts_by_date(args.date, **opts)
+        else:
+            foundids = z.find_outbursts_by_object(args.object, **opts)
+
+        rows = []
+        for foundid, ostat in foundids.items():
+            phot = z.get_phot_by_foundid(foundid, [args.rap.value],
+                                         unit=args.rap.unit)
+            meta = z.db.execute('''
+            SELECT * FROM found
+            INNER JOIN ztf USING (obsid)
+            INNER JOIN obj USING (objid)
+            WHERE foundid=?
+            ''', [foundid]).fetchone()
+            for k in meta.keys():
+                phot[k] = meta[k]
+
+            # return the just computed ostat, rather than what is
+            # stored in the database:
+            phot['ostat'] = ostat
+
+            rows.append(phot)
+
+        if len(rows) == 0:
+            print('Nothing found')
+        else:
+            tab = Table(rows=rows)
+            tab.pprint(-1, -1)
+
+
+parser_outburst = subparsers.add_parser(
+    'outburst', help='find outbursts',
+    epilog=('Returned outburst statistics will always be the newly'
+            ' calculated values, rather that what is stored in the'
+            ' database.'))
+mutex = parser_outburst.add_mutually_exclusive_group()
+mutex.add_argument(
+    '--object',
+    help='search all photometry of this object, otherwise search by date')
+mutex.add_argument(
+    '--date', default=Time.now().iso[:10],
+    help='search all objects for outbursts on this date, default: today')
+parser_outburst.add_argument(
+    '--rap', type=RAp, default='5 pix',
+    help='limit to this radius, include units: km or pix')
+parser_outburst.add_argument(
+    '--threshold', '-t', default=3,
+    help='threshold for outburst detection, default: 3')
+parser_outburst.add_argument(
+    '--update', action='store_true',
+    help='save results to database')
+parser_outburst.set_defaults(func=outburst)
 
 ########################################################################
 
@@ -74,7 +153,7 @@ parser_dump.set_defaults(func=dump)
 def plot(args):
     config = Config.from_args(args)
     with ZPhot(config, save_log=False) as z:
-        z.plot(args.object, args.rap, unit=args.unit)
+        z.plot(args.object, args.rap.value, unit=args.rap.unit)
         if args.o:
             plt.savefig(args.o)
         else:
@@ -86,13 +165,10 @@ parser_plot = subparsers.add_parser(
 parser_plot.add_argument(
     'object',  help='plot this target')
 parser_plot.add_argument(
-    '--rap', type=int, default=10000,
-    help='aperture radius for plot')
+    '--rap', type=RAp, default='10000 km',
+    help='aperture radius, include units: km or pix')
 parser_plot.add_argument(
     '-o', help='save to this file name')
-parser_plot.add_argument(
-    '--unit', default='km',
-    help='aperture radius unit')
 parser_plot.set_defaults(func=plot)
 
 ########################################################################

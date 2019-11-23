@@ -1,5 +1,9 @@
 # Changes
 
+## v2.6.0
+* New outburst statistic (ostat) and search.
+* ztf_phot table update to include ostat.
+
 ## v2.4.8
 * New feature: search by orbit.
 * Requires astroquery 0.3.10 and sbpy 0.2.
