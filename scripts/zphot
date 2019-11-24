@@ -103,10 +103,11 @@ def outburst(args):
                 foundids.update(f)
 
                 msg = '{}: {}'.format(obj, len(f))
-                if args.update:
-                    z.logger.info(msg)
-                else:
-                    print('# ' + msg)
+                if len(f) > 0:
+                    if args.update:
+                        z.logger.info(msg)
+                    else:
+                        print('# ' + msg)
         else:
             foundids = z.find_outbursts_by_object(args.object, **opts)
 

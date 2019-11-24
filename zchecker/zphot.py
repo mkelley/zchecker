@@ -3,6 +3,7 @@ import os
 import struct
 import enum
 from collections import defaultdict
+import warnings
 
 import numpy as np
 from numpy import pi
@@ -214,8 +215,13 @@ class ZPhot(ZChecker):
 
         tab = Table(rows=rows)
 
-        i = tab['merr'] < 0.5
-        return tab[i]
+        if len(rows) > 0:
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                i = tab['merr'] < 0.5
+            tab = tab[i]
+
+        return tab
 
     def get_phot_by_foundid(self, foundid, rap, unit='pix'):
         """Get photometry from database given foundid.
@@ -363,7 +369,10 @@ class ZPhot(ZChecker):
         m = np.array([row['m'] - xmr[row['filtercode']]
                       for row in tab])
 
-        good = np.isfinite(m) * (tab['merr'] < 0.15) * (tab['merr'] > 0)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            good = (np.isfinite(m) * (tab['merr'] < 0.15)
+                    * (tab['merr'] > 0))
 
         if check is None:
             check = range(len(tab))
@@ -423,6 +432,9 @@ class ZPhot(ZChecker):
         with self.db:
             for obj, in objects:
                 tab = self.get_phot(obj, rap=rap, unit=unit)
+                if len(tab) == 0:
+                    continue
+
                 tab.sort('obsjd')
                 check = np.flatnonzero((tab['obsjd'] >= start.jd)
                                        * (tab['obsjd'] <= stop.jd))
@@ -470,6 +482,9 @@ class ZPhot(ZChecker):
         """
 
         tab = self.get_phot(obj, rap=rap, unit=unit)
+        if len(tab) == 0:
+            return {}
+
         tab.sort('obsjd')
         ostats = self._ostat_for_obs(tab)
         outbursts = {}
@@ -555,7 +570,10 @@ class ZPhot(ZChecker):
             if not any(i):
                 continue
 
-            j = (tab[i]['flag'] == 0) * (seeing[i] < rap)
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                j = (tab[i]['flag'] == 0) * (seeing[i] < rap)
+
             if any(j):
                 plt.errorbar(date.plot_date[i][j],
                              tab['m'][i][j], tab['merr'][i][j], color=c,
