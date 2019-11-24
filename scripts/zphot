@@ -93,8 +93,20 @@ def outburst(args):
 
     config = Config.from_args(args)
     with ZPhot(config, disable_log=~args.update) as z:
-        if args.object is None:
+        if args.object is None and not args.full:
             foundids = z.find_outbursts_by_date(args.date, **opts)
+        elif args.full:
+            objects = z.list_objects()['designation'].data
+            foundids = {}
+            for obj in objects:
+                f = z.find_outbursts_by_object(obj, **opts)
+                foundids.update(f)
+
+                msg = '{}: {}'.format(obj, len(f))
+                if args.update:
+                    z.logger.info(msg)
+                else:
+                    print('# ' + msg)
         else:
             foundids = z.find_outbursts_by_object(args.object, **opts)
 
@@ -133,6 +145,9 @@ mutex = parser_outburst.add_mutually_exclusive_group()
 mutex.add_argument(
     '--object',
     help='search all photometry of this object, otherwise search by date')
+mutex.add_argument(
+    '--full', action='store_true',
+    help='search all photometry of all objects')
 mutex.add_argument(
     '--date', default=Time.now().iso[:10],
     help='search all objects for outbursts on this date, default: today')
