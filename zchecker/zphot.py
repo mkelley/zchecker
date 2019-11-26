@@ -2,8 +2,9 @@
 import os
 import struct
 import enum
-from collections import defaultdict
 import warnings
+from collections import defaultdict
+from itertools import groupby
 
 import numpy as np
 from numpy import pi
@@ -19,7 +20,7 @@ import astropy.units as u
 from astropy.io import fits
 from astropy.wcs import WCS
 from astropy.stats import sigma_clipped_stats, sigma_clip
-from astropy.table import Table
+from astropy.table import Table, vstack
 from astropy.time import Time
 from photutils.centroids import centroid_sources, centroid_2dg
 import sep
@@ -297,34 +298,153 @@ class ZPhot(ZChecker):
         return phot
 
     @staticmethod
-    def ostat(rh, delta, phase, m, merr, min_unc=0.1):
+    def measure_color(jd, m, merr, filters, defaults=True):
+        """Measure object color.
+
+        Parameters
+        ----------
+        jd : array-like
+            Julian-date.
+
+        m, merr : array-like
+            Observed magnitudes and unceratinties.
+
+        filters : array-like
+            Filters for ``m``.
+
+        defaults : bool, optional
+            Return default (cometary) values for colors that cannot be
+            measured.  Otherwise, the color key will be missing.
+
+        Returns
+        -------
+        color : dict
+            Estimated colors or defaults.
+
+        """
+
+        color_defaults = {
+            'zg': 0.55,
+            'zr': 0,
+            'zi': -0.2
+        }
+
+        i = np.argsort(jd)
+        phot = Table([np.array(x)[i] for x in (jd, m, merr, filters)],
+                     names=['jd', 'm', 'merr', 'filter'])
+
+        # determine base filter
+        filter_set = set(filters)
+
+        if 'zr' in filter_set:
+            base = 'zr'
+        elif 'zi' in filter_set:
+            base = 'zi'
+        else:
+            base = 'zg'
+
+        for k, v in color_defaults.items():
+            color_defaults[k] = color_defaults[k] - color_defaults[base]
+
+        # nightly averages
+        phot['night'] = np.floor(phot['jd'])
+        all_colors = defaultdict(list)
+        for night, obs in groupby(phot, lambda row: row['night']):
+            obs = vstack(list(obs))
+            b = obs['filter'] == base
+            if not any(b):
+                continue
+            mb = np.median(obs['m'][b])
+
+            for filt in filter_set - set([base]):
+                a = obs['filter'] == filt
+                if not any(a):
+                    continue
+
+                ma = np.median(obs['m'][a])
+                all_colors[filt].append(ma - mb)
+
+        colors = {}
+        for f, c in all_colors.items():
+            colors[f] = np.median(c)
+
+        if defaults:
+            for f, c in color_defaults.items():
+                colors.setdefault(f, c)
+
+        return colors
+
+    @staticmethod
+    def offset_by_color(m, filters, xmr):
+        """Offset magnitudes by color to match another filter.
+
+        Parameters
+        ----------
+        m: array-like
+            Magnitudes.
+
+        filters: array-like
+            Filters for ``m``.
+
+        xmr: dict
+            X-r color index, keyed by filter, or ``None`` to use the
+            defaults.
+
+        Returns
+        -------
+        mc: ndarray
+            New magnitudes.
+
+        """
+
+        mc = np.array([x - xmr[filt] for x, m in zip(m, filters)])
+        return mc
+
+    @staticmethod
+    def ostat(rh, delta, phase, m, merr, min_unc=0.03, clip=True,
+              full_output=False):
         """Outburst detection statistic.
 
         Parameters
         ----------
-        rh : array
+        rh: array
             Heliocentric distance in au.
 
-        delta : array
+        delta: array
             Observer-comet distance in au.
 
-        phase : array
+        phase: array
             Phase angle in deg.
 
-        m : array
+        m: array
             Apparent magnitude with color removed.  The last element
             is tested for the outburst.
 
-        merr : array
-            Uncertainty on ``m``.
+        merr: array
+            Uncertainty on ``m``.  Set to 0 to disable.
 
-        min_unc : float
+        min_unc: float, optional
             Minimum uncertainty on mangitude to use for outburst test.
+
+        clip : bool, optional
+            Sigma clip the data.
+
+        full_output: bool, optional
+            Enable optional output.
 
         Returns
         -------
-        o : float
-           The outburst statistic.
+        ostat: float
+            The outburst statistic.
+
+        unc: float, optional
+            Uncertainty used to calculate ostat.
+
+        m_bl, m_bl_unc: float, optional
+            Baseline predcited magnitude difference and unceratinties.
+
+        baseline: masked array, optional
+            Sigma-clipped baseline prediction differences.
 
         """
 
@@ -334,30 +454,43 @@ class ZPhot(ZChecker):
         M -= M[-1]
 
         # reject outliers, calculate weighted mean
-        baseline = sigma_clip(M[:-1], sigma=2)
+        if clip:
+            baseline = sigma_clip(M[:-1], sigma=2)
+        else:
+            baseline = M[:-1]
+
         m_bl, sw = np.ma.average(baseline, weights=merr[:-1]**-2,
                                  returned=True)
-        merr_bl = np.sqrt(1 / sw)
+        m_bl_unc = np.sqrt(1 / sw)
 
-        unc = max(np.sqrt(merr_bl**2 + merr[-1]**2), min_unc)
-        return np.round(m_bl / unc, 1)
+        unc = max(np.sqrt(m_bl_unc**2 + merr[-1]**2), min_unc)
+        ostat = np.round(m_bl / unc, 1)
+
+        if full_output:
+            return ostat, unc, m_bl, m_bl_unc, baseline
+        else:
+            return ostat
 
     @classmethod
-    def _ostat_for_obs(cls, tab, check=None):
-        """Helper function for find_outbursts_by_* methods.
+    def _ostat_for_obs(cls, tab, check=None, full_output=False):
+        """Helper function for find_outbursts_by_ * methods.
 
         Parameters
         ----------
-        tab : Table
+        tab: Table
             Photometry table, e.g., from ``get_phot``.  Must be sorted
             by date.
 
-        check : array-like, optional
+        check: array-like, optional
             Limit calculation to these indices.
+
+        full_output: bool, optional
+            Enable optional output from ``ZPhot.ostat``.
 
         Returns
         -------
-        ostat : array
+        ostat: list
+            Results from ``ZPhot.ostat``.
 
         """
 
@@ -388,7 +521,8 @@ class ZPhot(ZChecker):
 
             recent = tab[j]
             ostat = cls.ostat(recent['rh'], recent['delta'],
-                              recent['phase'], m[j], recent['merr'])
+                              recent['phase'], m[j], recent['merr'],
+                              full_output=full_output)
             ostats.append(ostat)
 
         return ostats
@@ -399,24 +533,24 @@ class ZPhot(ZChecker):
 
         Parameters
         ----------
-        date : str
+        date: str
             Date to check.
 
-        rap : list, optional
+        rap: list, optional
             Limit to these apertures.
 
-        unit : str, optional
+        unit: str, optional
             Units for ``rap``: pix, km.
 
-        threshold : float, optional
+        threshold: float, optional
             Threshold for outburst identification.
 
-        update : bool, optional
+        update: bool, optional
             Set to ``True`` to save results in database.
 
         Returns
         -------
-        outbursts : dict
+        outbursts: dict
             Outburst statistic for potential outbursts keyed by found
             ID.
 
@@ -458,24 +592,24 @@ class ZPhot(ZChecker):
 
         Parameters
         ----------
-        obj : str
+        obj: str
             Object name or ID.
 
-        rap : list, optional
+        rap: list, optional
             Limit to these apertures.
 
-        unit : str, optional
+        unit: str, optional
             Units for ``rap``: pix, km.
 
-        threshold : float, optional
+        threshold: float, optional
             Threshold for outburst identification.
 
-        update : bool, optional
+        update: bool, optional
             Set to ``True`` to save results in database.
 
         Returns
         -------
-        outbursts : dict
+        outbursts: dict
             Outburst statistic for potential outbursts keyed by found
             ID.
 
@@ -506,16 +640,16 @@ class ZPhot(ZChecker):
 
         Parameters
         ----------
-        obj : int or str
+        obj: int or str
             Object name or ID.
 
-        rap : int
+        rap: int
             Aperture radius to plot.
 
-        unit : str, optional
+        unit: str, optional
             Units of ``rap``.
 
-        fignum : matplotlib Figure, optional
+        fignum: matplotlib Figure, optional
             Plot to this figure number.  The plot will be cleared.
 
         **kwargs
@@ -523,7 +657,7 @@ class ZPhot(ZChecker):
 
         Returns
         -------
-        tab : `~astropy.table.Table`
+        tab: `~astropy.table.Table`
             Photometry from `~get_phot`.
 
         """
