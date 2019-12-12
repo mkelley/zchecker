@@ -3,6 +3,7 @@ import os
 import struct
 import enum
 from collections import defaultdict
+import warnings
 
 import numpy as np
 from numpy import pi
@@ -17,11 +18,12 @@ except ImportError:
 import astropy.units as u
 from astropy.io import fits
 from astropy.wcs import WCS
-from astropy.stats import sigma_clipped_stats
+from astropy.stats import sigma_clipped_stats, sigma_clip
 from astropy.table import Table
 from astropy.time import Time
 from photutils.centroids import centroid_sources, centroid_2dg
 import sep
+from sbpy.activity import phase_HalleyMarcus as Phi
 
 from . import ZChecker
 from .exceptions import UncalibratedError
@@ -177,7 +179,7 @@ class ZPhot(ZChecker):
                          bg_area=bgarea, bg_stdev=bgsig, flux=packed[0],
                          m=packed[1], merr=packed[2], flag=flag.value)
 
-    def get_phot(self, obj, rap=None, unit='pixel'):
+    def get_phot(self, obj, rap=None, unit='pix'):
         """Get photometry from database.
 
         Parameters
@@ -189,7 +191,7 @@ class ZPhot(ZChecker):
             Limit to these apertures.
 
         unit : str, optional
-            Units for ``rap``: pixel, km.
+            Units for ``rap``: pix, km.
 
         Returns
         -------
@@ -213,22 +215,27 @@ class ZPhot(ZChecker):
 
         tab = Table(rows=rows)
 
-        i = tab['merr'] < 0.5
-        return tab[i]
+        if len(rows) > 0:
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                i = tab['merr'] < 0.5
+            tab = tab[i]
 
-    def get_phot_by_foundid(self, foundid, rap, unit='pixel'):
+        return tab
+
+    def get_phot_by_foundid(self, foundid, rap, unit='pix'):
         """Get photometry from database given foundid.
 
         Parameters
         ----------
-        foundid : str
+        foundid : int
             Database found ID.
 
         rap : list, optional
             Limit to these apertures.
 
         unit : str, optional
-            Units for ``rap``: pixel, km.
+            Units for ``rap``: pix, km.
 
         Returns
         -------
@@ -246,6 +253,9 @@ class ZPhot(ZChecker):
 
             flag : int
                 Photometry flags.
+
+            ostat : float
+                Outburst statistic.
 
         """
 
@@ -268,7 +278,7 @@ class ZPhot(ZChecker):
             row['flux'], row['m'], row['merr'])
 
         if rap is not None:
-            if unit == 'pixel':
+            if unit == 'pix':
                 i = np.array([np.where(self.APERTURE_RADII_PIXELS == r)[0]
                               for r in rap]).ravel()
             elif unit == 'km':
@@ -276,7 +286,7 @@ class ZPhot(ZChecker):
                               for r in rap]).ravel()
                 i += len(self.APERTURE_RADII_PIXELS)
             else:
-                raise ValueError('rap unit must be pixel or km: {}'
+                raise ValueError('rap unit must be pix or km: {}'
                                  .format(unit))
 
             for k in ['flux', 'm', 'merr']:
@@ -286,7 +296,212 @@ class ZPhot(ZChecker):
 
         return phot
 
-    def plot(self, obj, rap, unit='pixel', fignum=None, **kwargs):
+    @staticmethod
+    def ostat(rh, delta, phase, m, merr, min_unc=0.1):
+        """Outburst detection statistic.
+
+        Parameters
+        ----------
+        rh : array
+            Heliocentric distance in au.
+
+        delta : array
+            Observer-comet distance in au.
+
+        phase : array
+            Phase angle in deg.
+
+        m : array
+            Apparent magnitude with color removed.  The last element
+            is tested for the outburst.
+
+        merr : array
+            Uncertainty on ``m``.
+
+        min_unc : float
+            Minimum uncertainty on mangitude to use for outburst test.
+
+        Returns
+        -------
+        o : float
+           The outburst statistic.
+
+        """
+
+        M = m - (10 * np.log10(rh)
+                 + 5 * np.log10(delta)
+                 - 2.5 * np.log10(Phi(phase)))
+        M -= M[-1]
+
+        # reject outliers, calculate weighted mean
+        baseline = sigma_clip(M[:-1], sigma=2)
+        m_bl, sw = np.ma.average(baseline, weights=merr[:-1]**-2,
+                                 returned=True)
+        merr_bl = np.sqrt(1 / sw)
+
+        unc = max(np.sqrt(merr_bl**2 + merr[-1]**2), min_unc)
+        return np.round(m_bl / unc, 1)
+
+    @classmethod
+    def _ostat_for_obs(cls, tab, check=None):
+        """Helper function for find_outbursts_by_* methods.
+
+        Parameters
+        ----------
+        tab : Table
+            Photometry table, e.g., from ``get_phot``.  Must be sorted
+            by date.
+
+        check : array-like, optional
+            Limit calculation to these indices.
+
+        Returns
+        -------
+        ostat : array
+
+        """
+
+        xmr = {
+            'zg': 0.55,
+            'zr': 0,
+            'zi': -0.2
+        }
+        m = np.array([row['m'] - xmr[row['filtercode']]
+                      for row in tab])
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            good = (np.isfinite(m) * (tab['merr'] < 0.15)
+                    * (tab['merr'] > 0))
+
+        if check is None:
+            check = range(len(tab))
+
+        ostats = []
+        for i in check:
+            j = np.flatnonzero((tab['obsjd'] >= (tab['obsjd'][i] - 14))
+                               * (tab['obsjd'] <= tab['obsjd'][i])
+                               * good)
+            if len(j) < 2 or (i not in j):
+                ostats.append(np.nan)
+                continue
+
+            recent = tab[j]
+            ostat = cls.ostat(recent['rh'], recent['delta'],
+                              recent['phase'], m[j], recent['merr'])
+            ostats.append(ostat)
+
+        return ostats
+
+    def find_outbursts_by_date(self, date, rap=5, unit='pix', threshold=3,
+                               update=False):
+        """Calculate and save ostat to database, return possible outbursts.
+
+        Parameters
+        ----------
+        date : str
+            Date to check.
+
+        rap : list, optional
+            Limit to these apertures.
+
+        unit : str, optional
+            Units for ``rap``: pix, km.
+
+        threshold : float, optional
+            Threshold for outburst identification.
+
+        update : bool, optional
+            Set to ``True`` to save results in database.
+
+        Returns
+        -------
+        outbursts : dict
+            Outburst statistic for potential outbursts keyed by found
+            ID.
+
+        """
+
+        start = Time(date)
+        stop = start + 1 * u.day
+        objects = self.db.get_observations_by_date(
+            start, stop, columns='DISTINCT objid',
+            inner_join=['found USING (obsid)'])
+
+        outbursts = {}
+        with self.db:
+            for obj, in objects:
+                tab = self.get_phot(obj, rap=rap, unit=unit)
+                if len(tab) == 0:
+                    continue
+
+                tab.sort('obsjd')
+                check = np.flatnonzero((tab['obsjd'] >= start.jd)
+                                       * (tab['obsjd'] <= stop.jd))
+                ostats = self._ostat_for_obs(tab, check=check)
+
+                for i, ostat in zip(check, ostats):
+                    if update:
+                        self.db.execute('''
+                        UPDATE ztf_phot SET ostat=:ostat
+                        WHERE foundid=:foundid
+                        ''', {'ostat': ostat, 'foundid': tab['foundid'][i]})
+
+                    if ostat > threshold:
+                        outbursts[tab['foundid'][i]] = ostat
+
+        return outbursts
+
+    def find_outbursts_by_object(self, obj, rap=5, unit='pix', threshold=3,
+                                 update=False):
+        """Calculate and save ostat to database, return possible outbursts.
+
+        Parameters
+        ----------
+        obj : str
+            Object name or ID.
+
+        rap : list, optional
+            Limit to these apertures.
+
+        unit : str, optional
+            Units for ``rap``: pix, km.
+
+        threshold : float, optional
+            Threshold for outburst identification.
+
+        update : bool, optional
+            Set to ``True`` to save results in database.
+
+        Returns
+        -------
+        outbursts : dict
+            Outburst statistic for potential outbursts keyed by found
+            ID.
+
+        """
+
+        tab = self.get_phot(obj, rap=rap, unit=unit)
+        if len(tab) == 0:
+            return {}
+
+        tab.sort('obsjd')
+        ostats = self._ostat_for_obs(tab)
+        outbursts = {}
+        with self.db:
+            for i, ostat in enumerate(ostats):
+                if update:
+                    self.db.execute('''
+                    UPDATE ztf_phot SET ostat=:ostat
+                    WHERE foundid=:foundid
+                    ''', {'ostat': ostat, 'foundid': tab['foundid'][i]})
+
+                if ostat > threshold:
+                    outbursts[tab['foundid'][i]] = ostat
+
+        return outbursts
+
+    def plot(self, obj, rap, unit='pix', fignum=None, **kwargs):
         """Quick-look plot of a single object.
 
         Parameters
@@ -355,7 +570,10 @@ class ZPhot(ZChecker):
             if not any(i):
                 continue
 
-            j = (tab[i]['flag'] == 0) * (seeing[i] < rap)
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                j = (tab[i]['flag'] == 0) * (seeing[i] < rap)
+
             if any(j):
                 plt.errorbar(date.plot_date[i][j],
                              tab['m'][i][j], tab['merr'][i][j], color=c,
@@ -418,7 +636,8 @@ class ZPhot(ZChecker):
             self.db.execute('DELETE FROM ztf_phot ' + objcon, parameters)
 
         cmd = '''
-        SELECT foundid,archivefile,seeing,ra,dec,delta,ra3sig,dec3sig,infobits
+        SELECT foundid,archivefile,seeing,ra,dec,delta,
+               ra3sig,dec3sig,infobits
         FROM ztf_found
         INNER JOIN ztf_cutouts USING (foundid)
         LEFT JOIN ztf_phot USING (foundid)
@@ -552,5 +771,5 @@ class ZPhot(ZChecker):
         self.db.execute('''
         INSERT OR REPLACE INTO ztf_phot
         VALUES (:foundid,:dx,:dy,:bgap,:bg,:bg_area,
-          :bg_stdev,:flux,:m,:merr,:flag)
+          :bg_stdev,:flux,:m,:merr,:flag,NULL)
         ''', values)
