@@ -413,7 +413,7 @@ class ZStack(ZChecker):
             fn = os.path.join(path, f)
             with fits.open(fn) as hdu:
                 h = hdu['SCI'].header
-                if h.get('MAGZP', -1) < 0:
+                if h.get('MAGZP', -1) < 0 or h.get('CLRCOEFF', 100) > 99:
                     continue
 
                 # use provided mask, if possible
