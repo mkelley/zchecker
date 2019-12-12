@@ -107,6 +107,17 @@ class ZStack(ZChecker):
             hdu.append(fits.PrimaryHDU(header=primary_header))
 
             # update header with baseline info
+            # only stack calibrated data
+            baseline_headers = [
+                fits.getheader(
+                    os.path.join(self.config['cutout path'], f)
+                )
+                for f in baseline
+            ]
+            baseline_calibrated = [
+                (h.get('MAGZP', -1) > 0) and (h.get('CLRCOEFF') is not None)
+                for h in baseline_headers]
+            baseline = baseline[baseline_calibrated]
             h = self._header(self.config['cutout path'], baseline)
             metadata = (
                 ('BLPID', 'DBPID', 'Baseline processed-image IDs'),
@@ -299,8 +310,8 @@ class ZStack(ZChecker):
                    for f in sorted(files)]
         N = len(headers)
 
-        def mean_key(headers, key, comment, type): return (
-            np.mean([type(h[key]) for h in headers]), comment)
+        def mean_key(headers, key, comment, type):
+            return (np.mean([type(h[key]) for h in headers]), comment)
 
         h = fits.Header()
         h['BUNIT'] = 'e-/s'
