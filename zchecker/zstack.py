@@ -90,7 +90,9 @@ class ZStack(ZChecker):
                 )
                 for f in sorted(nightly)
             ]
-            calibrated = [h.get('MAGZP', -1) > 0 for h in headers]
+            calibrated = [
+                (h.get('MAGZP', -1) > 0) and (h.get('CLRCOEFF') is not None)
+                for h in headers]
             
             if sum(calibrated) == 0:
                 self.db.executemany('''
@@ -413,7 +415,7 @@ class ZStack(ZChecker):
             fn = os.path.join(path, f)
             with fits.open(fn) as hdu:
                 h = hdu['SCI'].header
-                if h.get('MAGZP', -1) < 0 or h.get('CLRCOEFF', 100) > 99:
+                if h.get('MAGZP', -1) < 0 or h.get('CLRCOEFF', None) is not None:
                     continue
 
                 # use provided mask, if possible
