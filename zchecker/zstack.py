@@ -90,9 +90,7 @@ class ZStack(ZChecker):
                 )
                 for f in sorted(nightly)
             ]
-            calibrated = [
-                (h.get('MAGZP', -1) > 0) and (h.get('CLRCOEFF') is not None)
-                for h in headers]
+            calibrated = [h.get('MAGZP', -1) > 0 for h in headers]
             
             if sum(calibrated) == 0:
                 self.db.executemany('''
@@ -114,9 +112,7 @@ class ZStack(ZChecker):
                 )
                 for f in baseline
             ]
-            baseline_calibrated = [
-                (h.get('MAGZP', -1) > 0) and (h.get('CLRCOEFF') is not None)
-                for h in baseline_headers]
+            baseline_calibrated = [h.get('MAGZP', -1) > 0 for h in baseline_headers]
             baseline = baseline[baseline_calibrated]
             h = self._header(self.config['cutout path'], baseline)
             metadata = (
@@ -426,7 +422,7 @@ class ZStack(ZChecker):
             fn = os.path.join(path, f)
             with fits.open(fn) as hdu:
                 h = hdu['SCI'].header
-                if h.get('MAGZP', -1) < 0 or h.get('CLRCOEFF', None) is not None:
+                if h.get('MAGZP', -1) < 0:
                     continue
 
                 # use provided mask, if possible
