@@ -1,6 +1,7 @@
 # Licensed under a 3-clause BSD style license - see LICENSE.rst
 import os
 from itertools import repeat
+import warnings
 
 import numpy as np
 import scipy.ndimage as nd
@@ -431,8 +432,10 @@ class ZStack(ZChecker):
                 else:
                     obj_mask = np.zeros_like(hdu['SANGLE'].data, bool)
 
-                mask = (hdu['SANGLE'].data < DATA_FLOOR
-                        + ~np.isfinite(hdu['SANGLE'].data))
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    mask = (hdu['SANGLE'].data < DATA_FLOOR
+                            + ~np.isfinite(hdu['SANGLE'].data))
 
                 # unmask objects within ~5" of target position
                 x = int(hdu['SANGLE'].header['CRPIX1']) - 1
