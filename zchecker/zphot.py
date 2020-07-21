@@ -651,12 +651,14 @@ class ZPhot(ZChecker):
             constraints.append(('objid IN ({})'.format(q), objids))
 
         cmd, parameters = util.assemble_sql(cmd, [], constraints)
-        iterating = True
-        while iterating:
-            iterating = False
-            for obs in self.db.iterate_over(cmd, parameters):
-                iterating = True
-                yield obs
+        
+        # create temporary table to isolate from updates
+        self.db.execute('''
+        CREATE TEMPORARY TABLE phot_to_measure AS {}
+        '''.format(cmd), parameters)
+        rows = self.db.iterate_over('SELECT * FROM phot_to_measure', [])
+        for row in rows:
+            yield row
 
     def _mask(self, hdu, sci_ext):
         im = hdu[sci_ext].data + 0

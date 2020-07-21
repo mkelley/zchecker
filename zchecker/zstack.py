@@ -47,20 +47,23 @@ class ZStack(ZChecker):
         WHERE stackfile IS NOT NULL
         ''', [])
         exists = 0
-        for stackid, fn in rows:
-            if os.path.exists(os.path.join(self.config['stack path'], fn)):
-                exists += 1
-                continue
 
-            self.logger.error('{} was expected, but does not exist.'
-                              .format(fn))
-            self.db.execute('''
-            UPDATE ztf_cutouts SET stackid=NULL WHERE stackid=?
-            ''', [stackid])
+        # use transaction to avoid affecting previous query
+        with self.db as con:
+            for stackid, fn in rows:
+                if os.path.exists(os.path.join(self.config['stack path'], fn)):
+                    exists += 1
+                    continue
 
-            self.db.execute('''
-            DELETE FROM ztf_stacks WHERE stackid=?
-            ''', [stackid])
+                self.logger.error('{} was expected, but does not exist.'
+                                  .format(fn))
+                con.execute('''
+                UPDATE ztf_cutouts SET stackid=NULL WHERE stackid=?
+                ''', [stackid])
+
+                con.execute('''
+                DELETE FROM ztf_stacks WHERE stackid=?
+                ''', [stackid])
 
         # file is missing, but still gets moved to ztf_stale_files, so
         # clean that up too:

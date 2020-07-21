@@ -51,12 +51,18 @@ class ZProject(ZChecker):
             constraints.append(('objid IN ({})'.format(q), objids))
 
         cmd, parameters = util.assemble_sql(cmd, [], constraints)
-        count = self.db.execute(
-            cmd.replace('foundid,archivefile', 'COUNT()'), parameters
-        ).fetchone()[0]
+
+        # create a temporary table to isolate query from updates
+        self.db.execute('''
+        CREATE TEMPORARY TABLE files_to_project AS {}
+        '''.format(cmd), parameters)
+        rows = self.db.iterate_over(
+            'SELECT foundid,archivefile FROM files_to_project', []
+        )
+        count = (self.db.execute('SELECT COUNT() FROM files_to_project')
+                 .fetchone())[0]
         self.logger.info('{} files to process.'.format(count))
 
-        rows = self.db.iterate_over(cmd, parameters)
         error_count = 0
         with ProgressBar(count, self.logger) as bar:
             foundids, archivefiles, args = [], [], []
