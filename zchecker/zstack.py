@@ -72,8 +72,8 @@ class ZStack(ZChecker):
         self.logger.info('{} files verified, {} database rows removed'
                          .format(exists, count - exists))
 
-    def stack(self, scale_by, n_baseline, objects=None, restack=False):
-        data = self._data_iterator(n_baseline, objects, restack)
+    def stack(self, scale_by, n_baseline, objects=None, restack=False, start=None, stop=None):
+        data = self._data_iterator(n_baseline, objects, restack, start, stop)
         for n, stackid, fn, nightlyids, nightly, baseline in data:
             # file exists and overwrite mode disabled?  something went wrong!
             if (self._check_target_paths(self.config['stack path'], fn)
@@ -193,7 +193,7 @@ class ZStack(ZChecker):
 
             self.db.commit()
 
-    def _data_iterator(self, n_baseline, objects, restack):
+    def _data_iterator(self, n_baseline, objects, restack, start, stop):
         """Find and return images to stack."""
 
         cmd = '''
@@ -204,7 +204,13 @@ class ZStack(ZChecker):
         LEFT JOIN ztf_stacks USING (stackid)
         '''
 
-        constraints = [('sangleimg!=0', None), ('maglimit>0', None)]
+        constraints = [
+            ('sangleimg!=0', None), ('maglimit>0', None)
+        ]
+        if start is not None:
+            constraints.append(('date>=?', start))
+        if stop is not None:
+            constraints.append(('date<=?', stop))
 
         if objects:
             objids = [obj[0] for obj in self.db.resolve_objects(objects)]
@@ -248,8 +254,9 @@ class ZStack(ZChecker):
                          ('obsjd <= ?', stop_jd),
                          ('filtercode=?', filt)])
             cmd, parameters = util.assemble_sql('''
-            SELECT stackid,foundid,obsjd,rh,rdot,archivefile FROM ztf_found
+            SELECT stackid,foundid,obsjd,rh,rdot,archivefile,date FROM ztf_found
             INNER JOIN ztf_cutouts USING (foundid)
+            INNER JOIN ztf_nights USING (nightid)
             ''', [], cons)
             rows = self.db.execute(cmd, parameters).fetchall()
             obsjd, rh, rdot = np.empty((3, len(rows)))
