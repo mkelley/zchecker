@@ -146,8 +146,9 @@ def project_file(fn, alignments, size):
         try:
             newsci = project_extension(fn, sci_ext, alignment, size)
         except (m.MontageError, ValueError) as e:
-            newsci = np.empty((size, size)) * np.nan
             errors.append(str(e))
+            # if the science extension cannot be reprojected, then skip the rest
+            break
 
         if mask_ext is not None:
             try:

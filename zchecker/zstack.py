@@ -205,7 +205,7 @@ class ZStack(ZChecker):
         '''
 
         constraints = [
-            ('sangleimg!=0', None), ('maglimit>0', None)
+            ('sangleimg>0', None), ('maglimit>0', None)
         ]
         if start is not None:
             constraints.append(('date>=?', start))
