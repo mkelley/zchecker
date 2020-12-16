@@ -328,8 +328,8 @@ class ZPhot(ZChecker):
 
         """
 
-        ztf_rap = np.array(h['FIXAPERS'].split(','), float) / 2
-        ztf_ac = np.array([h['APCOR{}'.format(i + 1)]
+        ztf_rap = np.array(header['FIXAPERS'].split(','), float) / 2
+        ztf_ac = np.array([header['APCOR{}'.format(i + 1)]
                            for i in range(len(rap))])
         ac = np.interp(rap, ztf_rap, ztf_ac)
         return ac
