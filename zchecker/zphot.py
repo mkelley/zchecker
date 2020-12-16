@@ -51,6 +51,7 @@ class Flag(enum.Flag):
     EPHEMERIS_TOO_UNCERTAIN = 2**3
     IMAGE_UNCALIBRATED = 2**4
     NONZERO_INFOBITS = 2**5
+    NOT_APERTURE_CORRECTED = 2**6
 
 
 class ZPhot(ZChecker):
@@ -58,8 +59,8 @@ class ZPhot(ZChecker):
         super().__init__(*args, **kwargs)
         self.logger.info('ZPhot')
 
-    APERTURE_RADII_PIXELS = np.arange(2, 20)
-    APERTURE_RADII_KM = (np.arange(5) + 1) * 10000
+    APERTURE_RADII_PIXELS = np.array((2, 3, 4, 5, 7, 9, 11, 15, 20))
+    APERTURE_RADII_KM = np.array((5, 10, 15, 20, 30, 40)) * 1000
     PLOT_COLORS = {
         'zg': 'tab:green',
         'zr': 'tab:orange',
@@ -173,6 +174,14 @@ class ZPhot(ZChecker):
                 m = flux * 0
                 merr = flux * 0
                 flag |= Flag.IMAGE_UNCALIBRATED
+
+            # aperture correction
+            if not (flag & Flag.IMAGE_UNCALIBRATED):
+                try:
+                    ac = self.aperture_correction(hdu[ext].header, rap)
+                    m += ac
+                except KeyError:
+                    flag |= Flag.NOT_APERTURE_CORRECTED
 
             packed = self.pack(flux, m, merr)
             self._update(obs['foundid'], dx=dxy[0], dy=dxy[1], bg=bg,
@@ -295,6 +304,35 @@ class ZPhot(ZChecker):
                     phot[k] = float(phot[k])
 
         return phot
+
+    @staticmethod
+    def aperture_correction(header, rap):
+        """Aperture correction from ZTF pipeline.
+
+        The estimate is a linear interpolation of the ZTF pipeline results.
+
+
+        Parameters
+        ----------
+        header : astropy.io.fits.Header
+            ZTF header with FIXAPERS and APCOR* keywords.
+
+        rap : int, float, or array-like
+            Aperture radii at which to estimate aperture correction.
+
+
+        Returns
+        -------
+        ac : ndarray
+            The aperture correction at each `rap`.
+
+        """
+
+        ztf_rap = np.array(h['FIXAPERS'].split(','), float) / 2
+        ztf_ac = np.array([h['APCOR{}'.format(i + 1)]
+                           for i in range(len(rap))])
+        ac = np.interp(rap, ztf_rap, ztf_ac)
+        return ac
 
     @staticmethod
     def ostat(rh, delta, phase, m, merr, min_unc=0.1):
@@ -651,7 +689,7 @@ class ZPhot(ZChecker):
             constraints.append(('objid IN ({})'.format(q), objids))
 
         cmd, parameters = util.assemble_sql(cmd, [], constraints)
-        
+
         # create temporary table to isolate from updates
         self.db.execute('''
         CREATE TEMPORARY TABLE phot_to_measure AS {}

@@ -447,19 +447,19 @@ preserved upon multiple runs of ``zstack``.
 | merr     | blob    | zchecker | estimated uncertainty on m                                    |
 | flag     | integer | zchecker | quality and error flags                                       |
 
-rap is an array of short integers, flux, m, and merr are arrays of
-single-precision floats.
+flux, m, and merr are arrays of single-precision floats.
 
 Photometry flags:
 
-| Bit | Description                               |
-|-----|-------------------------------------------|
-| 0   | Ephemeris outside image                   |
-| 1   | Centroid failure                          |
-| 2   | Centroid outside uncertainty limit        |
-| 3   | Ephemeris too uncertain to measure source |
-| 4   | Image uncalibrated                        |
-| 5   | Non-zero info bit flag, see Section 10.4 of the [ZTF Science Data System][1] |
+| Bit | Value | Description                               |
+|-----|-------|-------------------------------------------|
+| 0   | 1     | Ephemeris outside image                   |
+| 1   | 2     | Centroid failure                          |
+| 2   | 4     | Centroid outside uncertainty limit        |
+| 3   | 8     | Ephemeris too uncertain to measure source |
+| 4   | 16    | Image uncalibrated                        |
+| 5   | 32    | Non-zero info bit flag, see Section 10.4 of the [ZTF Science Data System][1] |
+| 6   | 64    | Not aperture corrected                    |
 
 ### Schema summary
 
