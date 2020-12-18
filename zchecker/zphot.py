@@ -210,7 +210,8 @@ class ZPhot(ZChecker):
         """
 
         rows = []
-        query = self.db.get_found(obj=obj, inner_join=['ztf USING (obsid)'])
+        query = self.db.get_found(
+            obj=obj, inner_join=['ztf USING (obsid)', 'ztf_cutouts USING (foundid)'])
         for row in query:
             try:
                 phot = self.get_phot_by_foundid(row[0], rap, unit=unit)
