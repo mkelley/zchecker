@@ -1,4 +1,4 @@
-# ZChecker v2.6.4
+# ZChecker v2.7.0
 ZTF moving target checker for short object lists.
 
 ## Attribution and license
@@ -446,6 +446,8 @@ preserved upon multiple runs of ``zstack``.
 | m        | blob    | zchecker | calibrated magnitude for each aperture                        |
 | merr     | blob    | zchecker | estimated uncertainty on m                                    |
 | flag     | integer | zchecker | quality and error flags                                       |
+| m5       | float   | zchecker | magnitude in 5" radius aperture                               |
+| ostat    | float   | zchecker | outburst statistic                                            |
 
 flux, m, and merr are arrays of single-precision floats.
 
@@ -459,7 +461,6 @@ Photometry flags:
 | 3   | 8     | Ephemeris too uncertain to measure source |
 | 4   | 16    | Image uncalibrated                        |
 | 5   | 32    | Non-zero info bit flag, see Section 10.4 of the [ZTF Science Data System][1] |
-| 6   | 64    | Not aperture corrected                    |
 
 ### Schema summary
 

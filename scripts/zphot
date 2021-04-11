@@ -48,8 +48,8 @@ subparsers = parser.add_subparsers(help='sub-commands')
 def measure(args):
     config = Config.from_args(args)
     with ZPhot(config, save_log=True) as z:
-        z.photometry(objects=args.objects, update=args.force,
-                     unc_limit=args.unc_limit)
+        z.photometry(objects=args.objects, date=args.date,
+                     update=args.force, unc_limit=args.unc_limit)
 
 
 parser_measure = subparsers.add_parser(
@@ -57,6 +57,8 @@ parser_measure = subparsers.add_parser(
 parser_measure.add_argument(
     'objects', type=object_list, nargs='?',
     help=('measure these targets, or those listed in this file'))
+parser_measure.add_argument(
+    '--date', help='only measure this date')
 parser_measure.add_argument(
     '--force', '-f', action='store_true',
     help='remeasure previous photometry')

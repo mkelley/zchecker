@@ -81,6 +81,7 @@ CREATE TABLE IF NOT EXISTS ztf_phot(
   m BLOB,
   merr BLOB,
   flag INTEGER,
+  m5 FLOAT,
   ostat FLOAT,
   FOREIGN KEY(foundid) REFERENCES found(foundid)
 );
