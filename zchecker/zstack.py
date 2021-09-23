@@ -47,20 +47,23 @@ class ZStack(ZChecker):
         WHERE stackfile IS NOT NULL
         ''', [])
         exists = 0
-        for stackid, fn in rows:
-            if os.path.exists(os.path.join(self.config['stack path'], fn)):
-                exists += 1
-                continue
 
-            self.logger.error('{} was expected, but does not exist.'
-                              .format(fn))
-            self.db.execute('''
-            UPDATE ztf_cutouts SET stackid=NULL WHERE stackid=?
-            ''', [stackid])
+        # use transaction to avoid affecting previous query
+        with self.db as con:
+            for stackid, fn in rows:
+                if os.path.exists(os.path.join(self.config['stack path'], fn)):
+                    exists += 1
+                    continue
 
-            self.db.execute('''
-            DELETE FROM ztf_stacks WHERE stackid=?
-            ''', [stackid])
+                self.logger.error('{} was expected, but does not exist.'
+                                  .format(fn))
+                con.execute('''
+                UPDATE ztf_cutouts SET stackid=NULL WHERE stackid=?
+                ''', [stackid])
+
+                con.execute('''
+                DELETE FROM ztf_stacks WHERE stackid=?
+                ''', [stackid])
 
         # file is missing, but still gets moved to ztf_stale_files, so
         # clean that up too:
@@ -69,8 +72,8 @@ class ZStack(ZChecker):
         self.logger.info('{} files verified, {} database rows removed'
                          .format(exists, count - exists))
 
-    def stack(self, scale_by, n_baseline, objects=None, restack=False):
-        data = self._data_iterator(n_baseline, objects, restack)
+    def stack(self, scale_by, n_baseline, objects=None, restack=False, start=None, stop=None):
+        data = self._data_iterator(n_baseline, objects, restack, start, stop)
         for n, stackid, fn, nightlyids, nightly, baseline in data:
             # file exists and overwrite mode disabled?  something went wrong!
             if (self._check_target_paths(self.config['stack path'], fn)
@@ -190,7 +193,7 @@ class ZStack(ZChecker):
 
             self.db.commit()
 
-    def _data_iterator(self, n_baseline, objects, restack):
+    def _data_iterator(self, n_baseline, objects, restack, start, stop):
         """Find and return images to stack."""
 
         cmd = '''
@@ -201,7 +204,13 @@ class ZStack(ZChecker):
         LEFT JOIN ztf_stacks USING (stackid)
         '''
 
-        constraints = [('sangleimg!=0', None), ('maglimit>0', None)]
+        constraints = [
+            ('sangleimg>0', None), ('maglimit>0', None)
+        ]
+        if start is not None:
+            constraints.append(('date>=?', start))
+        if stop is not None:
+            constraints.append(('date<=?', stop))
 
         if objects:
             objids = [obj[0] for obj in self.db.resolve_objects(objects)]
@@ -245,8 +254,9 @@ class ZStack(ZChecker):
                          ('obsjd <= ?', stop_jd),
                          ('filtercode=?', filt)])
             cmd, parameters = util.assemble_sql('''
-            SELECT stackid,foundid,obsjd,rh,rdot,archivefile FROM ztf_found
+            SELECT stackid,foundid,obsjd,rh,rdot,archivefile,date FROM ztf_found
             INNER JOIN ztf_cutouts USING (foundid)
+            INNER JOIN ztf_nights USING (nightid)
             ''', [], cons)
             rows = self.db.execute(cmd, parameters).fetchall()
             obsjd, rh, rdot = np.empty((3, len(rows)))
@@ -423,7 +433,9 @@ class ZStack(ZChecker):
             fn = os.path.join(path, f)
             with fits.open(fn) as hdu:
                 h = hdu['SCI'].header
-                if h.get('MAGZP', -1) < 0:
+                if ((h.get('MAGZP', -1) < 0)
+                    or (h.get('CRPIX1', None) is None)
+                    or (hdu['SANGLE'].header.get('CRPIX1', None) is None)):
                     continue
 
                 # use provided mask, if possible

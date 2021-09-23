@@ -51,12 +51,18 @@ class ZProject(ZChecker):
             constraints.append(('objid IN ({})'.format(q), objids))
 
         cmd, parameters = util.assemble_sql(cmd, [], constraints)
-        count = self.db.execute(
-            cmd.replace('foundid,archivefile', 'COUNT()'), parameters
-        ).fetchone()[0]
+
+        # create a temporary table to isolate query from updates
+        self.db.execute('''
+        CREATE TEMPORARY TABLE files_to_project AS {}
+        '''.format(cmd), parameters)
+        rows = self.db.iterate_over(
+            'SELECT foundid,archivefile FROM files_to_project', []
+        )
+        count = (self.db.execute('SELECT COUNT() FROM files_to_project')
+                 .fetchone())[0]
         self.logger.info('{} files to process.'.format(count))
 
-        rows = self.db.iterate_over(cmd, parameters)
         error_count = 0
         with ProgressBar(count, self.logger) as bar:
             foundids, archivefiles, args = [], [], []
@@ -102,7 +108,7 @@ class ZProject(ZChecker):
                 error_count += 1
                 self.logger.error(
                     '    Error projecting {}: {}'.format(
-                    archivefiles[i], errors[i]))
+                        archivefiles[i], errors[i]))
                 self.db.execute('''
                 UPDATE ztf_cutouts
                 SET {a}img=?
@@ -116,24 +122,25 @@ class ZProject(ZChecker):
 
 def project_file(fn, alignments, size):
     with fits.open(fn) as hdu:
+        mask_ext = hdu.index_of('MASK') if 'MASK' in hdu else None
+        ref_ext = hdu.index_of('REF') if 'REF' in hdu else None
+
         # Difference image preferred, but not if there are too many
         # artifacts due to being close to the edge.
         sci_ext = 0
         if 'DIFF' in hdu:
             d = hdu['DIFF'].data
-            bad_rows = np.sum(d < DATA_FLOOR, 0) == d.shape[0]
-            bad_cols = np.sum(d < DATA_FLOOR, 1) == d.shape[1]
+            bad_cols = np.sum(d < DATA_FLOOR, 0) > 0.8 * d.shape[0]
+            bad_rows = np.sum(d < DATA_FLOOR, 1) > 0.8 * d.shape[1]
 
             # any near the target?  don't use it.
             x = hdu['SCI'].header['TGTX']
             y = hdu['SCI'].header['TGTY']
             bady = np.any(bad_cols[max(y-50, 0):min(y+51, d.shape[0])])
             badx = np.any(bad_rows[max(x-50, 0):min(x+51, d.shape[1])])
+
             if not (bady or badx):
                 sci_ext = hdu.index_of('DIFF')
-
-        mask_ext = hdu.index_of('MASK') if 'MASK' in hdu else None
-        ref_ext = hdu.index_of('REF') if 'REF' in hdu else None
 
     errors = []
     for alignment in alignments:
@@ -142,6 +149,8 @@ def project_file(fn, alignments, size):
         except (m.MontageError, ValueError) as e:
             newsci = fits.ImageHDU(np.empty((size, size)) * np.nan)
             errors.append(str(e))
+            # if the science extension cannot be reprojected, then skip the rest
+            break
 
         if mask_ext is not None:
             try:
@@ -157,7 +166,8 @@ def project_file(fn, alignments, size):
 
         with fits.open(fn, mode='update') as hdu:
             append_image_to(hdu, newsci, alignment.upper())
-            hdu[alignment.upper()].header['DIFFIMG'] = sci_ext != 0, 'True if based on DIFF, else SCI'
+            hdu[alignment.upper(
+            )].header['DIFFIMG'] = sci_ext != 0, 'True if based on DIFF, else SCI'
             if mask_ext is not None:
                 append_image_to(hdu, newmask, alignment.upper() + 'MASK')
             if ref_ext is not None:
@@ -165,7 +175,7 @@ def project_file(fn, alignments, size):
 
     # background estimate
     update_background(fn)
-    
+
     if len(errors) > 0:
         return '; '.join(errors)
 

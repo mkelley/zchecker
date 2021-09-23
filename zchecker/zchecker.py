@@ -265,8 +265,16 @@ class ZChecker(SBSearch):
             constraints.append(('retrieved IS NULL', None))
 
         cmd, parameters = util.assemble_sql(cmd, [], constraints)
-        count = self.db.execute(
-            cmd.replace(' foundid ', ' COUNT() ', 1), parameters).fetchone()[0]
+
+        # create temporary table to isolate from updates
+        self.db.execute('''
+        CREATE TEMPORARY TABLE foundids_to_download AS {}
+        '''.format(cmd), parameters)
+        foundids = self.db.iterate_over(
+            'SELECT foundid FROM foundids_to_download', []
+        )
+        count = (self.db.execute('SELECT COUNT() FROM foundids_to_download')
+                 .fetchone())[0]
 
         if count == 0:
             self.logger.info('No cutouts to download.')
@@ -278,8 +286,7 @@ class ZChecker(SBSearch):
             verb = 'Downloading'
 
         self.logger.info('{} {} cutouts.'.format(verb, count))
-
-        foundids = self.db.iterate_over(cmd, parameters)
+        
         missing = 0
         downloaded = 0
         with ztf.IRSA(path, self.config.auth) as irsa:

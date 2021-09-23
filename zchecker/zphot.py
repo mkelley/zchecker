@@ -58,8 +58,9 @@ class ZPhot(ZChecker):
         super().__init__(*args, **kwargs)
         self.logger.info('ZPhot')
 
-    APERTURE_RADII_PIXELS = np.arange(2, 20)
-    APERTURE_RADII_KM = (np.arange(5) + 1) * 10000
+    # if the index of 5 changes, then edit the line where m5 is set
+    APERTURE_RADII_PIXELS = np.array((2, 3, 4, 5, 7, 9, 11, 15, 20))
+    APERTURE_RADII_KM = np.array((5, 10, 15, 20, 30, 40)) * 1000
     PLOT_COLORS = {
         'zg': 'tab:green',
         'zr': 'tab:orange',
@@ -76,7 +77,7 @@ class ZPhot(ZChecker):
         'zi': '*'
     }
 
-    def photometry(self, objects=None, update=False, unc_limit=None,
+    def photometry(self, objects=None, date=None, update=False, unc_limit=None,
                    snr_limit=5):
         """Find data with missing photometry and measure it.
 
@@ -84,6 +85,9 @@ class ZPhot(ZChecker):
         ----------
         objects : list, optional
             Limit to detections of these objects.
+
+        date : string, optional
+            Limit to this date.
 
         update : bool, optional
             Re-measure and overwrite any existing values.
@@ -101,7 +105,7 @@ class ZPhot(ZChecker):
 
         """
 
-        data = self._data_iterator(objects, update)
+        data = self._data_iterator(objects, date, update)
         for obs in data:
             flag = Flag.NONE
 
@@ -174,10 +178,19 @@ class ZPhot(ZChecker):
                 merr = flux * 0
                 flag |= Flag.IMAGE_UNCALIBRATED
 
+            # aperture correction
+            # if not (flag & Flag.IMAGE_UNCALIBRATED):
+            #     try:
+            #         ac = self.aperture_correction(hdu[ext].header, rap)
+            #         m += ac
+            #     except KeyError:
+            #         flag |= Flag.NOT_APERTURE_CORRECTED
+
             packed = self.pack(flux, m, merr)
             self._update(obs['foundid'], dx=dxy[0], dy=dxy[1], bg=bg,
                          bg_area=bgarea, bg_stdev=bgsig, flux=packed[0],
-                         m=packed[1], merr=packed[2], flag=flag.value)
+                         m=packed[1], merr=packed[2], flag=flag.value,
+                         m5=m[3])
 
     def get_phot(self, obj, rap=None, unit='pix'):
         """Get photometry from database.
@@ -201,7 +214,8 @@ class ZPhot(ZChecker):
         """
 
         rows = []
-        query = self.db.get_found(obj=obj, inner_join=['ztf USING (obsid)'])
+        query = self.db.get_found(
+            obj=obj, inner_join=['ztf USING (obsid)', 'ztf_cutouts USING (foundid)'])
         for row in query:
             try:
                 phot = self.get_phot_by_foundid(row[0], rap, unit=unit)
@@ -295,6 +309,35 @@ class ZPhot(ZChecker):
                     phot[k] = float(phot[k])
 
         return phot
+
+    @staticmethod
+    def aperture_correction(header, rap):
+        """Aperture correction from ZTF pipeline.
+
+        The estimate is a linear interpolation of the ZTF pipeline results.
+
+
+        Parameters
+        ----------
+        header : astropy.io.fits.Header
+            ZTF header with FIXAPERS and APCOR* keywords.
+
+        rap : int, float, or array-like
+            Aperture radii at which to estimate aperture correction.
+
+
+        Returns
+        -------
+        ac : ndarray
+            The aperture correction at each `rap`.
+
+        """
+
+        ztf_rap = np.array(header['FIXAPERS'].split(','), float) / 2
+        ztf_ac = np.array([header['APCOR{}'.format(i + 1)]
+                           for i in range(len(ztf_rap))])
+        ac = np.interp(rap, ztf_rap, ztf_ac)
+        return ac
 
     @staticmethod
     def ostat(rh, delta, phase, m, merr, min_unc=0.1):
@@ -620,20 +663,29 @@ class ZPhot(ZChecker):
                   np.array(struct.unpack(float_pack, merr)))
         return packed
 
-    def _data_iterator(self, objects, update):
+    def _data_iterator(self, objects, date, update):
         if update:
-            # Delete photometry and remeasure.
-            if objects:
+            # Default is to delete all photometry and remeasure.
+            if objects is None and date is None:
+                constraints = ['1']
+            else:
+                constraints = []
+
+            if objects is not None:
+                # just remeasure these objects
                 objids = [obj[0] for obj in self.db.resolve_objects(objects)]
                 q = ','.join('?' * len(objids))
-                objcon = 'WHERE foundid IN (SELECT foundid FROM ztf_found WHERE objid IN ({}))'.format(
-                    q)
-                parameters = objids
-            else:
-                objcon = 'WHERE 1'
-                parameters = []
+                constraints.append(('''
+foundid IN (SELECT foundid FROM ztf_found WHERE objid IN ({}))
+'''.format(q), objids))
 
-            self.db.execute('DELETE FROM ztf_phot ' + objcon, parameters)
+            if date is not None:
+                # just remeasure this date
+                constraints.append(util.date_constraints(date, date, 'obsjd'))
+
+            cmd, parameters = util.assemble_sql('DELETE FROM ztf_phot',
+                                                [], constraints)
+            self.db.execute(cmd, parameters)
 
         cmd = '''
         SELECT foundid,archivefile,seeing,ra,dec,delta,
@@ -650,13 +702,18 @@ class ZPhot(ZChecker):
             q = ','.join('?' * len(objids))
             constraints.append(('objid IN ({})'.format(q), objids))
 
+        if date:
+            constraints.extend(util.date_constraints(date, date, 'obsjd'))
+
         cmd, parameters = util.assemble_sql(cmd, [], constraints)
-        iterating = True
-        while iterating:
-            iterating = False
-            for obs in self.db.iterate_over(cmd, parameters):
-                iterating = True
-                yield obs
+
+        # create temporary table to isolate from updates
+        self.db.execute('''
+        CREATE TEMPORARY TABLE phot_to_measure AS {}
+        '''.format(cmd), parameters)
+        rows = self.db.iterate_over('SELECT * FROM phot_to_measure', [])
+        for row in rows:
+            yield row
 
     def _mask(self, hdu, sci_ext):
         im = hdu[sci_ext].data + 0
@@ -771,5 +828,5 @@ class ZPhot(ZChecker):
         self.db.execute('''
         INSERT OR REPLACE INTO ztf_phot
         VALUES (:foundid,:dx,:dy,:bgap,:bg,:bg_area,
-          :bg_stdev,:flux,:m,:merr,:flag,NULL)
+          :bg_stdev,:flux,:m,:merr,:flag,:m5,NULL)
         ''', values)
