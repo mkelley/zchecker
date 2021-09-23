@@ -140,7 +140,7 @@ def project_file(fn, alignments, size):
         try:
             newsci = project_extension(fn, sci_ext, alignment, size)
         except (m.MontageError, ValueError) as e:
-            newsci = np.empty((size, size)) * np.nan
+            newsci = fits.ImageHDU(np.empty((size, size)) * np.nan)
             errors.append(str(e))
 
         if mask_ext is not None:
