@@ -1,13 +1,11 @@
 #!/usr/bin/env python3
 # Licensed under a 3-clause BSD style license - see LICENSE.rst
-import os
-import re
 import sys
 import argparse
 
-import numpy as np
 import astropy.units as u
 from astropy.time import Time
+from astropy.table import Table
 
 from zchecker import ZChecker, Config
 from zchecker.config import _config_example
@@ -256,13 +254,23 @@ def eph_update(args):
 
     with ZChecker(config, save_log=True) as z:
         try:
-            if args.clean:
-                z.clean_ephemeris(args.objects, args.start, stop)
+            if args.last_update:
+                rows = []
+                for obj in args.objects:
+                    date = z.db.get_last_ephemeris_update(obj)
+                    rows.append({'object': obj, 'updated': date.iso[:10]})
             else:
-                z.update_ephemeris(args.objects, args.start, stop)
+                if args.clean:
+                    z.clean_ephemeris(args.objects, args.start, stop)
+                else:
+                    z.update_ephemeris(args.objects, args.start, stop)
         except Exception as e:
             z.logger.error(str(e))
             raise e
+
+    if args.last_update:
+        print()
+        Table(rows).pprint_all()
 
 
 parser_eph = subparsers.add_parser(
@@ -272,14 +280,22 @@ parser_eph.add_argument(
     'objects', type=object_list,
     help='file name listing one object per line, or a comma-separated'
     ' list of objects, resolvable by JPL/Horizons')
-parser_eph.add_argument(
-    '--start', default=as_time('2017-10-13'), type=as_time,
+
+update_group = parser_eph.add_argument_group()
+update_group.add_argument(
+    '--start', default=as_time('2017-10-15'), type=as_time,
     help='start date of ephemeris, UT')
-parser_eph.add_argument(
-    '--stop', '--end', default=as_time('2019-01-01'), type=as_time,
+update_group.add_argument(
+    '--stop', '--end', default=as_time('2023-01-01'), type=as_time,
     help='stop date of ephemeris, UT')
-parser_eph.add_argument(
+update_group.add_argument(
     '--clean', action='store_true', help='delete from database')
+
+mutex = parser_eph.add_mutually_exclusive_group()
+mutex.add_argument_group(update_group)
+mutex.add_argument(
+    '--last-update', '-l', action='store_true',
+    help='get date of last ephemeris update')
 parser_eph.set_defaults(func=eph_update)
 
 # CLEAN-EPH ############################################################
