@@ -10,15 +10,15 @@ ZChecker is licensed with the BSD 3-clause license.  See LICENSE for details.
 
 ## Acknowledgements
 
-Support for ZChecker was provided by the NASA/University of Maryland/Minor Planet Center Augmentation through the NASA Planetary Data System Cooperative Agreement NNX16AB16A, and by the NASA Near-Earth Objects Observations grant NNX15AD99G.
+Support for ZChecker was provided by the NASA/University of Maryland/Minor Planet Center Augmentation through the NASA Planetary Data System Cooperative Agreement NNX16AB16A, NASA Near-Earth Objects Observations grant NNX15AD99G, and NASA Solar System Observations grant 80NSSC20K0673.
 
 ## Requirements
-* Python 3.6+
-* astropy v2.0+
+* Python 3.8+
+* astropy v4
 * [sbsearch v0.1](https://github.com/Small-Bodies-Node/sbsearch/tree/v0.1)
-* [sbpy](https://github.com/NASA-Planetary-Science/sbpy) 0.2
+* [sbpy](https://github.com/NASA-Planetary-Science/sbpy) 0.3
 * requests
-* astroquery 0.3.10
+* astroquery 0.4.6
 * sqlite
 * wget
 * sep
@@ -217,16 +217,16 @@ perihelion it is on (based on heliocentric radial velocity).
 
 The FITS file format for cutouts:
 
-| Extension name | HDU type | Source   | Description                                               |
-|----------------|----------|----------|-----------------------------------------------------------|
-| SCI            | Primary  | IRSA     | Original science data cutout                              |
-| MASK           | Image    | IRSA     | Source mask                                               |
-| PSF            | Image    | IRSA     | Science image point source function                       |
-| DIFF           | Image    | IRSA     | Reference subtracted image cutout                         |
-| REF            | Image    | IRSA     | Reference image cutout                                    |
-| SANGLE         | Image    | zproject | Science or diff image aligned with projected Sun vector   |
-| SANGLEMASK     | Image    | zproject | Source mask for SANGLE                                    |
-| SANGLEREF      | Image    | zproject | Reference image aligned with projected Sun vector         |
+| Extension name | HDU type | Source   | Description                                             |
+| -------------- | -------- | -------- | ------------------------------------------------------- |
+| SCI            | Primary  | IRSA     | Original science data cutout                            |
+| MASK           | Image    | IRSA     | Source mask                                             |
+| PSF            | Image    | IRSA     | Science image point source function                     |
+| DIFF           | Image    | IRSA     | Reference subtracted image cutout                       |
+| REF            | Image    | IRSA     | Reference image cutout                                  |
+| SANGLE         | Image    | zproject | Science or diff image aligned with projected Sun vector |
+| SANGLEMASK     | Image    | zproject | Source mask for SANGLE                                  |
+| SANGLEREF      | Image    | zproject | Reference image aligned with projected Sun vector       |
 
 If the SANGLE image is based on DIFF, the SANGLE extension header
 keyword DIFFIMG will be True.
@@ -238,7 +238,7 @@ configuration, organized by object name.  File names are lower-case
 with the format: `desg-yyyymmdd-rh-ztf-stack.fits`:
 
 | Extension name | HDU type | Source | Description                                            |
-|----------------|----------|--------|--------------------------------------------------------|
+| -------------- | -------- | ------ | ------------------------------------------------------ |
 | PRIMARY        | Primary  | IRSA   | Original science data header                           |
 | NIGHTLY        | Image    | zstack | Nightly stack of SANGLE data                           |
 | NIGHTLY REF    | Image    | zstack | Nightly stack of SANGLEREF data                        |
@@ -259,7 +259,7 @@ $r_h^{-2} \Delta^{-2}$.
 Summary of ZTF observations by night, as downloaded from IRSA.
 
 | Column    | Type    | Source   | Description                                |
-|-----------|---------|----------|--------------------------------------------|
+| --------- | ------- | -------- | ------------------------------------------ |
 | nightid   | integer | zchecker | unique night identifier                    |
 | date      | text    | user     | UT date                                    |
 | exposures | integer | IRSA     | number of exposures                        |
@@ -271,7 +271,7 @@ Summary of ZTF observations by night, as downloaded from IRSA.
 Objects.
 
 | Column | Type    | Source   | Description              |
-|--------|---------|----------|--------------------------|
+| ------ | ------- | -------- | ------------------------ |
 | objid  | integer | zchecker | unique object identifier |
 | desg   | text    | user     | target designation       |
 
@@ -279,11 +279,11 @@ Objects.
 
 Objects.
 
-| Column   | Type    | Source   | Description                    |
-|----------|---------|----------|--------------------------------|
-| crossid  | integer | zchecker | unique identifier for cross-ID |
-| objid    | integer | zchecker | unique object identifier       |
-| desg     | text    | user     | target alternate designation   |
+| Column  | Type    | Source   | Description                    |
+| ------- | ------- | -------- | ------------------------------ |
+| crossid | integer | zchecker | unique identifier for cross-ID |
+| objid   | integer | zchecker | unique object identifier       |
+| desg    | text    | user     | target alternate designation   |
 
 ### `eph`
 
@@ -291,7 +291,7 @@ Object ephemerides.  The default time step is 1/day, with smaller time
 steps for objects closer to the Earth.
 
 | Column    | Type    | Source   | Description                                                   |
-|-----------|---------|----------|---------------------------------------------------------------|
+| --------- | ------- | -------- | ------------------------------------------------------------- |
 | ephid     | integer | zchecker | unique ephemeris identifier                                   |
 | objid     | integer | zchecker | unique object identifier from `obj` table                     |
 | jd        | float   | zchecker | ephemeris epoch (Julian date)                                 |
@@ -310,7 +310,7 @@ steps for objects closer to the Earth.
 R-tree of object ephemerides.
 
 | Column | Type    | Source   | Description                                                      |
-|--------|---------|----------|------------------------------------------------------------------|
+| ------ | ------- | -------- | ---------------------------------------------------------------- |
 | ephid  | integer | zchecker | unique ephemeris identifier from `eph` table                     |
 | mjd0   | float   | zchecker | time bounding box (modified Julian date)                         |
 | mjd1   | float   | zchecker |                                                                  |
@@ -326,7 +326,7 @@ R-tree of object ephemerides.
 Basic observation parameters.
 
 | Column   | Type    | Source   | Description                             |
-|----------|---------|----------|-----------------------------------------|
+| -------- | ------- | -------- | --------------------------------------- |
 | obsid    | integer | zchecker | unique observation identifier           |
 | source   | text    | zchecker | data source (ztf)                       |
 | jd_start | float   | IRSA     | exposure start time                     |
@@ -338,7 +338,7 @@ Basic observation parameters.
 R-tree of observations.
 
 | Column | Type    | Source   | Description                                                      |
-|--------|---------|----------|------------------------------------------------------------------|
+| ------ | ------- | -------- | ---------------------------------------------------------------- |
 | obsid  | integer | zchecker | unique observation identifier from `obs` table                   |
 | mjd0   | float   | zchecker | time bounding box (modified Julian date)                         |
 | mjd1   | float   | zchecker |                                                                  |
@@ -355,7 +355,7 @@ R-tree of observations.
 ZTF observation metadata.
 
 | Column      | Type    | Source   | Description                                                              |
-|-------------|---------|----------|--------------------------------------------------------------------------|
+| ----------- | ------- | -------- | ------------------------------------------------------------------------ |
 | obsid       | integer | zchecker | unique observation identifier from `obs` table                           |
 | pid         | integer | ZTF      | science product ID, unique                                               |
 | obsdate     | text    | zchecker | observation mid-time (UT)                                                |
@@ -380,7 +380,7 @@ ZTF observation metadata.
 Found objects and observation geometry at image mid-time.
 
 | Column      | Type    | Source   | Description                                                     |
-|-------------|---------|----------|-----------------------------------------------------------------|
+| ----------- | ------- | -------- | --------------------------------------------------------------- |
 | foundid     | integer | zchecker | unique identifier                                               |
 | objid       | integer | zchecker | unique object identifier from `obj` table                       |
 | obsid       | integer | zchecker | unique observation identifier from `obs` table                  |
@@ -405,7 +405,7 @@ Found objects and observation geometry at image mid-time.
 ### `ztf_cutouts`
 
 | Column      | Type    | Source   | Description                                          |
-|-------------|---------|----------|------------------------------------------------------|
+| ----------- | ------- | -------- | ---------------------------------------------------- |
 | foundid     | integer | zchecker | unique identifier from `found` table                 |
 | stackid     | integer | zchecker | unique identifier from `ztf_stacks` table            |
 | programid   | integer | ZTF      | queue program ID from header                         |
@@ -423,7 +423,7 @@ Found objects and observation geometry at image mid-time.
 ### `ztf_stacks`
 
 | Column    | Type    | Source   | Description           |
-|-----------|---------|----------|-----------------------|
+| --------- | ------- | -------- | --------------------- |
 | stackid   | integer | zchecker | unique identifier     |
 | stackfile | text    | zchecker | file name             |
 | stackdate | text    | zchecker | date data was stacked |
@@ -434,7 +434,7 @@ preserved upon multiple runs of ``zstack``.
 ### `ztf_phot`
 
 | Column   | Type    | Source   | Description                                                   |
-|----------|---------|----------|---------------------------------------------------------------|
+| -------- | ------- | -------- | ------------------------------------------------------------- |
 | foundid  | integer | zchecker | unique identifier from `found` table                          |
 | dx       | float   | zchecker | centroid x offset from ephemeris position (pixel)             |
 | dy       | float   | zchecker | centroid y offset from ephemeris position (pixel)             |
@@ -453,13 +453,13 @@ flux, m, and merr are arrays of single-precision floats.
 
 Photometry flags:
 
-| Bit | Value | Description                               |
-|-----|-------|-------------------------------------------|
-| 0   | 1     | Ephemeris outside image                   |
-| 1   | 2     | Centroid failure                          |
-| 2   | 4     | Centroid outside uncertainty limit        |
-| 3   | 8     | Ephemeris too uncertain to measure source |
-| 4   | 16    | Image uncalibrated                        |
+| Bit | Value | Description                                                                  |
+| --- | ----- | ---------------------------------------------------------------------------- |
+| 0   | 1     | Ephemeris outside image                                                      |
+| 1   | 2     | Centroid failure                                                             |
+| 2   | 4     | Centroid outside uncertainty limit                                           |
+| 3   | 8     | Ephemeris too uncertain to measure source                                    |
+| 4   | 16    | Image uncalibrated                                                           |
 | 5   | 32    | Non-zero info bit flag, see Section 10.4 of the [ZTF Science Data System][1] |
 
 ### Schema summary
