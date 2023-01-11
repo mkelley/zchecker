@@ -14,7 +14,7 @@ from sbsearch.interior import interior_test
 from sbsearch.util import RADec
 from zchecker import ZChecker, Config
 from zchecker.config import _config_example
-from zchecker.cli_helpers import object_list, as_time, args2orbit
+from zchecker.cli_helpers import as_time
 
 # create the top-level parser
 # Configuration file format should match the description in zchecker.config.
@@ -24,6 +24,11 @@ Configuration file format:
 {}
 '''.format(_config_example), formatter_class=argparse.RawTextHelpFormatter)
 
+parser.add_argument('object', help='object designation')
+parser.add_argument('start', type=as_time, help='search beginning with this date, UT')
+parser.add_argument('stop', type=as_time, help='search ending with this date, UT')
+parser.add_argument('--source', choices=['jpl', 'mpc'], default='jpl',
+                    help='base search on ephemerides from JPL or MPC')
 parser.add_argument('--db', help='database file')
 parser.add_argument('--log', help='log file')
 parser.add_argument('--config', default='./zchecker.config',
