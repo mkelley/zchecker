@@ -48,7 +48,7 @@ def get_fields():
     # add centers
     tab['ra'] = np.array([tab[f'ra{j}'].data for j in range(1, 5)]).mean(0)
     tab['dec'] = np.array([tab[f'dec{j}'].data for j in range(1, 5)]).mean(0)
-    return tab
+    return tab[tab['field'] < 2000]
 
 
 #########################################################################
@@ -59,7 +59,7 @@ def find_field(fields, field_centers, coords):
 
     point = RADec(coords.ra.value, coords.dec.value, unit='deg')
     ra = fields[i][[f'ra{j}' for j in range(1, 5)]]
-    dec = fields[i][[f'ra{j}' for j in range(1, 5)]]
+    dec = fields[i][[f'dec{j}' for j in range(1, 5)]]
     area = RADec(ra, dec, unit='deg')
 
     if interior_test(point, area):
@@ -74,13 +74,13 @@ def ztf_field(args):
     stop = args.stop + 1 * u.day  # search limit is end of the day
     step = u.Quantity(args.step)
     epochs = {
-        'start': start.iso[:10],
-        'stop': stop.iso[:10],
+        'start': start,
+        'stop': stop,
         'step': step
     }
 
     fields = get_fields()
-    prime = fields['ID'] < 1000
+    prime = fields['field'] < 1000
     field_centers = SkyCoord(fields['ra'], fields['dec'], unit='deg')
 
     config = Config.from_args(args)
@@ -96,9 +96,11 @@ def ztf_field(args):
                 nearest_alt = find_field(fields[~prime], field_centers[~prime], coords)
                 rows.append({
                     "date": eph[i]['date'][0].iso,
-                    "rh": eph[i]['rh'][0].value,
-                    "delta": eph[i]['rh'][0].value,
-                    "phase": eph[i]['rh'][0].value,
+                    "ra": np.round(eph[i]['ra'][0].value, 3),
+                    "dec": np.round(eph[i]['dec'][0].value, 3),
+                    "rh": np.round(eph[i]['rh'][0].value, 3),
+                    "delta": np.round(eph[i]['rh'][0].value, 3),
+                    "phase": np.round(eph[i]['rh'][0].value, 2),
                     "prime field": nearest_prime,
                     "alt field": nearest_alt
                 })
