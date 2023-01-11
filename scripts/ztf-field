@@ -29,6 +29,7 @@ parser.add_argument('start', type=as_time, help='search beginning with this date
 parser.add_argument('stop', type=as_time, help='search ending with this date, UT')
 parser.add_argument('--source', choices=['jpl', 'mpc'], default='jpl',
                     help='base search on ephemerides from JPL or MPC')
+parser.add_argument('--step', default='1d', help='step size for ephemeris generation')
 parser.add_argument('--db', help='database file')
 parser.add_argument('--log', help='log file')
 parser.add_argument('--config', default='./zchecker.config',
