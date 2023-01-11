@@ -99,8 +99,8 @@ def ztf_field(args):
                     "ra": np.round(eph[i]['ra'][0].value, 3),
                     "dec": np.round(eph[i]['dec'][0].value, 3),
                     "rh": np.round(eph[i]['rh'][0].value, 3),
-                    "delta": np.round(eph[i]['rh'][0].value, 3),
-                    "phase": np.round(eph[i]['rh'][0].value, 2),
+                    "delta": np.round(eph[i]['delta'][0].value, 3),
+                    "phase": np.round(eph[i]['phase'][0].value, 2),
                     "prime field": nearest_prime,
                     "alt field": nearest_alt
                 })
