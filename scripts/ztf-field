@@ -1,0 +1,117 @@
+#!/usr/bin/env python3
+# Licensed under a 3-clause BSD style license - see LICENSE.rst
+import sys
+import argparse
+
+import numpy as np
+import astropy.units as u
+from astropy.time import Time
+from astropy.table import Table
+from astropy.coordinates import SkyCoord
+from astropy.utils.data import download_file
+
+from sbsearch.interior import interior_test
+from sbsearch.util import RADec
+from zchecker import ZChecker, Config
+from zchecker.config import _config_example
+from zchecker.cli_helpers import object_list, as_time, args2orbit
+
+# create the top-level parser
+# Configuration file format should match the description in zchecker.config.
+parser = argparse.ArgumentParser(prog='ztf-field', description='Convert ephemeris to list of ZTF field IDs.', epilog='''
+Configuration file format:
+
+{}
+'''.format(_config_example), formatter_class=argparse.RawTextHelpFormatter)
+
+parser.add_argument('--db', help='database file')
+parser.add_argument('--log', help='log file')
+parser.add_argument('--config', default='./zchecker.config',
+                    help='configuration file')
+parser.add_argument('-v', action='store_true', help='increase verbosity')
+
+today = Time(Time.now().iso[:10])
+
+#########################################################################
+def get_fields():
+    # columns: field,ra1,dec1,ra2,dec2,ra3,dec3,ra4,dec4
+    url = "https://raw.githubusercontent.com/ZwickyTransientFacility/ztf_information/master/field_grid/ztf_field_corners.csv"
+    fn = download_file(url, cache=True)
+    tab = ascii.read(fn, format="csv")
+    # add centers
+    tab['ra'] = np.array([tab[f'ra{j}'].data for j in range(1, 5)]).mean(0)
+    tab['dec'] = np.array([tab[f'dec{j}'].data for j in range(1, 5)]).mean(0)
+    return tab
+
+
+#########################################################################
+
+def find_field(fields, field_centers, coords):
+    sep = field_centers.separation(coords)
+    i = sep.argmin()
+
+    point = RADec(coords.ra.value, coords.dec.value, unit='deg')
+    ra = fields[i][[f'ra{j}' for j in range(1, 5)]]
+    dec = fields[i][[f'ra{j}' for j in range(1, 5)]]
+    area = RADec(ra, dec, unit='deg')
+
+    if interior_test(point, area):
+        return fields[i]['field']
+    else:
+        return None
+
+#########################################################################
+
+def ztf_field(args):
+    start = args.start
+    stop = args.stop + 1 * u.day  # search limit is end of the day
+    step = u.Quantity(args.step)
+    epochs = {
+        'start': start.iso[:10],
+        'stop': stop.iso[:10],
+        'step': step
+    }
+
+    fields = get_fields()
+    prime = fields['ID'] < 1000
+    field_centers = SkyCoord(fields['ra'], fields['dec'], unit='deg')
+
+    config = Config.from_args(args)
+    with ZChecker(config, save_log=False) as z:
+        try:
+            eph = z.db.get_ephemeris_exact(
+                args.object, 'I41', epochs, source=args.source)
+
+            rows = []
+            for i in range(len(eph)):
+                coords = SkyCoord(eph[i]['ra'][0], eph[i]['dec'][0])
+                nearest_prime = find_field(fields[prime], field_centers[prime], coords)
+                nearest_alt = find_field(fields[~prime], field_centers[~prime], coords)
+                rows.append({
+                    "date": eph[i]['date'][0].iso,
+                    "rh": eph[i]['rh'][0].value,
+                    "delta": eph[i]['rh'][0].value,
+                    "phase": eph[i]['rh'][0].value,
+                    "prime field": nearest_prime,
+                    "alt field": nearest_alt
+                })
+            tab = Table(rows)
+
+        except Exception as e:
+            z.logger.error(str(e))
+            raise e
+
+        tab.pprint(max_lines=-1, max_width=-1)
+
+
+########################################################################
+
+args = parser.parse_args()
+try:
+    ztf_field(args)
+except Exception as e:
+    if args.v:
+        raise(e)
+    else:
+        print(str(e))
+        sys.exit()
