@@ -140,8 +140,8 @@ def one_shot(args):
     stop = args.stop + 1 * u.day  # search limit is end of the day
     step = u.Quantity(args.step)
     epochs = {
-        'start': start.iso[:10],
-        'stop': stop.iso[:10],
+        'start': Time(start.iso[:10]),
+        'stop': Time(stop.iso[:10]),
         'step': step
     }
 
