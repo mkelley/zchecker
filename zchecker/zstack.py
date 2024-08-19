@@ -481,7 +481,7 @@ class ZStack(ZChecker):
                     continue
 
                 if header0 is None:
-                    header0 = h
+                    header0 = hdu["SANGLE"].header
                     file0 = f
 
                 # use provided mask, if possible
@@ -549,7 +549,7 @@ class ZStack(ZChecker):
         im = np.ma.median(im, 2).filled(np.nan)
         wcs0 = WCS(header0)
         combined = fits.ImageHDU(im, wcs0.to_header())
-        combined.header["WCSORIGIN"] = file0
+        combined.header["WCSORIGN"] = file0
 
         scale_name = {"surface": "surf"}.get(scale_by, scale_by)
 
