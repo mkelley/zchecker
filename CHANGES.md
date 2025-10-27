@@ -1,5 +1,9 @@
 # Changes
 
+## v2.8.3
+* Bugfix: When selecting data to stack, headers were searched for calibration info using a sorted file list, yet the unsorted list was indexed with the result.
+* Add WCS and stack metadata to the nightly stacked data extension.
+
 ## v2.6.0
 * New outburst statistic (ostat) and search.
 * ztf_phot table update to include ostat.

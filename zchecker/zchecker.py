@@ -38,12 +38,14 @@ class ZChecker(SBSearch):
 
     """
 
-    def __init__(self, config=None, save_log=False, disable_log=False,
-                 **kwargs):
-        kwargs['location'] = 'I41'
+    def __init__(self, config=None, save_log=False, disable_log=False, **kwargs):
+        kwargs["location"] = "I41"
         self.config = Config(**kwargs) if config is None else config
-        super().__init__(config=config, save_log=save_log,
-                         disable_log=disable_log, **kwargs)
+
+        super().__init__(
+            config=config, save_log=save_log, disable_log=disable_log, **kwargs
+        )
+
         if not disable_log:
             level = logging.INFO
 
@@ -76,46 +78,47 @@ class ZChecker(SBSearch):
             return summary
 
         if summary is None:
-            self.logger.info('Nothing to download.')
+            self.logger.info("Nothing to download.")
             return None
 
         rows = summary.copy()
 
         # add ZData required meta data
-        undef = ['undef'] * len(rows)
-        na = ['N/A'] * len(rows)
-        rows['objid'] = na
-        rows['obsjd'] = Time(rows['date']).jd
-        rows['phase'] = undef
-        rows['rdot'] = np.zeros(len(rows))
-        rows['sangle'] = undef
-        rows['vangle'] = undef
-        rows['trueanomaly'] = undef
-        rows['tmtp'] = undef
-        rows['ra'] = rows['RA']
-        rows['dec'] = rows['Dec']
-        rows['dra'] = undef
-        rows['ddec'] = undef
-        rows['ra3sig'] = undef
-        rows['dec3sig'] = undef
-        rows['foundid'] = na
-        rows['ccdid'] = rows['ccd']
-        rows['qid'] = rows['quad']
-        rows['filtercode'] = rows['filter']
+        undef = ["undef"] * len(rows)
+        na = ["N/A"] * len(rows)
+        rows["objid"] = na
+        rows["obsjd"] = Time(rows["date"]).jd
+        rows["phase"] = undef
+        rows["rdot"] = np.zeros(len(rows))
+        rows["sangle"] = undef
+        rows["vangle"] = undef
+        rows["trueanomaly"] = undef
+        rows["tmtp"] = undef
+        rows["ra"] = rows["RA"]
+        rows["dec"] = rows["Dec"]
+        rows["dra"] = undef
+        rows["ddec"] = undef
+        rows["ra3sig"] = undef
+        rows["dec3sig"] = undef
+        rows["foundid"] = na
+        rows["ccdid"] = rows["ccd"]
+        rows["qid"] = rows["quad"]
+        rows["filtercode"] = rows["filter"]
 
-        path = self.config['cutout path']
-        fntemplate = ('pccp/{desgfile}/{desgfile}-{datetime}-{rh:.3f}'
-                      '-{filtercode[1]}-ztf.fits')
-        if download is 'cutouts':
-            size = self.config['cutout size']
-        elif download is 'fullframe':
+        path = self.config["cutout path"]
+        fntemplate = (
+            "pccp/{desgfile}/{desgfile}-{datetime}-{rh:.3f}" "-{filtercode[1]}-ztf.fits"
+        )
+        if download == "cutouts":
+            size = self.config["cutout size"]
+        elif download == "fullframe":
             size = None
         else:
-            raise ValueError('download must be cutout or fullframe.')
+            raise ValueError("download must be cutout or fullframe.")
 
         count = len(rows)
         exists = 0
-        self.logger.info('Checking for {} images.'.format(count))
+        self.logger.info("Checking for {} images.".format(count))
 
         with ztf.IRSA(path, self.config.auth) as irsa:
             for i in range(len(rows)):
@@ -124,28 +127,32 @@ class ZChecker(SBSearch):
                     row[col] = rows[col][i]
 
                 try:
-                    with ZData(irsa, path, fntemplate, self.logger,
-                               preserve_case=True, **row) as cutout:
+                    with ZData(
+                        irsa, path, fntemplate, self.logger, preserve_case=True, **row
+                    ) as cutout:
                         count -= 1
 
                         if os.path.exists(cutout.fn):
                             exists += 1
                             continue
 
-                        cutout.append('sci', size=size)
+                        cutout.append("sci", size=size)
 
-                        for img in ['mask', 'psf', 'diff', 'ref']:
+                        for img in ["mask", "psf", "diff", "ref"]:
                             try:
                                 cutout.append(img, size=size)
                             except ZCheckerError:
                                 pass
                 except ZCheckerError as e:
-                    self.logger.error('{} - {}'.format(cutout.fn, str(e)))
+                    self.logger.error("{} - {}".format(cutout.fn, str(e)))
 
-                self.logger.debug('  [{}] {}'.format(count + 1, cutout.fn))
+                self.logger.debug("  [{}] {}".format(count + 1, cutout.fn))
 
-        self.logger.info('{} downloaded, {} already exist{}.'.format(
-            len(rows) - exists, exists, 's' if exists == 1 else ''))
+        self.logger.info(
+            "{} downloaded, {} already exist{}.".format(
+                len(rows) - exists, exists, "s" if exists == 1 else ""
+            )
+        )
 
         return summary
 
@@ -165,8 +172,9 @@ class ZChecker(SBSearch):
 
         """
 
-        n_rows = self.executemany('DELETE FROM ztf_cutouts WHERE foundid=?',
-                                  [[i] for i in foundids])
+        n_rows = self.executemany(
+            "DELETE FROM ztf_cutouts WHERE foundid=?", [[i] for i in foundids]
+        )
         n_files = self.clean_stale_files()
         self.db.commit()
         return n_rows, n_files
@@ -186,8 +194,9 @@ class ZChecker(SBSearch):
 
         """
 
-        n_rows = self.executemany('DELETE FROM ztf_stacks WHERE stackid=?',
-                                  [[i] for i in stackids])
+        n_rows = self.executemany(
+            "DELETE FROM ztf_stacks WHERE stackid=?", [[i] for i in stackids]
+        )
         n_files = self.clean_stale_files()
         self.db.commit()
         return n_rows, n_files
@@ -203,7 +212,7 @@ class ZChecker(SBSearch):
         """
 
         count = 0
-        rows = self.db.execute('SELECT rowid,path,file FROM ztf_stale_files')
+        rows = self.db.execute("SELECT rowid,path,file FROM ztf_stale_files")
         rowids = []
         for row in rows:
             f = os.path.join(self.config[row[1]], row[2])
@@ -213,14 +222,14 @@ class ZChecker(SBSearch):
             rowids.append([row[0]])
 
         if len(rowids) > 0:
-            self.db.executemany(
-                'DELETE FROM ztf_stale_files WHERE rowid=?', rowids)
-            self.logger.info('{} stale archive files removed.'.format(count))
+            self.db.executemany("DELETE FROM ztf_stale_files WHERE rowid=?", rowids)
+            self.logger.info("{} stale archive files removed.".format(count))
         self.db.commit()
         return count
 
-    def download_cutouts(self, objects=None, clean_failed=True,
-                         retry_failed=True, missing_files=False):
+    def download_cutouts(
+        self, objects=None, clean_failed=True, retry_failed=True, missing_files=False
+    ):
         """Download cutouts around found objects.
 
         Parameters
@@ -240,66 +249,78 @@ class ZChecker(SBSearch):
 
         """
 
-        path = self.config['cutout path']
-        fntemplate = ('{desgfile}/{desgfile}-{datetime}-{prepost}{rh:.3f}'
-                      '-{filtercode[1]}-ztf.fits')
+        path = self.config["cutout path"]
+        fntemplate = (
+            "{desgfile}/{desgfile}-{datetime}-{prepost}{rh:.3f}"
+            "-{filtercode[1]}-ztf.fits"
+        )
 
-        cmd = 'SELECT foundid FROM found LEFT JOIN ztf_cutouts USING (foundid)'
+        cmd = "SELECT foundid FROM found LEFT JOIN ztf_cutouts USING (foundid)"
 
         constraints = []
 
         if not missing_files:
-            constraints.append(('(sciimg IS NULL OR sciimg=0)', None))
+            constraints.append(("(sciimg IS NULL OR sciimg=0)", None))
 
         if objects:
             objids = [obj[0] for obj in self.db.resolve_objects(objects)]
-            q = ','.join('?' * len(objids))
-            constraints.append(('objid IN ({})'.format(q), objids))
+            q = ",".join("?" * len(objids))
+            constraints.append(("objid IN ({})".format(q), objids))
 
         if missing_files and retry_failed:
-            raise ValueError('missing_files and retry_failed options are '
-                             'incompatible.')
+            raise ValueError(
+                "missing_files and retry_failed options are " "incompatible."
+            )
 
         if retry_failed:
-            constraints.append(('retrieved NOTNULL', None))
+            constraints.append(("retrieved NOTNULL", None))
         elif missing_files:
             pass
         else:
-            constraints.append(('retrieved IS NULL', None))
+            constraints.append(("retrieved IS NULL", None))
 
         cmd, parameters = util.assemble_sql(cmd, [], constraints)
 
         # create temporary table to isolate from updates
-        self.db.execute('''
+        self.db.execute(
+            """
         CREATE TEMPORARY TABLE foundids_to_download AS {}
-        '''.format(cmd), parameters)
-        foundids = self.db.iterate_over(
-            'SELECT foundid FROM foundids_to_download', []
+        """.format(
+                cmd
+            ),
+            parameters,
         )
-        count = (self.db.execute('SELECT COUNT() FROM foundids_to_download')
-                 .fetchone())[0]
+        foundids = self.db.iterate_over("SELECT foundid FROM foundids_to_download", [])
+        count = (
+            self.db.execute("SELECT COUNT() FROM foundids_to_download").fetchone()
+        )[0]
 
         if count == 0:
-            self.logger.info('No cutouts to download.')
+            self.logger.info("No cutouts to download.")
             return
 
         if missing_files:
-            verb = 'Testing for'
+            verb = "Testing for"
         else:
-            verb = 'Downloading'
+            verb = "Downloading"
 
-        self.logger.info('{} {} cutouts.'.format(verb, count))
-        
+        self.logger.info("{} {} cutouts.".format(verb, count))
+
         missing = 0
         downloaded = 0
         with ztf.IRSA(path, self.config.auth) as irsa:
             for foundid in foundids:
-                row = OrderedDict(self.db.execute('''
+                row = OrderedDict(
+                    self.db.execute(
+                        """
                 SELECT * FROM found
                 INNER JOIN ztf USING (obsid)
                 INNER JOIN obj USING (objid)
                 WHERE foundid=:foundid
-                ''', {'foundid': foundid[0]}).fetchone())
+                """,
+                        {"foundid": foundid[0]},
+                    ).fetchone()
+                )
                 count -= 1
 
                 if missing_files:
@@ -308,20 +329,18 @@ class ZChecker(SBSearch):
                         continue
                     missing += 1
 
-                alternates = self.db.get_alternates(row['objid'])
+                alternates = self.db.get_alternates(row["objid"])
                 for i, alt in enumerate(alternates):
-                    row['desg{}'.format(i + 1)] = alt
+                    row["desg{}".format(i + 1)] = alt
 
                 try:
-                    with ZData(irsa, path, fntemplate, self.logger,
-                               **row) as cutout:
-                        cutout.append('sci', size=self.config['cutout size'])
+                    with ZData(irsa, path, fntemplate, self.logger, **row) as cutout:
+                        cutout.append("sci", size=self.config["cutout size"])
                         downloaded += 1
 
-                        for img in ['mask', 'psf', 'diff', 'ref']:
+                        for img in ["mask", "psf", "diff", "ref"]:
                             try:
-                                cutout.append(
-                                    img, size=self.config['cutout size'])
+                                cutout.append(img, size=self.config["cutout size"])
                             except ZCheckerError:
                                 pass
                 except ZCheckerError as e:
@@ -329,16 +348,16 @@ class ZChecker(SBSearch):
                 finally:
                     cutout.add_to_db(self.db, update=missing_files)
 
-                self.logger.debug('  [{}] {}'.format(count + 1, cutout.fn))
+                self.logger.debug("  [{}] {}".format(count + 1, cutout.fn))
 
         if missing_files:
-            self.logger.info('{} files were missing'.format(missing))
+            self.logger.info("{} files were missing".format(missing))
 
-        self.logger.info('{} files successfully downloaded.'
-                         .format(downloaded))
+        self.logger.info("{} files successfully downloaded.".format(downloaded))
 
-    def find_by_orbit(self, desg, orbit, start=None, stop=None, step=None,
-                      download=None):
+    def find_by_orbit(
+        self, desg, orbit, start=None, stop=None, step=None, download=None
+    ):
         """Search for object by orbital elements.
 
         Parameters
@@ -372,47 +391,49 @@ class ZChecker(SBSearch):
             return tab
 
         if tab is None:
-            self.logger.info('Nothing to download.')
+            self.logger.info("Nothing to download.")
             return None
 
         rows = tab.copy()
 
         # add ZData required meta data
-        undef = ['undef'] * len(rows)
-        na = ['N/A'] * len(rows)
-        rows['desg'] = [desg] * len(rows)
-        rows['objid'] = na
-        rows['obsjd'] = Time(rows['date']).jd
-        rows['phase'] = undef
-        rows['rdot'] = np.zeros(len(rows))
-        rows['sangle'] = undef
-        rows['vangle'] = undef
-        rows['trueanomaly'] = undef
-        rows['tmtp'] = undef
-        rows['ra'] = rows['RA']
-        rows['dec'] = rows['Dec']
-        rows['dra'] = undef
-        rows['ddec'] = undef
-        rows['ra3sig'] = undef
-        rows['dec3sig'] = undef
-        rows['foundid'] = na
-        rows['ccdid'] = rows['ccd']
-        rows['qid'] = rows['quad']
-        rows['filtercode'] = rows['filter']
+        undef = ["undef"] * len(rows)
+        na = ["N/A"] * len(rows)
+        rows["desg"] = [desg] * len(rows)
+        rows["objid"] = na
+        rows["obsjd"] = Time(rows["date"]).jd
+        rows["phase"] = undef
+        rows["rdot"] = np.zeros(len(rows))
+        rows["sangle"] = undef
+        rows["vangle"] = undef
+        rows["trueanomaly"] = undef
+        rows["tmtp"] = undef
+        rows["ra"] = rows["RA"]
+        rows["dec"] = rows["Dec"]
+        rows["dra"] = undef
+        rows["ddec"] = undef
+        rows["ra3sig"] = undef
+        rows["dec3sig"] = undef
+        rows["foundid"] = na
+        rows["ccdid"] = rows["ccd"]
+        rows["qid"] = rows["quad"]
+        rows["filtercode"] = rows["filter"]
 
-        path = self.config['cutout path']
-        fntemplate = ('found-by-orbit/{desgfile}/{desgfile}-{datetime}-{rh:.3f}'
-                      '-{filtercode[1]}-ztf.fits')
-        if download is 'cutouts':
-            size = self.config['cutout size']
-        elif download is 'fullframe':
+        path = self.config["cutout path"]
+        fntemplate = (
+            "found-by-orbit/{desgfile}/{desgfile}-{datetime}-{rh:.3f}"
+            "-{filtercode[1]}-ztf.fits"
+        )
+        if download == "cutouts":
+            size = self.config["cutout size"]
+        elif download == "fullframe":
             size = None
         else:
-            raise ValueError('download must be cutout or fullframe.')
+            raise ValueError("download must be cutout or fullframe.")
 
         count = len(rows)
         exists = 0
-        self.logger.info('Checking for {} images.'.format(count))
+        self.logger.info("Checking for {} images.".format(count))
 
         with ztf.IRSA(path, self.config.auth) as irsa:
             for i in range(len(rows)):
@@ -421,70 +442,76 @@ class ZChecker(SBSearch):
                     row[col] = rows[col][i]
 
                 try:
-                    with ZData(irsa, path, fntemplate, self.logger,
-                               preserve_case=True, **row) as cutout:
+                    with ZData(
+                        irsa, path, fntemplate, self.logger, preserve_case=True, **row
+                    ) as cutout:
                         count -= 1
 
                         if os.path.exists(cutout.fn):
                             exists += 1
                             continue
 
-                        cutout.append('sci', size=size)
+                        cutout.append("sci", size=size)
 
-                        for img in ['mask', 'psf', 'diff', 'ref']:
+                        for img in ["mask", "psf", "diff", "ref"]:
                             try:
                                 cutout.append(img, size=size)
                             except ZCheckerError:
                                 pass
                 except ZCheckerError as e:
-                    self.logger.error('{} - {}'.format(cutout.fn, str(e)))
+                    self.logger.error("{} - {}".format(cutout.fn, str(e)))
 
-                self.logger.debug('  [{}] {}'.format(count + 1, cutout.fn))
+                self.logger.debug("  [{}] {}".format(count + 1, cutout.fn))
 
-        self.logger.info('{} downloaded, {} already exist{}.'.format(
-            len(rows) - exists, exists, 's' if exists == 1 else ''))
+        self.logger.info(
+            "{} downloaded, {} already exist{}.".format(
+                len(rows) - exists, exists, "s" if exists == 1 else ""
+            )
+        )
 
         return tab
 
     def summarize_found(self, objects=None, start=None, stop=None):
         """Summarize found object database."""
         kwargs = {
-            'objects': objects,
-            'start': start,
-            'stop': stop,
-            'columns': ('foundid,desg,obsjd,ra,dec,ra3sig,dec3sig,vmag,'
-                        'filtercode,rh,rdot,delta,phase,selong'),
-            'inner_join': ['ztf USING (obsid)']
+            "objects": objects,
+            "start": start,
+            "stop": stop,
+            "columns": (
+                "foundid,desg,obsjd,ra,dec,ra3sig,dec3sig,vmag,"
+                "filtercode,rh,rdot,delta,phase,selong"
+            ),
+            "inner_join": ["ztf USING (obsid)"],
         }
         tab = super().summarize_found(**kwargs)
 
         if tab is None:
             return None
 
-        date = [d[:16] for d in Time(tab['obsjd'], format='jd').iso]
-        tab.add_column(Column(date, name='date'), 2)
-        tab['ra'] = Angle(tab['ra'], 'deg').to_string(
-            sep=':', precision=1, pad=True, unit='hourangle')
-        tab['dec'] = Angle(tab['dec'], 'deg').to_string(
-            sep=':', precision=0, pad=True)
-        tab['rh'] = tab['rh'] * np.sign(tab['rdot'])
-        tab['filtercode'].name = 'filt'
-        tab.remove_column('obsjd')
-        tab.remove_column('rdot')
+        date = [d[:16] for d in Time(tab["obsjd"], format="jd").iso]
+        tab.add_column(Column(date, name="date"), 2)
+        tab["ra"] = Angle(tab["ra"], "deg").to_string(
+            sep=":", precision=1, pad=True, unit="hourangle"
+        )
+        tab["dec"] = Angle(tab["dec"], "deg").to_string(sep=":", precision=0, pad=True)
+        tab["rh"] = tab["rh"] * np.sign(tab["rdot"])
+        tab["filtercode"].name = "filt"
+        tab.remove_column("obsjd")
+        tab.remove_column("rdot")
 
-        for col in ('ra3sig', 'dec3sig', 'phase', 'selong'):
-            tab[col].format = '{:.0f}'
-        tab['vmag'].format = '{:.1f}'
-        for col in ('rh', 'delta'):
-            tab[col].format = '{:.2f}'
+        for col in ("ra3sig", "dec3sig", "phase", "selong"):
+            tab[col].format = "{:.0f}"
+        tab["vmag"].format = "{:.1f}"
+        for col in ("rh", "delta"):
+            tab[col].format = "{:.2f}"
 
         return tab
 
     def summarize_nights(self):
         """Summarize nights in database."""
 
-        cmd = 'SELECT date,quads,exposures FROM ztf_nights'
-        names = ('date', 'quads', 'exposures')
+        cmd = "SELECT date,quads,exposures FROM ztf_nights"
+        names = ("date", "quads", "exposures")
         tab = Table(rows=self.db.execute(cmd).fetchall(), names=names)
         return tab
 
@@ -508,26 +535,44 @@ class ZChecker(SBSearch):
 
         inner_join = ()
         if add_found:
-            columns = ('obsid,(jd_start + jd_stop) / 2 AS jd,'
-                       'ra,dec,rh,delta,vmag,filefracday,field,ccdid,'
-                       'qid,filtercode')
-            inner_join += ('found USING (obsid)',)
-            names = ('obsid', 'date', 'ra', 'dec', 'rh', 'delta', 'vmag',
-                     'filefracday', 'field', 'ccd', 'quad', 'filter')
+            columns = (
+                "obsid,(jd_start + jd_stop) / 2 AS jd,"
+                "ra,dec,rh,delta,vmag,filefracday,field,ccdid,"
+                "qid,filtercode"
+            )
+            inner_join += ("found USING (obsid)",)
+            names = (
+                "obsid",
+                "date",
+                "ra",
+                "dec",
+                "rh",
+                "delta",
+                "vmag",
+                "filefracday",
+                "field",
+                "ccd",
+                "quad",
+                "filter",
+            )
         else:
-            columns = ('obsid,(jd_start + jd_stop) / 2 AS jd,filefracday,'
-                       'field,ccdid,qid,filtercode')
-            names = ('obsid', 'date', 'filefracday', 'field', 'ccd',
-                     'quad', 'filter')
+            columns = (
+                "obsid,(jd_start + jd_stop) / 2 AS jd,filefracday,"
+                "field,ccdid,qid,filtercode"
+            )
+            names = ("obsid", "date", "filefracday", "field", "ccd", "quad", "filter")
 
-        inner_join += ('ztf USING (obsid)',)
+        inner_join += ("ztf USING (obsid)",)
 
         rows = []
         obs = self.db.get_observations_by_id(
-            obsids, columns=columns, inner_join=inner_join, generator=True)
+            obsids, columns=columns, inner_join=inner_join, generator=True
+        )
         for row in obs:
-            rows.append([row[0], Time(row[1], format='jd').iso[:-4]]
-                        + list([r for r in row[2:]]))
+            rows.append(
+                [row[0], Time(row[1], format="jd").iso[:-4]]
+                + list([r for r in row[2:]])
+            )
 
         if len(rows) == 0:
             tab = Table(names=names)
@@ -546,51 +591,64 @@ class ZChecker(SBSearch):
 
         """
 
-        if not re.match('20[12][0-9]-[01][0-9]-[0123][0-9]', date):
-            raise ValueError('date format is YYYY-MM-DD')
+        if not re.match("20[12][0-9]-[01][0-9]-[0123][0-9]", date):
+            raise ValueError("date format is YYYY-MM-DD")
 
         # if date already defined, update
-        row = self.db.execute('''
+        row = self.db.execute(
+            """
         SELECT nightid FROM ztf_nights WHERE date=?
-        ''', (date,)).fetchone()
+        """,
+            (date,),
+        ).fetchone()
         nightid = None if row is None else row[0]
 
         jd_start = Time(date).jd
         jd_end = Time(date).jd + 1.0
 
         payload = {
-            'WHERE': "obsjd>{} AND obsjd<{}".format(jd_start, jd_end),
-            'COLUMNS': ('pid,obsjd,exptime,ra,dec,'
-                        'ra1,dec1,ra2,dec2,ra3,dec3,ra4,dec4,'
-                        'infobits,field,ccdid,qid,rcid,fid,filtercode,'
-                        'expid,filefracday,seeing,airmass,moonillf,maglimit')
+            "WHERE": "obsjd>{} AND obsjd<{}".format(jd_start, jd_end),
+            "COLUMNS": (
+                "pid,obsjd,exptime,ra,dec,"
+                "ra1,dec1,ra2,dec2,ra3,dec3,ra4,dec4,"
+                "infobits,field,ccdid,qid,rcid,fid,filtercode,"
+                "expid,filefracday,seeing,airmass,moonillf,maglimit"
+            ),
         }
         tab = ztf.query(payload, self.config.auth, logger=self.logger)
         retrieved = Time.now().iso[:-4]
-        exposures = len(np.unique(tab['expid']))
+        exposures = len(np.unique(tab["expid"]))
         quads = len(tab)
 
         if nightid is None:
-            c = self.db.execute('''
+            c = self.db.execute(
+                """
             INSERT INTO ztf_nights VALUES (NULL,?,?,?,?)
-            ''', (date, exposures, quads, retrieved))
+            """,
+                (date, exposures, quads, retrieved),
+            )
             nightid = c.lastrowid
         else:
-            c = self.db.execute('''
+            c = self.db.execute(
+                """
             UPDATE OR FAIL ztf_nights SET exposures=?,quads=?,retrieved=?
             WHERE nightid=?
-            ''', (exposures, quads, retrieved, nightid))
+            """,
+                (exposures, quads, retrieved, nightid),
+            )
 
         self.db.commit()
 
         # make sure we do not add any duplicates
-        test = '''
+        test = """
         SELECT count() FROM ztf WHERE pid=:pid
-        '''
-        new = [not bool(self.db.execute(test, {'pid': row[0]}).fetchone()[0])
-               for row in tab]
+        """
+        new = [
+            not bool(self.db.execute(test, {"pid": row[0]}).fetchone()[0])
+            for row in tab
+        ]
         tab = tab[new]
-        exposures = len(np.unique(tab['expid']))
+        exposures = len(np.unique(tab["expid"]))
         quads = len(tab)
 
         def obs_iterator(tab):
@@ -598,14 +656,14 @@ class ZChecker(SBSearch):
                 row = tuple(tab[i].as_void())
                 jd_stop = row[1] + row[2] / 86400
                 coords = np.radians(row[3:13])
-                obs = (None, 'ztf', row[1], jd_stop, coords)
+                obs = (None, "ztf", row[1], jd_stop, coords)
                 yield obs
 
         def ztf_iterator(tab, nightid):
             for i in range(len(tab)):
                 row = tuple(tab[i].as_void())
                 jd_mid = float(row[1]) + row[2] / 86400 / 2
-                obsdate = Time(jd_mid, format='jd').iso[:-4]
+                obsdate = Time(jd_mid, format="jd").iso[:-4]
                 if isinstance(row[-1], bytes):
                     maglim = None
                 else:
@@ -613,21 +671,22 @@ class ZChecker(SBSearch):
                 ztf = (row[0], nightid, obsdate) + row[13:-1] + (maglim,)
                 yield ztf
 
-        ztf_insert = '''
+        ztf_insert = """
         INSERT INTO ztf VALUES (
           last_insert_rowid(),?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?
         )
-        '''
-        self.db.add_observations(obs_iterator(tab),
-                                 other_cmd=ztf_insert,
-                                 other_rows=ztf_iterator(tab, nightid),
-                                 logger=self.logger)
+        """
+        self.db.add_observations(
+            obs_iterator(tab),
+            other_cmd=ztf_insert,
+            other_rows=ztf_iterator(tab, nightid),
+            logger=self.logger,
+        )
 
         self.logger.info(
-            'Updated observation tables for {} with {} images.'.format(
-                date, quads))
+            "Updated observation tables for {} with {} images.".format(date, quads)
+        )
 
     def verify_database(self):
         """Verify database tables, triggers, etc."""
-        super().verify_database(names=schema.zchecker_names,
-                                script=schema.schema)
+        super().verify_database(names=schema.zchecker_names, script=schema.schema)
