@@ -1,6 +1,7 @@
 # Licensed under a 3-clause BSD style license - see LICENSE.rst
 import re
 import os
+import logging
 from collections import OrderedDict
 
 import numpy as np
@@ -43,6 +44,8 @@ class ZChecker(SBSearch):
         self.config = Config(**kwargs) if config is None else config
         super().__init__(config=config, save_log=save_log,
                          disable_log=disable_log, **kwargs)
+        if not disable_log:
+            level = logging.INFO
 
     def check_pccp(self, start=None, stop=None, download=None):
         """Search for today's objects on the MPC's PCCP.
