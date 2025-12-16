@@ -1,5 +1,6 @@
 # Licensed under a 3-clause BSD style license - see LICENSE.rst
 import os
+from time import monotonic
 from contextlib import contextmanager
 from subprocess import CalledProcessError
 from .exceptions import DownloadError
@@ -15,8 +16,11 @@ def query(params, auth, logger=None):
     r = requests.get(
         'https://irsa.ipac.caltech.edu/ibe/search/ztf/products/sci',
         auth=(auth['user'], auth['password']),
-        params=params)
+        params=params,
+        timeout=90)
 
+    r.raise_for_status()
+    
     if logger:
         logger.debug(r.url)
 
