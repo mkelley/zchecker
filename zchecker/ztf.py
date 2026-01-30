@@ -17,7 +17,7 @@ def query(params, auth, logger=None):
         'https://irsa.ipac.caltech.edu/ibe/search/ztf/products/sci',
         auth=(auth['user'], auth['password']),
         params=params,
-        timeout=90)
+        timeout=200)
 
     r.raise_for_status()
     
