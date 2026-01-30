@@ -622,4 +622,4 @@ except Exception as e:
         raise(e)
     else:
         print(str(e))
-        sys.exit()
+        sys.exit(1)
