@@ -681,7 +681,8 @@ foundid IN (SELECT foundid FROM ztf_found WHERE objid IN ({}))
 
             if date is not None:
                 # just remeasure this date
-                constraints.append(util.date_constraints(date, date, 'obsjd'))
+                stop = (Time(date) + 1 * u.day).iso[:10]
+                constraints.append(util.date_constraints(date, stop, 'obsjd'))
 
             cmd, parameters = util.assemble_sql('DELETE FROM ztf_phot',
                                                 [], constraints)
@@ -703,7 +704,8 @@ foundid IN (SELECT foundid FROM ztf_found WHERE objid IN ({}))
             constraints.append(('objid IN ({})'.format(q), objids))
 
         if date:
-            constraints.extend(util.date_constraints(date, date, 'obsjd'))
+            stop = (Time(date) + 1 * u.day).iso[:10]
+            constraints.extend(util.date_constraints(date, stop, 'obsjd'))
 
         cmd, parameters = util.assemble_sql(cmd, [], constraints)
 
