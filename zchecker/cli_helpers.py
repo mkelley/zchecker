@@ -42,7 +42,7 @@ def args2orbit(args):
 
     orbit = Orbit.from_dict(
         {
-            "H": 5,
+            "H": 5 * u.mag,
             "G": 0.15,
             "q": args.q * u.au,
             "e": args.e,
