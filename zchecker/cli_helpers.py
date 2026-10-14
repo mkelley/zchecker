@@ -29,7 +29,7 @@ def as_time(date):
     return Time(date)
 
 
-def args2orbit(args):
+def args2orbit(args, timescale):
     try:
         Tp = float(args.Tp)
     except ValueError:
@@ -49,9 +49,9 @@ def args2orbit(args):
             "incl": args.i * u.deg,
             "Omega": args.node * u.deg,
             "w": args.argperi * u.deg,
-            "Tp_jd": epochs_to_time([Tp], scale="tt").jd * u.day,
+            "Tp": epochs_to_time([Tp], scale=timescale),
+            "epoch": epochs_to_time([epoch], scale=timescale),
+            "orbittype": ["COM"],
         }
     )
-    orbit["orbittype"] = ["COM"]
-    orbit["epoch"] = epochs_to_time([epoch], scale="tt")
     return orbit

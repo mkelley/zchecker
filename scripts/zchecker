@@ -41,8 +41,8 @@ def add_orbital_elements(parser):
     group.add_argument(
         "--node", "--Omega", "-W", type=float, help="longitude of the ascending node"
     )
-    group.add_argument("--Tp", "--tp", help="perihelion epoch, TT")
-    group.add_argument("--epoch", help="epoch of the elements")
+    group.add_argument("--Tp", "--tp", help="perihelion epoch, TDB")
+    group.add_argument("--epoch", help="epoch of the elements, TDB")
     return parser
 
 
@@ -160,7 +160,7 @@ def one_shot(args):
     with ZChecker(config, save_log=False) as z:
         try:
             if args.source == "orbit":
-                orbit = args2orbit(args)
+                orbit = args2orbit(args, "tdb")
 
                 if args.cutouts:
                     download = "cutouts"
